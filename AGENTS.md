@@ -173,7 +173,7 @@ Permanent workflow path:
 
 `.github/workflows/pdf-tunner-windows-portable.yml`
 
-Normal final state should be manual `workflow_dispatch`. During the active bootstrap/fix loop, a **temporary `push` trigger restricted to `pdf-tunner/windows-portable-v1`** is allowed because the available GitHub connector cannot dispatch a manual workflow. Remove that branch-scoped push trigger before the change reaches `main`.
+Normal final state should be manual `workflow_dispatch`. During the active bootstrap/fix loop, **temporary automatic triggers** are allowed: `push` is restricted to `pdf-tunner/windows-portable-v1`, and `pull_request` targets `main` so the draft PR exposes workflow runs/logs through the connected GitHub tooling. Both automatic triggers are diagnostic/bootstrap infrastructure and must be removed before the change reaches `main`.
 
 Baseline sequence:
 
@@ -274,4 +274,5 @@ Unless a PDF_Tunner rule above overrides them:
 - Added pre-Tauri Windows portable environment redirection activated by `PDF_TUNNER_PORTABLE`.
 - Added PDF_Tunner Tauri config/branding overlay.
 - Added Windows portable build, backend-health, shutdown, ZIP and SHA-256 validation workflow.
-- Temporarily enabled a push trigger limited to the development branch because the connected GitHub API does not expose manual workflow dispatch; this trigger must be removed before merge to `main`.
+- Temporarily enabled a push trigger limited to the development branch because the connected GitHub API does not expose manual workflow dispatch.
+- Temporarily enabled a `pull_request` trigger targeting `main` so PR-synchronized runs can be inspected through the connected GitHub tooling; both automatic triggers must be removed before merge to `main`.

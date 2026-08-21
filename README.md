@@ -76,7 +76,7 @@ The upstream fat toolchain also confirms use of `unpaper`, `pngquant`, LibreOffi
 
 Workflow: `.github/workflows/pdf-tunner-windows-portable.yml`.
 
-During active development it has both `workflow_dispatch` and a **temporary `push` trigger restricted to `pdf-tunner/windows-portable-v1`** so the autonomous build/fix loop can run without manual UI interaction. The branch-scoped push trigger must be removed before the final change reaches `main`.
+During active development it has `workflow_dispatch` plus **temporary `push` and `pull_request` triggers**. `push` is restricted to `pdf-tunner/windows-portable-v1`; `pull_request` targets `main` so the draft PR can expose workflow runs/logs through the connected GitHub tooling. Both automatic triggers are bootstrap-only and must be removed before the final change reaches `main`.
 
 Bootstrap validation currently targets:
 
