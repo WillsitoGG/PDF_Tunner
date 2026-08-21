@@ -91,6 +91,8 @@ Bootstrap validation currently targets:
 - clean ZIP generation;
 - SHA-256 generation.
 
+If the real packaged-startup smoke test fails, CI preserves a short-lived `PDF_Tunner-startup-diagnostics` artifact containing the package-local `data/` tree/logs, portable file inventory and relevant process snapshot. This is diagnostic-only and is not a Release asset.
+
 The next validation layers will exercise every external dependency and representative end-to-end Stirling operation before any final Release is published.
 
 ## Upstream synchronization

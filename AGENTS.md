@@ -187,10 +187,13 @@ Baseline sequence:
 8. launch the assembled executable;
 9. find the actual backend port from package-local logs;
 10. request `/api/v1/info/status`;
-11. request normal app shutdown and check for portable child-process leftovers;
-12. clean runtime data from the distribution;
-13. create ZIP + SHA-256;
-14. upload only a short-lived CI artifact while the build remains bootstrap/non-release.
+11. on packaged-startup failure, preserve package-local logs/data, file inventory and a relevant process snapshot as the short-lived `PDF_Tunner-startup-diagnostics` CI artifact;
+12. request normal app shutdown and check for portable child-process leftovers;
+13. clean runtime data from the distribution;
+14. create ZIP + SHA-256;
+15. upload only a short-lived CI artifact while the build remains bootstrap/non-release.
+
+Startup diagnostics are implementation-branch evidence only. They must not become Release assets or permanent repository build output.
 
 Temporary diagnostic output is acceptable on the implementation branch but must not remain as permanent noise in `main`.
 
@@ -276,3 +279,5 @@ Unless a PDF_Tunner rule above overrides them:
 - Added Windows portable build, backend-health, shutdown, ZIP and SHA-256 validation workflow.
 - Temporarily enabled a push trigger limited to the development branch because the connected GitHub API does not expose manual workflow dispatch.
 - Temporarily enabled a `pull_request` trigger targeting `main` so PR-synchronized runs can be inspected through the connected GitHub tooling; both automatic triggers must be removed before merge to `main`.
+- First CI execution passed Tauri/Cargo tests, production EXE build, portable assembly and bundled JRE 25 validation, then failed at packaged backend startup detection.
+- Added failure-only startup diagnostics so the next run preserves package-local logs/data, portable inventory and process state for root-cause analysis.

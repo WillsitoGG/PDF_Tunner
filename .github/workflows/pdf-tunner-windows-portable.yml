@@ -197,6 +197,43 @@ jobs:
             throw 'Portable child processes remained after PDF_Tunner exit.'
           }
 
+      - name: Collect portable startup diagnostics
+        if: failure()
+        shell: pwsh
+        run: |
+          $diagnostics = Join-Path $PWD 'dist/startup-diagnostics'
+          New-Item -ItemType Directory -Force -Path $diagnostics | Out-Null
+
+          $portable = Join-Path $PWD 'dist/PDF_Tunner'
+          if (Test-Path -LiteralPath $portable) {
+            Get-ChildItem -LiteralPath $portable -Recurse -Force -ErrorAction SilentlyContinue |
+              Select-Object FullName, Length, LastWriteTime |
+              Format-Table -AutoSize |
+              Out-String -Width 4096 |
+              Set-Content -LiteralPath (Join-Path $diagnostics 'portable-tree.txt') -Encoding utf8
+          }
+
+          $data = Join-Path $portable 'data'
+          if (Test-Path -LiteralPath $data) {
+            Copy-Item -LiteralPath $data -Destination (Join-Path $diagnostics 'data') -Recurse -Force
+          }
+
+          Get-CimInstance Win32_Process |
+            Where-Object { $_.Name -match 'PDF_Tunner|java' -or ($_.CommandLine -and $_.CommandLine -match 'PDF_Tunner|Stirling') } |
+            Select-Object ProcessId, ParentProcessId, Name, ExecutablePath, CommandLine |
+            Format-List |
+            Out-String -Width 4096 |
+            Set-Content -LiteralPath (Join-Path $diagnostics 'processes.txt') -Encoding utf8
+
+      - name: Upload portable startup diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v7.0.1
+        with:
+          name: PDF_Tunner-startup-diagnostics
+          path: dist/startup-diagnostics
+          if-no-files-found: error
+          retention-days: 7
+
       - name: Clean runtime data and verify portable layout
         shell: pwsh
         run: |
