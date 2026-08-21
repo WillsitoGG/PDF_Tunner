@@ -34,7 +34,7 @@ Portable mode is explicit: it activates when a file named `PDF_TUNNER_PORTABLE` 
 
 The first packaged-startup CI diagnostics showed that globally replacing Windows profile variables (`APPDATA`, `LOCALAPPDATA`, `PROGRAMDATA`, `USERPROFILE`, `HOME`, `TEMP` and `TMP`) before Tauri initialization caused the executable to terminate before Tauri setup/backend logging began. Portable mode therefore uses a narrower boundary: it sets `PDF_TUNNER_PORTABLE_ROOT`, and Stirling's centralized `app_data_dir()` redirects backend configuration, logs and working state to package-local `data/` without rewriting the Windows profile seen by native Tauri/WebView2 infrastructure. Portable system provisioning is likewise resolved under `data/provisioning/`.
 
-Bundled tool directories are prepended to `PATH` only when present, packaged Tesseract data is exposed through `TESSDATA_PREFIX` when available, and Calibre configuration is pointed at `data/calibre/`. Runtime deep-link protocol registration is skipped in portable mode to avoid writing the `pdf-tunner://` handler into the host OS registry.
+The Tauri-side `add_log()` path is also explicitly redirected to `data/logs/` in portable mode, preventing creation of `%APPDATA%\Stirling-PDF\logs`. Bundled tool directories are prepended to `PATH` only when present, packaged Tesseract data is exposed through `TESSDATA_PREFIX` when available, and Calibre configuration is pointed at `data/calibre/`. Runtime deep-link protocol registration is skipped in portable mode to avoid writing the `pdf-tunner://` handler into the host OS registry.
 
 This refinement deliberately does **not** yet claim that every Tauri/WebView2 cache is package-contained; host-side shell/cache behavior will be audited explicitly after the packaged startup is green. The goal remains to minimize host pollution without destabilizing the native shell.
 
@@ -97,7 +97,7 @@ Bootstrap validation currently targets:
 
 If the real packaged-startup smoke test fails, CI preserves a short-lived `PDF_Tunner-startup-diagnostics` artifact containing the package-local `data/` tree/logs, portable file inventory and relevant process snapshot. This is diagnostic-only and is not a Release asset.
 
-The second diagnostic run confirmed that the production EXE, portable layout and JRE were valid but the process exited before any Tauri/backend log was emitted. The current portability refinement removes pre-Tauri Windows-profile hijacking and will be revalidated by the same smoke test before external-tool integration continues.
+The second diagnostic run confirmed that the production EXE, portable layout and JRE were valid but the process exited before any Tauri/backend log was emitted. The current portability refinement removes pre-Tauri Windows-profile hijacking and redirects both backend and Tauri-owned logging to the package before external-tool integration continues.
 
 The next validation layers will exercise every external dependency and representative end-to-end Stirling operation before any final Release is published.
 

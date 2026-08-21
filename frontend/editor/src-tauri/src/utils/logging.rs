@@ -9,6 +9,11 @@ static BACKEND_LOGS: Mutex<VecDeque<String>> = Mutex::new(VecDeque::new());
 
 // Get platform-specific log directory
 fn get_log_directory() -> PathBuf {
+    // Portable mode owns its logs and must not create %APPDATA%\Stirling-PDF.
+    if std::env::var_os("PDF_TUNNER_PORTABLE_ROOT").is_some() {
+        return super::paths::app_data_dir().join("logs");
+    }
+
     if cfg!(target_os = "macos") {
         // macOS: ~/Library/Logs/Stirling-PDF
         let home = std::env::var("HOME").unwrap_or_else(|_| "/tmp".to_string());

@@ -83,6 +83,7 @@ The portable boundary is now component-specific:
 - `PDF_TUNNER_PORTABLE_ROOT` -> executable directory;
 - `utils::app_data_dir()` -> `<portable root>/data`, which localizes Stirling backend config, logs and working state;
 - `utils::system_provisioning_dir()` -> `<portable root>/data/provisioning`;
+- Tauri-side `add_log()` -> `<portable root>/data/logs/tauri-backend.log`, avoiding `%APPDATA%\Stirling-PDF\logs`;
 - `CALIBRE_CONFIG_DIRECTORY` -> `<portable root>/data/calibre`;
 - packaged tool directories are prepended to `PATH` only when they exist;
 - `TESSDATA_PREFIX` is set only when packaged Tesseract data exists;
@@ -284,3 +285,4 @@ Unless a PDF_Tunner rule above overrides them:
 - Diagnostic run #5 confirmed `PDF_Tunner.exe` creates the portable data tree and then exits before Tauri setup or Java/backend logging, isolating the failure ahead of the backend.
 - Replaced global pre-Tauri Windows-profile environment hijacking with targeted Stirling-owned path redirection through `utils::app_data_dir()` and package-local provisioning.
 - Disabled runtime deep-link protocol registration in portable mode to avoid deliberate host-registry integration.
+- Redirected Stirling's Tauri-side `add_log()` output to package-local `data/logs` in portable mode so startup logging itself does not leak to host `%APPDATA%`.
