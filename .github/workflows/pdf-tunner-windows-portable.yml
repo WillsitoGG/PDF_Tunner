@@ -2,6 +2,9 @@ name: PDF_Tunner Windows Portable
 
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - pdf-tunner/windows-portable-v1
 
 permissions:
   contents: read

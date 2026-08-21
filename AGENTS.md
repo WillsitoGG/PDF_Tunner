@@ -1,106 +1,96 @@
 # AGENTS.md
 
-This file is the permanent technical context and operating contract for **PDF_Tunner**. It overrides generic repository-cleanup conventions when those conventions would make this fork harder to compare or synchronize with Stirling upstream.
+Permanent technical context and operating contract for **PDF_Tunner**. These rules override generic cleanup conventions when those conventions would make the Stirling fork harder to compare or synchronize upstream.
 
-## 1. Project identity and objective
+## Project identity
 
-PDF_Tunner is not a wrapper repository. It is the real GitHub fork `WillsitoGG/PDF_Tunner` of `Stirling-Tools/Stirling-PDF`.
+PDF_Tunner is the real GitHub fork `WillsitoGG/PDF_Tunner` of `Stirling-Tools/Stirling-PDF`, not a wrapper repository.
 
-Target distribution:
+Target:
 
 - Windows 10/11 x64;
 - portable ZIP: extract and run;
-- application name: `PDF_Tunner`;
-- preserve Stirling functionality except functionality specifically belonging to Enterprise/SaaS offerings;
+- application/binary name `PDF_Tunner`;
+- retain Stirling functionality except functionality specifically belonging to Enterprise/SaaS offerings;
 - bundle required runtimes and external conversion/OCR tools whenever technically viable;
-- keep configuration, caches, logs, temporary files and runtime state within the portable directory as far as the underlying Windows APIs allow;
-- remain straightforward to compare and update from upstream.
+- keep configuration, caches, logs, temporary files and runtime state inside the portable tree as far as the underlying Windows APIs allow;
+- remain straightforward to diff/rebase/update from upstream.
 
-## 2. Pinned starting point
+## Pinned starting point
 
-Initial upstream base:
+- Upstream: `Stirling-Tools/Stirling-PDF`
+- Version: `2.14.3`
+- Initial commit: `7fb29d002dbb8fa4b5945d1d1fe8dd164a9f7632`
+- Java: 25
+- Development branch: `pdf-tunner/windows-portable-v1`
 
-- repository: `Stirling-Tools/Stirling-PDF`;
-- version: `2.14.3`;
-- commit: `7fb29d002dbb8fa4b5945d1d1fe8dd164a9f7632`;
-- Java toolchain/runtime: JDK/JRE 25;
-- initial PDF_Tunner implementation branch: `pdf-tunner/windows-portable-v1`.
+Record any future upstream update here and in README before treating it as the new base.
 
-Always record a new upstream version and commit here before incorporating a future upstream update.
+## Mandatory repository rules
 
-## 3. Non-negotiable repository rules
+1. Preserve Stirling's root structure. Do not reorganize this fork into generic root-level `Archive/`, `Source/` or `Validation/` trees.
+2. Keep `main` clean: no build outputs, logs, abandoned experiments, one-shot triggers or temporary scripts.
+3. Prefer small, localized downstream deltas.
+4. Preserve upstream behavior unless the user explicitly requests removal or the functionality is specifically outside the PDF_Tunner target.
+5. Compilation alone is never validation. Test the assembled portable application and relevant operations.
+6. Never archive failed/intermediate builds as history.
+7. Preserve historical git tags; only final published packages count as release history.
+8. SHA-256/provenance belongs in repository validation records rather than miscellaneous Release assets unless a final packaging decision says otherwise.
+9. **Every PDF_Tunner-specific change must modify both `README.md` and `AGENTS.md` in the same commit.**
+10. Do not make licensing the center of technical work. Mention it only when it creates a concrete implementation/distribution constraint.
 
-1. Preserve Stirling's upstream root structure. Do **not** reorganize the fork into generic root-level `Archive/`, `Source/` or `Validation/` trees.
-2. `main` must remain clean and understandable. No committed build outputs, logs, temporary experiments, one-shot triggers or abandoned scripts.
-3. Prefer small, localized downstream deltas over broad rewrites.
-4. Never remove upstream functionality unless the user explicitly requests it or the functionality is specifically excluded from the PDF_Tunner target.
-5. Do not claim a feature works because it compiles. Validate the final packaged executable and the relevant endpoint/conversion.
-6. Failed/intermediate builds are never release history.
-7. Keep historical git tags. Only final, actually published packages qualify for release history.
-8. SHA-256/provenance belongs in the repository/validation record, not as miscellaneous Release assets unless a packaging decision explicitly requires otherwise.
-9. **Every PDF_Tunner-specific change must update both `README.md` and `AGENTS.md` in the same commit.** This includes workflows, scripts, source code, packaging, dependency versions, validation behavior and release decisions.
-10. Do not repeatedly turn licensing into the center of technical work. Mention a license only when it creates a concrete technical/distribution constraint.
+## Architecture decision
 
-## 4. Architecture decision
+Use Stirling's own Tauri desktop under `frontend/editor/src-tauri`.
 
-Use Stirling's own Tauri desktop implementation under `frontend/editor/src-tauri` as the PDF_Tunner desktop shell.
+Do not restore the old `PDF_Tunner_Legacy` architecture in which a separate .NET WinForms/WebView2 launcher started a Stirling JAR. The legacy repository is reference material only.
 
-Do not restore the old architecture in `WillsitoGG/PDF_Tunner_Legacy`, where a separate .NET WinForms/WebView2 executable launched a Stirling JAR. The legacy repository is reference material only.
+Useful legacy ideas retained:
 
-Useful ideas retained from the legacy project:
-
-- profile/data redirection into the portable directory;
-- bundled Java runtime;
-- loopback-only local backend;
-- backend readiness validation;
+- portable profile/data redirection;
+- bundled Java;
+- loopback-only backend;
+- readiness checks;
 - process-tree cleanup;
-- ZIP + SHA-256 validation;
-- explicit dependency/version tests;
-- keeping the Windows package self-contained.
+- reproducible ZIP + SHA-256;
+- explicit dependency/version checks.
 
-The current Stirling desktop already supplies superior native implementations for backend lifecycle, Tauri WebView, single-instance behavior, file opening, drag/drop, dynamic backend port discovery and shutdown. Keep those upstream mechanisms unless there is a demonstrated portable-specific defect.
+Current upstream Tauri already owns single-instance handling, file opening, drag/drop, WebView lifecycle, dynamic backend-port discovery and backend cleanup. Preserve those mechanisms unless a portable-specific defect is demonstrated.
 
-## 5. Desktop/JRE implementation facts
+## Desktop/JRE facts
 
-Upstream `.taskfiles/desktop.yml` is the source of truth for the desktop build.
+`.taskfiles/desktop.yml` is the authoritative desktop build path. At the pinned base it:
 
-At the initial base it:
-
-- builds the backend boot JAR for desktop;
-- bundles only host-appropriate JPDFium natives;
-- constructs a Java 25 runtime via JLink;
-- explicitly includes `jdk.dynalink` because VeraPDF requires it;
+- builds the desktop backend boot JAR;
+- bundles host-appropriate JPDFium natives;
+- builds a Java 25 JRE with JLink;
+- includes `jdk.dynalink` for VeraPDF;
 - includes `jdk.crypto.mscapi` on Windows;
-- copies the JAR to `frontend/editor/src-tauri/libs`;
-- copies the JLink runtime to `frontend/editor/src-tauri/runtime/jre`;
-- runs Tauri/Cargo tests through `task desktop:test`.
+- stages the JAR in `frontend/editor/src-tauri/libs`;
+- stages the JRE in `frontend/editor/src-tauri/runtime/jre`;
+- exposes Tauri/Cargo tests via `task desktop:test`.
 
-The official desktop task currently builds with `DISABLE_ADDITIONAL_FEATURES=true`. Treat the distinction between core/proprietary/SaaS as a feature-partition question and verify it from source before changing flavor. Do not assume that changing flavor is necessary merely to obtain OCR/conversion tools: those tool families live in the core backend and are independently disabled when dependencies are absent.
+The official desktop task currently sets `DISABLE_ADDITIONAL_FEATURES=true`. Treat core/proprietary/SaaS as a source-backed feature-partition question. Do not change flavor merely to obtain OCR/conversion functions: the external-tool families below are checked by core and disabled separately when their dependencies are absent.
 
-## 6. Portable mode design
+## Portable mode
 
-PDF_Tunner portable mode is activated by a marker file named:
+Portable mode is enabled by marker file `PDF_TUNNER_PORTABLE` beside the executable.
 
-`PDF_TUNNER_PORTABLE`
+`frontend/editor/src-tauri/src/main.rs` performs environment redirection **before** Tauri initializes. This is intentionally early so Tauri plugins and every child process inherit package-local locations.
 
-placed next to `PDF_Tunner.exe`.
+Portable environment redirects include:
 
-Before Tauri initializes, PDF_Tunner redirects Windows process environment locations into the package-local `data/` tree. This matters because Tauri plugins, Java, Python, LibreOffice, Calibre and other child processes can otherwise inherit host profile/temp locations.
+- `APPDATA` -> `data/appdata/Roaming`;
+- `LOCALAPPDATA` -> `data/appdata/Local`;
+- `PROGRAMDATA` -> `data/programdata`;
+- `USERPROFILE` and `HOME` -> `data/home`;
+- `TEMP` and `TMP` -> `data/temp`;
+- `XDG_CACHE_HOME` -> `data/cache`;
+- `PDF_TUNNER_PORTABLE_ROOT` -> executable directory.
 
-Portable environment targets include:
+When packaged tool directories exist, they are prepended to `PATH`. `TESSDATA_PREFIX` is set only when packaged Tesseract data exists. Calibre config is redirected to package-local data.
 
-- `APPDATA`;
-- `LOCALAPPDATA`;
-- `PROGRAMDATA`;
-- `USERPROFILE`;
-- `HOME`;
-- `TEMP`;
-- `TMP`;
-- PDF_Tunner's own portable-root marker/environment value.
-
-Bundled tool directories are prepended to `PATH` only when present. Tool-specific environment variables such as `TESSDATA_PREFIX` are set only when their packaged resources exist.
-
-Intended package layout:
+Intended layout:
 
 ```text
 PDF_Tunner/
@@ -112,182 +102,176 @@ PDF_Tunner/
   data/
 ```
 
-Do not commit `data/` runtime contents.
+Never commit generated `data/` contents.
 
-## 7. External dependency source of truth
+## Branding/config
 
-Do not build dependency lists from memory. At Stirling 2.14.3 the primary source-of-truth files are:
+Prefer additive downstream config over rewriting upstream config wholesale. Current overlay:
+
+`frontend/editor/src-tauri/tauri.pdf-tunner.conf.json`
+
+It supplies PDF_Tunner product/binary/window identity and prevents the downstream executable from following Stirling's upstream updater endpoint. Until PDF_Tunner has its own signed updater metadata, in-app updating is not considered an available feature.
+
+## External dependency source of truth
+
+Do not invent dependency lists. For Stirling 2.14.3 inspect at least:
 
 - `app/core/src/main/java/stirling/software/SPDF/config/ExternalAppDepConfig.java`;
 - `app/common/src/main/java/stirling/software/common/configuration/RuntimePathConfig.java`;
 - `docker/base/Dockerfile`;
-- relevant controller/service code for each tool.
+- the controller/service code of the feature being validated.
 
-`ExternalAppDepConfig` probes the following and disables feature groups when required dependencies are missing:
+Direct runtime probes from `ExternalAppDepConfig`:
 
-| Capability | Runtime command/check |
+| Feature group | Runtime probe |
 | --- | --- |
 | Ghostscript | `gs` |
 | OCRmyPDF | `ocrmypdf` |
 | LibreOffice | `soffice` |
 | WeasyPrint | `weasyprint` (minimum 58) |
-| Poppler HTML conversion | `pdftohtml` |
+| Poppler/PDF HTML | `pdftohtml` |
 | UNO conversion | `unoconvert` |
-| QPDF | `qpdf` (minimum 12) |
+| qpdf | `qpdf` (minimum 12) |
 | Tesseract | `tesseract` |
-| real CBR/RAR output | `rar` |
+| CBR/RAR | `rar` |
 | Calibre | `ebook-convert` |
 | ImageMagick | `magick` |
 | Python | `python3` or `python` |
 | OpenCV | Python `import cv2` |
 
-The fat Docker base additionally installs/uses or stages:
+The upstream fat Docker base also confirms active installation/use of Calibre, Ghostscript, QPDF, ImageMagick, Poppler, `unpaper`, `pngquant`, LibreOffice, Tesseract languages + OSD, Python, WeasyPrint, `pdf2image`, OpenCV headless, OCRmyPDF, `unoserver`/Unoconvert infrastructure and conversion fonts.
 
-- Calibre;
-- Ghostscript;
-- QPDF;
-- ImageMagick;
-- Poppler;
-- `unpaper`;
-- `pngquant`;
-- LibreOffice;
-- Tesseract language data + OSD;
-- Python;
-- WeasyPrint;
-- `pdf2image`;
-- OpenCV headless;
-- OCRmyPDF;
-- `unoserver`/Unoconvert infrastructure;
-- fonts required by document conversion.
+For every Windows tool added later, document exact version, download/source, layout and validation here and in README.
 
-When adding a Windows binary/runtime, record its exact version, source and package layout here and in `README.md`.
+## Windows toolchain strategy
 
-## 8. Windows toolchain strategy
+Use `tools/` with one clear subdirectory per upstream tool. Do not dump unrelated DLLs into repository or portable root.
 
-The final portable distribution should prefer deterministic, unpackable Windows builds over installers and machine-wide configuration.
+Expected PATH candidates currently include:
 
-Expected tool root is `tools/`. Keep each upstream tool in a clearly named subdirectory rather than dumping unrelated DLLs into the PDF_Tunner root. Add only required executable directories to `PATH`.
+- `tools/bin`;
+- `tools/python` and `tools/python/Scripts`;
+- `tools/libreoffice/program`;
+- `tools/tesseract`;
+- `tools/ghostscript/bin`;
+- `tools/qpdf/bin`;
+- `tools/poppler/Library/bin`;
+- `tools/imagemagick`;
+- `tools/calibre`;
+- `tools/pngquant`;
+- `tools/unpaper`;
+- `tools/rar`;
+- `tools/jbig2enc`.
 
-For tools whose Windows command differs from Stirling's expected command (for example Ghostscript commonly exposes `gswin64c.exe` while Stirling probes `gs`), provide a deterministic local shim/alias in the portable package and test the exact command that Stirling probes.
+If a Windows executable name differs from what Stirling probes (e.g. Ghostscript commonly ships `gswin64c.exe` while Stirling checks `gs`), provide a deterministic package-local shim/alias and test the exact Stirling probe name.
 
-Do not rely on software preinstalled on the GitHub Actions Windows runner. Validation must explicitly resolve commands from the assembled PDF_Tunner package.
+CI must prove the assembled package resolves its own binaries. Do not count software already installed on the GitHub-hosted runner.
 
-## 9. Build workflow
+## Build workflow
 
-Permanent Windows portable workflow:
+Permanent workflow path:
 
 `.github/workflows/pdf-tunner-windows-portable.yml`
 
-During stabilization it is manual (`workflow_dispatch`). It must build from this fork, not checkout a second upstream source tree as the legacy project did.
+Normal final state should be manual `workflow_dispatch`. During the active bootstrap/fix loop, a **temporary `push` trigger restricted to `pdf-tunner/windows-portable-v1`** is allowed because the available GitHub connector cannot dispatch a manual workflow. Remove that branch-scoped push trigger before the change reaches `main`.
 
-Baseline build sequence:
+Baseline sequence:
 
-1. checkout the fork branch;
-2. verify the documented upstream base is an ancestor;
-3. install Node 22, Rust stable, Java 25 and Task;
-4. run Stirling's official `task desktop:prepare` for `windows-x64`;
+1. checkout this fork;
+2. verify pinned upstream commit is an ancestor;
+3. setup Node 22, Rust stable, Java 25 and Task;
+4. run `task desktop:prepare` with Windows x64 JPDFium;
 5. run `task desktop:test`;
-6. build Tauri using the PDF_Tunner config overlay;
-7. assemble an unpacked portable directory with the executable, JRE, backend JAR, marker and bundled tools;
-8. validate the assembled directory;
-9. generate one portable ZIP and its SHA-256 for CI validation;
-10. publish a GitHub Release only after the package reaches release-ready status.
+6. build Tauri with `tauri.pdf-tunner.conf.json` and no installer;
+7. assemble `PDF_Tunner.exe`, `libs/`, `runtime/jre/`, marker and empty `data/`;
+8. launch the assembled executable;
+9. find the actual backend port from package-local logs;
+10. request `/api/v1/info/status`;
+11. request normal app shutdown and check for portable child-process leftovers;
+12. clean runtime data from the distribution;
+13. create ZIP + SHA-256;
+14. upload only a short-lived CI artifact while the build remains bootstrap/non-release.
 
-Temporary diagnostic steps may exist on the implementation branch but must be removed or converted into permanent validation before merge/release.
+Temporary diagnostic output is acceptable on the implementation branch but must not remain as permanent noise in `main`.
 
-## 10. Validation standard
+## Final validation target
 
-The final validation suite must cover, where automation is technically possible:
+Before a final Release, automate where technically possible:
 
-- executable startup;
-- backend startup and dynamic port detection;
-- `/api/v1/info/status`;
+- PDF_Tunner startup;
+- backend startup and health endpoint;
 - bundled JRE version;
-- dependency command resolution and versions;
+- dependency path/version checks from the portable tree;
 - Tesseract OCR + OSD/languages;
 - OCRmyPDF end-to-end;
 - LibreOffice -> PDF;
-- PDF -> supported Office formats where Stirling exposes it;
+- PDF -> supported Office formats where Stirling exposes them;
 - WeasyPrint;
 - HTML/URL -> PDF;
-- Calibre/EPUB conversions;
+- Calibre/EPUB;
 - qpdf;
 - Ghostscript;
 - Poppler/pdftohtml;
-- Python + OpenCV + NumPy where required by installed Python packages;
+- Python + OpenCV + NumPy where required;
 - ImageMagick;
-- `pngquant` and `unpaper` when exercised by Stirling functionality;
-- RAR/CBR when a technically redistributable/viable Windows implementation is available;
+- `pngquant` and `unpaper` when exercised;
+- RAR/CBR if a technically viable packaged Windows implementation is established;
 - jbig2enc if integrated;
-- representative end-to-end API calls for every major Stirling functional family;
-- portable path containment;
-- clean Java/child-process shutdown;
-- absence of accidental dependency on runner-installed tools;
-- final ZIP integrity;
+- representative end-to-end API tests across Stirling functional families;
+- path containment under portable root;
+- child-process cleanup;
+- no accidental dependency on runner-installed tools;
+- clean final ZIP;
 - SHA-256.
 
-Distinguish automated CI validation from tests that the user must perform manually on a real Windows 10/11 PC.
+Clearly distinguish CI validation from manual tests that must be performed by the user on real Windows 10/11 hardware.
 
-## 11. Branding
+## Upstream synchronization
 
-Branding target is `PDF_Tunner` for:
+For each future Stirling update:
 
-- Tauri product/window/binary name;
-- interface name where configurable without breaking upstream architecture;
-- icons/logos where appropriate;
-- portable ZIP and Releases.
+1. inspect the new upstream version/commit;
+2. compare PDF_Tunner delta against it;
+3. update through a dedicated branch;
+4. resolve only real conflicts;
+5. re-audit desktop/external-tool behavior if relevant upstream files changed;
+6. rerun the complete portable validation suite;
+7. update README and AGENTS with the new base and decisions.
 
-Prefer an additive Tauri config overlay such as `frontend/editor/src-tauri/tauri.pdf-tunner.conf.json` over rewriting the upstream Tauri config wholesale.
+Do not recreate the application from scratch.
 
-Never leave the updater pointed at Stirling upstream in a way that could replace PDF_Tunner with an official Stirling binary. Until PDF_Tunner has its own signed updater metadata, treat in-app self-update as unavailable rather than silently consuming upstream releases.
-
-## 12. Upstream synchronization
-
-For a future Stirling update:
-
-1. fetch/inspect the new upstream version and exact commit;
-2. compare the PDF_Tunner delta with the new upstream;
-3. update the fork through a dedicated branch;
-4. resolve only real downstream conflicts;
-5. re-audit dependency/path behavior if upstream touched external-tool, desktop/Tauri, packaging or configuration code;
-6. rerun the complete Windows portable validation suite;
-7. update both README and this file with the new base and relevant decisions.
-
-Do not reconstruct the fork from scratch for each update.
-
-## 13. Release/versioning rules
+## Versioning/releases
 
 - Keep the upstream Stirling version visible.
-- Do not invent unnecessary application versions.
-- Add a PDF_Tunner tuning revision only when a real downstream revision exists.
-- Before a final Release, verify exact ZIP SHA-256 and provenance.
-- Only final published packages enter historical release tracking.
-- When a final revision replaces an older final revision: validate/publish the new one first, record and verify the previous package/hash, remove the previous Release listing, retain its git tag, and clean temporary build infrastructure.
+- Do not invent unnecessary versions.
+- Add PDF_Tunner revision suffixes only for real downstream revisions.
+- No final Release exists yet for this real-fork implementation.
+- Before publication, verify ZIP SHA-256 and provenance.
+- Only final published packages enter historical tracking.
+- When one final revision replaces another: validate/publish new first, verify/archive prior exact package/hash as applicable, remove old Release listing, keep its git tag, then clean temporary workflows/scripts/outputs.
 
-No final Release exists yet for this new real-fork implementation.
+## Upstream coding conventions retained
 
-## 14. Upstream development conventions retained
+Unless a PDF_Tunner rule above overrides them:
 
-This fork still follows Stirling's development conventions unless a PDF_Tunner rule above explicitly overrides them:
+- use Task from repo root;
+- run the relevant quality gate for changed code;
+- Java is JDK 25 / Spring Boot 4.x / Jackson 3: inspect current imports/source instead of relying on older patterns;
+- frontend is Vite + React + TypeScript and normal imports use `@app/*` so layer shadowing remains intact;
+- file state flows through `FileContext`;
+- preserve backend cleanup and single-instance behavior;
+- consult root `DeveloperGuide.md`, `frontend/editor/DeveloperGuide.md`, `ADDING_TOOLS.md` and current source for implementation details.
 
-- use Task from repository root (`task --list`);
-- run the relevant quality gate for the area changed;
-- Java: JDK 25 / Spring Boot 4.x / Jackson 3 — inspect current repository imports before coding;
-- frontend: Vite + React + TypeScript; normal imports use `@app/*` so build-layer shadowing continues to work;
-- all frontend file state goes through `FileContext`;
-- preserve Tauri backend cleanup and single-instance behavior;
-- use `frontend/editor/DeveloperGuide.md`, root `DeveloperGuide.md`, `ADDING_TOOLS.md` and current source as authoritative implementation guidance.
+## PDF_Tunner changelog
 
-The upstream AGENTS file at the pinned base can be consulted through `Stirling-Tools/Stirling-PDF` if more detailed upstream-only guidance is needed.
+### 2026-08-21 — bootstrap v1 work
 
-## 15. PDF_Tunner changelog
-
-### Bootstrap v1 work — 2026-08-21
-
-- Confirmed `WillsitoGG/PDF_Tunner` is a real GitHub fork of `Stirling-Tools/Stirling-PDF`.
-- Confirmed fork `main` initially matched upstream exactly at `7fb29d002dbb8fa4b5945d1d1fe8dd164a9f7632` / Stirling 2.14.3.
-- Located legacy reference repository `WillsitoGG/PDF_Tunner_Legacy`.
-- Chose Stirling's official Tauri desktop architecture instead of restoring the legacy C# wrapper.
-- Audited official JLink/JRE 25 desktop behavior and the first external dependency inventory.
-- Started branch `pdf-tunner/windows-portable-v1`.
-- Added the PDF_Tunner portable-environment bootstrap, Tauri branding/config overlay and manual Windows portable build/validation workflow in the same documented change.
+- Confirmed `WillsitoGG/PDF_Tunner` is a real fork and its initial `main` matched Stirling exactly at `7fb29d0`, version 2.14.3.
+- Located `WillsitoGG/PDF_Tunner_Legacy` and audited its launcher/workflow as reference material.
+- Chose Stirling's official Tauri desktop + JLink Java 25 architecture instead of the legacy C# wrapper.
+- Audited the first source-backed external dependency inventory.
+- Created branch `pdf-tunner/windows-portable-v1`.
+- Added pre-Tauri Windows portable environment redirection activated by `PDF_TUNNER_PORTABLE`.
+- Added PDF_Tunner Tauri config/branding overlay.
+- Added Windows portable build, backend-health, shutdown, ZIP and SHA-256 validation workflow.
+- Temporarily enabled a push trigger limited to the development branch because the connected GitHub API does not expose manual workflow dispatch; this trigger must be removed before merge to `main`.
