@@ -1,0 +1,236 @@
+name: PDF_Tunner Windows Portable
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  PDF_TUNNER_UPSTREAM_VERSION: "2.14.3"
+  PDF_TUNNER_UPSTREAM_COMMIT: "7fb29d002dbb8fa4b5945d1d1fe8dd164a9f7632"
+  CI: "true"
+
+jobs:
+  windows-portable:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout fork
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 0
+
+      - name: Verify documented upstream base
+        shell: pwsh
+        run: |
+          & git merge-base --is-ancestor $env:PDF_TUNNER_UPSTREAM_COMMIT HEAD
+          if ($LASTEXITCODE -ne 0) {
+            throw "Documented upstream base $env:PDF_TUNNER_UPSTREAM_COMMIT is not an ancestor of HEAD."
+          }
+          Write-Host "PDF_Tunner HEAD: $(& git rev-parse HEAD)"
+          Write-Host "Pinned upstream: $env:PDF_TUNNER_UPSTREAM_VERSION / $env:PDF_TUNNER_UPSTREAM_COMMIT"
+
+      - name: Setup Node.js 22
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@4be9e76fd7c4901c61fb841f559994984270fce7 # stable
+        with:
+          toolchain: stable
+
+      - name: Setup JDK 25
+        uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5.7.0
+        with:
+          distribution: temurin
+          java-version: "25"
+          cache: gradle
+
+      - name: Setup Task
+        uses: go-task/setup-task@01a4adf9db2d14c1de7a560f09170b6e0df736aa # v2.1.0
+
+      - name: Prepare official Stirling desktop build
+        shell: pwsh
+        env:
+          DISABLE_ADDITIONAL_FEATURES: "true"
+          JPDFIUM_PLATFORMS: "windows-x64"
+        run: task desktop:prepare
+
+      - name: Run official Tauri/Cargo tests
+        shell: pwsh
+        run: task desktop:test
+
+      - name: Build PDF_Tunner Tauri executable without installer
+        shell: pwsh
+        working-directory: frontend/editor
+        run: npx tauri build --no-bundle --config src-tauri/tauri.pdf-tunner.conf.json
+
+      - name: Assemble portable bootstrap
+        shell: pwsh
+        run: |
+          $target = Resolve-Path './frontend/editor/src-tauri/target/release'
+          $exe = Get-ChildItem -LiteralPath $target -Recurse -File -Filter 'PDF_Tunner.exe' | Select-Object -First 1
+          if (-not $exe) {
+            $exe = Get-ChildItem -LiteralPath $target -Recurse -File -Filter 'stirling-pdf.exe' | Select-Object -First 1
+          }
+          if (-not $exe) {
+            Write-Host 'Candidate executables:'
+            Get-ChildItem -LiteralPath $target -Recurse -File -Filter '*.exe' | ForEach-Object { Write-Host $_.FullName }
+            throw 'Tauri executable was not produced.'
+          }
+
+          $portable = Join-Path $PWD 'dist/PDF_Tunner'
+          Remove-Item -LiteralPath $portable -Recurse -Force -ErrorAction SilentlyContinue
+          New-Item -ItemType Directory -Force -Path $portable | Out-Null
+          New-Item -ItemType Directory -Force -Path (Join-Path $portable 'data') | Out-Null
+
+          Copy-Item -LiteralPath $exe.FullName -Destination (Join-Path $portable 'PDF_Tunner.exe') -Force
+          Copy-Item -LiteralPath './frontend/editor/src-tauri/libs' -Destination (Join-Path $portable 'libs') -Recurse -Force
+          Copy-Item -LiteralPath './frontend/editor/src-tauri/runtime' -Destination (Join-Path $portable 'runtime') -Recurse -Force
+
+          New-Item -ItemType File -Force -Path (Join-Path $portable 'PDF_TUNNER_PORTABLE') | Out-Null
+          Set-Content -LiteralPath (Join-Path $portable 'UPSTREAM_BASE.txt') -Encoding ascii -Value @(
+            "Stirling-PDF $env:PDF_TUNNER_UPSTREAM_VERSION",
+            $env:PDF_TUNNER_UPSTREAM_COMMIT
+          )
+
+          Write-Host "Portable root: $portable"
+          Write-Host "Executable source: $($exe.FullName)"
+          Get-ChildItem -LiteralPath $portable -Force | Format-Table Name, Length, Mode
+
+      - name: Validate bundled Java runtime
+        shell: pwsh
+        run: |
+          $java = Resolve-Path './dist/PDF_Tunner/runtime/jre/bin/java.exe'
+          & $java -version
+          if ($LASTEXITCODE -ne 0) { throw 'Bundled JRE failed java -version.' }
+          $release = Get-Content './dist/PDF_Tunner/runtime/jre/release' -Raw
+          if ($release -notmatch 'JAVA_VERSION="25') {
+            throw 'Bundled JRE release metadata does not report Java 25.'
+          }
+
+      - name: Start PDF_Tunner and validate real backend
+        shell: pwsh
+        run: |
+          $portable = (Resolve-Path './dist/PDF_Tunner').Path
+          $exe = Join-Path $portable 'PDF_Tunner.exe'
+          $marker = Join-Path $portable 'PDF_TUNNER_PORTABLE'
+          if (-not (Test-Path -LiteralPath $marker -PathType Leaf)) { throw 'Portable marker is missing.' }
+
+          $hostLeak = Join-Path $env:APPDATA 'Stirling-PDF'
+          $hostLeakExisted = Test-Path -LiteralPath $hostLeak
+
+          $process = Start-Process -FilePath $exe -WorkingDirectory $portable -PassThru
+          Write-Host "Started PDF_Tunner PID $($process.Id)"
+
+          $deadline = (Get-Date).AddSeconds(150)
+          $port = $null
+          $matchedLog = $null
+
+          while ((Get-Date) -lt $deadline -and -not $port) {
+            Start-Sleep -Seconds 2
+            $logs = Get-ChildItem -LiteralPath (Join-Path $portable 'data') -Recurse -File -Filter '*.log' -ErrorAction SilentlyContinue
+            foreach ($log in $logs) {
+              $match = Select-String -LiteralPath $log.FullName -Pattern 'running on port:\s*(\d+)' -AllMatches -ErrorAction SilentlyContinue | Select-Object -Last 1
+              if ($match -and $match.Matches.Count -gt 0) {
+                $port = [int]$match.Matches[0].Groups[1].Value
+                $matchedLog = $log.FullName
+                break
+              }
+            }
+            if ($process.HasExited) { break }
+          }
+
+          if (-not $port) {
+            Write-Host 'Portable data tree:'
+            Get-ChildItem -LiteralPath (Join-Path $portable 'data') -Recurse -Force -ErrorAction SilentlyContinue | ForEach-Object { Write-Host $_.FullName }
+            Write-Host 'Available log tails:'
+            Get-ChildItem -LiteralPath (Join-Path $portable 'data') -Recurse -File -Filter '*.log' -ErrorAction SilentlyContinue | ForEach-Object {
+              Write-Host "--- $($_.FullName) ---"
+              Get-Content -LiteralPath $_.FullName -Tail 120 -ErrorAction SilentlyContinue
+            }
+            if (-not $process.HasExited) { Stop-Process -Id $process.Id -Force -ErrorAction SilentlyContinue }
+            throw 'Backend startup port was not detected from package-local logs.'
+          }
+
+          Write-Host "Backend detected on port $port via $matchedLog"
+          $statusUri = "http://127.0.0.1:$port/api/v1/info/status"
+          $response = Invoke-WebRequest -Uri $statusUri -UseBasicParsing -TimeoutSec 30
+          if ($response.StatusCode -ne 200) {
+            throw "Backend health endpoint returned HTTP $($response.StatusCode)."
+          }
+          Write-Host "Backend health check OK: $statusUri"
+
+          if (-not $hostLeakExisted -and (Test-Path -LiteralPath $hostLeak)) {
+            throw "Portable startup leaked runtime state into host APPDATA: $hostLeak"
+          }
+
+          $portableDataItems = @(Get-ChildItem -LiteralPath (Join-Path $portable 'data') -Recurse -Force -ErrorAction SilentlyContinue)
+          if ($portableDataItems.Count -eq 0) {
+            throw 'Portable startup did not create any package-local runtime data.'
+          }
+
+          $closed = $process.CloseMainWindow()
+          Write-Host "CloseMainWindow returned: $closed"
+          if (-not $process.WaitForExit(20000)) {
+            Stop-Process -Id $process.Id -Force -ErrorAction SilentlyContinue
+            throw 'PDF_Tunner did not close within 20 seconds after requesting window close.'
+          }
+
+          Start-Sleep -Seconds 3
+          $escapedRoot = [Regex]::Escape($portable)
+          $leftovers = @(Get-CimInstance Win32_Process | Where-Object {
+            $_.CommandLine -and $_.CommandLine -match $escapedRoot
+          })
+          if ($leftovers.Count -gt 0) {
+            $leftovers | Select-Object ProcessId, Name, CommandLine | Format-List
+            throw 'Portable child processes remained after PDF_Tunner exit.'
+          }
+
+      - name: Clean runtime data and verify portable layout
+        shell: pwsh
+        run: |
+          $portable = (Resolve-Path './dist/PDF_Tunner').Path
+          $data = Join-Path $portable 'data'
+          Remove-Item -LiteralPath $data -Recurse -Force -ErrorAction Stop
+          New-Item -ItemType Directory -Force -Path $data | Out-Null
+
+          $required = @(
+            'PDF_Tunner.exe',
+            'PDF_TUNNER_PORTABLE',
+            'UPSTREAM_BASE.txt',
+            'libs',
+            'runtime/jre/bin/java.exe',
+            'data'
+          )
+          foreach ($relative in $required) {
+            $path = Join-Path $portable $relative
+            if (-not (Test-Path -LiteralPath $path)) { throw "Portable layout missing: $relative" }
+          }
+
+      - name: Create portable ZIP and SHA-256
+        id: package
+        shell: pwsh
+        run: |
+          $name = "PDF_Tunner-$env:PDF_TUNNER_UPSTREAM_VERSION-bootstrap-Windows-x64-Portable.zip"
+          $zip = Join-Path $PWD "dist/$name"
+          Remove-Item -LiteralPath $zip -Force -ErrorAction SilentlyContinue
+          Compress-Archive -Path './dist/PDF_Tunner/*' -DestinationPath $zip -CompressionLevel Optimal
+          $hash = Get-FileHash -LiteralPath $zip -Algorithm SHA256
+          "$($hash.Hash)  $name" | Set-Content -LiteralPath "$zip.sha256" -Encoding ascii
+          Write-Host "SHA-256: $($hash.Hash)"
+          "zip=$name" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+
+      - name: Upload validated bootstrap artifact
+        uses: actions/upload-artifact@v7.0.1
+        with:
+          name: PDF_Tunner-Windows-x64-Portable-bootstrap
+          path: |
+            dist/${{ steps.package.outputs.zip }}
+            dist/${{ steps.package.outputs.zip }}.sha256
+          if-no-files-found: error
+          retention-days: 7

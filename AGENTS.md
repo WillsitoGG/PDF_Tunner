@@ -1,511 +1,293 @@
 # AGENTS.md
 
-This file provides guidance to AI Agents when working with code in this repository.
+This file is the permanent technical context and operating contract for **PDF_Tunner**. It overrides generic repository-cleanup conventions when those conventions would make this fork harder to compare or synchronize with Stirling upstream.
 
-## Taskfile (Recommended)
+## 1. Project identity and objective
 
-This project uses [Task](https://taskfile.dev/) as a unified command runner. All build, dev, test, lint, and docker commands can be run from the repo root via `task <command>`. Run `task --list` to see all available commands.
+PDF_Tunner is not a wrapper repository. It is the real GitHub fork `WillsitoGG/PDF_Tunner` of `Stirling-Tools/Stirling-PDF`.
 
-Task `desc:` fields should describe **what** the task does, not **how** it does it. Keep them generic and stable: don't reference implementation details like aliases, internal helpers, mode flags, or which other task delegates to which. The description is for users picking a command from `task --list`, not a changelog of refactors.
+Target distribution:
 
-### Quick Reference
-- `task install` — install all dependencies
-- `task dev` — start backend + frontend concurrently
-- `task dev:all` — start backend + frontend + engine concurrently
-- `task build` — build all components
-- `task test` — run all tests (backend + frontend + engine)
-- `task lint` — run all linters
-- `task format` — auto-fix formatting across all components
-- `task check` — full quality gate (lint + typecheck + test)
-- `task clean` — clean all build artifacts
-- `task docker:build` — build standard Docker image
-- `task docker:up` — start Docker compose stack
+- Windows 10/11 x64;
+- portable ZIP: extract and run;
+- application name: `PDF_Tunner`;
+- preserve Stirling functionality except functionality specifically belonging to Enterprise/SaaS offerings;
+- bundle required runtimes and external conversion/OCR tools whenever technically viable;
+- keep configuration, caches, logs, temporary files and runtime state within the portable directory as far as the underlying Windows APIs allow;
+- remain straightforward to compare and update from upstream.
 
-## Common Development Commands
+## 2. Pinned starting point
 
-### Build and Test
-- **Build project**: `task build`
-- **Run backend locally**: `task backend:dev`
-- **Run all tests**: `task test` (or individually: `task backend:test`, `task frontend:test`, `task engine:test`)
-- **Docker integration tests**: `./test.sh` (builds all Docker variants and runs comprehensive tests)
-- **Code formatting**: `task format` (or `task backend:format` for Java only)
-- **Full quality gate**: `task check` (runs lint + typecheck + test across all components)
+Initial upstream base:
 
-After modifying any files in the project, you must run the relevant `task check` command that covers that area of the code. For example, when editing frontend files run `task frontend:check`; for Python engine files run `task engine:check`; for Java backend files run `task backend:check`.
+- repository: `Stirling-Tools/Stirling-PDF`;
+- version: `2.14.3`;
+- commit: `7fb29d002dbb8fa4b5945d1d1fe8dd164a9f7632`;
+- Java toolchain/runtime: JDK/JRE 25;
+- initial PDF_Tunner implementation branch: `pdf-tunner/windows-portable-v1`.
 
-### Docker Development
-- **Build standard**: `task docker:build` (or `docker build -t stirling-pdf -f docker/embedded/Dockerfile .`)
-- **Build fat version**: `task docker:build:fat`
-- **Build ultra-lite**: `task docker:build:ultra-lite`
-- **Start compose stack**: `task docker:up` (or `task docker:up:fat`, `task docker:up:ultra-lite`)
-- **Stop compose stack**: `task docker:down`
-- **View logs**: `task docker:logs`
-- **Example compose files**: Located in `exampleYmlFiles/` directory
+Always record a new upstream version and commit here before incorporating a future upstream update.
 
-### Security Mode Development
-Set `DOCKER_ENABLE_SECURITY=true` environment variable to enable security features during development. This is required for testing the full version locally.
+## 3. Non-negotiable repository rules
 
-### Python Development (AI Engine)
+1. Preserve Stirling's upstream root structure. Do **not** reorganize the fork into generic root-level `Archive/`, `Source/` or `Validation/` trees.
+2. `main` must remain clean and understandable. No committed build outputs, logs, temporary experiments, one-shot triggers or abandoned scripts.
+3. Prefer small, localized downstream deltas over broad rewrites.
+4. Never remove upstream functionality unless the user explicitly requests it or the functionality is specifically excluded from the PDF_Tunner target.
+5. Do not claim a feature works because it compiles. Validate the final packaged executable and the relevant endpoint/conversion.
+6. Failed/intermediate builds are never release history.
+7. Keep historical git tags. Only final, actually published packages qualify for release history.
+8. SHA-256/provenance belongs in the repository/validation record, not as miscellaneous Release assets unless a packaging decision explicitly requires otherwise.
+9. **Every PDF_Tunner-specific change must update both `README.md` and `AGENTS.md` in the same commit.** This includes workflows, scripts, source code, packaging, dependency versions, validation behavior and release decisions.
+10. Do not repeatedly turn licensing into the center of technical work. Mention a license only when it creates a concrete technical/distribution constraint.
 
-The engine is a Python reasoning service for Stirling: it plans and interprets work, but it does not own durable state, and it does not execute Stirling PDF operations directly. Keep the service narrow: typed contracts in, typed contracts out, with AI only where it adds reasoning value. The frontend calls the Python engine via Java as a proxy.
+## 4. Architecture decision
 
-#### Python Commands
-All engine commands run from the repo root using Task:
-- `task engine:check` — run all checks (typecheck + lint + format-check + test)
-- `task engine:fix` — auto-fix lint + formatting
-- `task engine:install` — install Python dependencies via uv
-- `task engine:dev` — start FastAPI with hot reload (localhost:5001)
-- `task engine:test` — run pytest
-- `task engine:lint` — run ruff linting
-- `task engine:typecheck` — run pyright
-- `task engine:format` — format code with ruff
-- `task engine:tool-models` — generate `tool_models.py` from the Java OpenAPI spec
+Use Stirling's own Tauri desktop implementation under `frontend/editor/src-tauri` as the PDF_Tunner desktop shell.
 
-The project structure is defined in `engine/pyproject.toml`. Any new dependencies should be listed there, followed by running `task engine:install`.
+Do not restore the old architecture in `WillsitoGG/PDF_Tunner_Legacy`, where a separate .NET WinForms/WebView2 executable launched a Stirling JAR. The legacy repository is reference material only.
 
-#### Python Code Style
-- Keep `task engine:check` passing.
-- Use modern Python when it improves clarity.
-- Prefer explicit names to cleverness.
-- Avoid nested functions and nested classes unless the language construct requires them.
-- Prefer composition to inheritance when combining concepts.
-- Avoid speculative abstractions. Add a layer only when it removes real duplication or clarifies lifecycle.
-- Add comments sparingly and only when they explain non-obvious intent.
+Useful ideas retained from the legacy project:
 
-#### Python Typing and Models
-- Deserialize into Pydantic models as early as possible.
-- Serialize from Pydantic models as late as possible.
-- Do not pass raw `dict[str, Any]` or `dict[str, object]` across important boundaries when a typed model can exist instead.
-- Avoid `Any` wherever possible.
-- Avoid `cast()` wherever possible (reconsider the structure first).
-- All shared models should subclass `stirling.models.ApiModel` so the service behaves consistently.
-- Do not use string literals for any type annotations, including `cast()`.
+- profile/data redirection into the portable directory;
+- bundled Java runtime;
+- loopback-only local backend;
+- backend readiness validation;
+- process-tree cleanup;
+- ZIP + SHA-256 validation;
+- explicit dependency/version tests;
+- keeping the Windows package self-contained.
 
-#### Python Configuration
-- Keep application-owned configuration in `stirling.config`.
-- Only add `STIRLING_*` environment variables that the engine itself truly owns.
-- Do not mirror third-party provider environment variables unless the engine is actually interpreting them.
-- Let `pydantic-ai` own provider authentication configuration when possible.
+The current Stirling desktop already supplies superior native implementations for backend lifecycle, Tauri WebView, single-instance behavior, file opening, drag/drop, dynamic backend port discovery and shutdown. Keep those upstream mechanisms unless there is a demonstrated portable-specific defect.
 
-#### Python Architecture
+## 5. Desktop/JRE implementation facts
 
-**Package roles:**
-- `stirling.contracts`: request/response models and shared typed workflow contracts. If a shape crosses a module or service boundary, it probably belongs here.
-- `stirling.models`: shared model primitives and generated tool models.
-- `stirling.agents`: reasoning modules for individual capabilities.
-- `stirling.api`: HTTP layer, dependency access, and app startup wiring.
-- `stirling.services`: shared runtime and non-AI infrastructure.
-- `stirling.config`: application-owned settings.
+Upstream `.taskfiles/desktop.yml` is the source of truth for the desktop build.
 
-**Source of truth:**
-- `stirling.models.tool_models` is the source of truth for operation IDs and parameter models.
-- Do not duplicate operation lists if they can be derived from `tool_models.OPERATIONS`.
-- Do not hand-maintain parallel parameter schemas when the generated tool models already define them.
-- If a tool ID must match a parameter model, validate that relationship explicitly in code.
+At the initial base it:
 
-**Boundaries:**
-- Keep the API layer thin. Route modules should bind requests, resolve dependencies, and call agents or services. They should not contain business logic.
-- Keep agents focused on one reasoning domain. They should not own FastAPI routing, persistence, or execution of Stirling operations.
-- Build long-lived runtime objects centrally at startup when possible rather than reconstructing heavy AI objects per request.
-- If an agent delegates to another agent, the delegated agent should remain the source of truth for its own domain output.
+- builds the backend boot JAR for desktop;
+- bundles only host-appropriate JPDFium natives;
+- constructs a Java 25 runtime via JLink;
+- explicitly includes `jdk.dynalink` because VeraPDF requires it;
+- includes `jdk.crypto.mscapi` on Windows;
+- copies the JAR to `frontend/editor/src-tauri/libs`;
+- copies the JLink runtime to `frontend/editor/src-tauri/runtime/jre`;
+- runs Tauri/Cargo tests through `task desktop:test`.
 
-#### Python AI Usage
-- The system must work with any AI, including self-hosted models. We require that the models support structured outputs, but should minimise model-specific code beyond that.
-- Use AI for reasoning-heavy outputs, not deterministic glue.
-- Do not ask the model to invent data that Python can derive safely.
-- Do not fabricate fallback user-facing copy in code to hide incomplete model output.
-- AI output schemas should be impossible to instantiate incorrectly.
-  - Do not require the model to keep separate structures in sync. For example, instead of generating two lists which must be the same length, generate one list of a model containing the same data.
-  - Prefer Python to derive deterministic follow-up structure from a valid AI result.
-- Use `NativeOutput(...)` for structured model outputs.
-- Use `ToolOutput(...)` when the model should select and call delegate functions.
+The official desktop task currently builds with `DISABLE_ADDITIONAL_FEATURES=true`. Treat the distinction between core/proprietary/SaaS as a feature-partition question and verify it from source before changing flavor. Do not assume that changing flavor is necessary merely to obtain OCR/conversion tools: those tool families live in the core backend and are independently disabled when dependencies are absent.
 
-#### Python Testing
-- Test contracts directly.
-- Test agents directly where behaviour matters.
-- Test API routes as thin integration points.
-- Prefer dependency overrides or startup-state seams to monkeypatching random globals.
+## 6. Portable mode design
 
-### Frontend Development
-- **Frontend dev server**: `task frontend:dev` — requires backend on localhost:8080
-- **Tech Stack**: Vite + React + TypeScript + Mantine UI + TailwindCSS
-- **Proxy Configuration**: Vite proxies `/api/*` calls to backend (localhost:8080)
-- **Build Process**: DO NOT run build scripts manually - builds are handled by CI/CD pipelines
-- **Package Installation**: `task frontend:install`
-- **Deployment Options**:
-  - **Desktop App**: `task desktop:build`
-  - **Web Server**: `task frontend:build` then serve dist/ folder
-  - **Development**: `task desktop:dev` for desktop dev mode
+PDF_Tunner portable mode is activated by a marker file named:
 
-#### Environment Variables
-- All `VITE_*` variables must be declared in the appropriate committed env file:
-  - `frontend/editor/.env` — core and shared vars (base, loaded in every mode)
-  - `frontend/editor/.env.proprietary` — proprietary-only vars, e.g. the admin portal's SaaS/account-link keys (layered on top of `.env` in proprietary mode)
-  - `frontend/editor/.env.saas` — SaaS-only vars (layered on top of `.env` in SaaS mode)
-  - `frontend/editor/.env.desktop` — desktop (Tauri)-only vars (layered on top of `.env` in desktop mode)
-- These files are committed to Git and must not contain private keys
-- Local overrides (API keys, machine-specific settings) go in uncommitted sibling `.env.local` / `.env.saas.local` / `.env.desktop.local` files — Vite automatically layers them on top
-- Never use `|| 'hardcoded-fallback'` inline — put defaults in the committed env files
-- `task frontend:prepare` creates empty `.local` override files on first run; pass `MODE=saas` or `MODE=desktop` to also create the mode-specific `.local` file
-- Prepare runs automatically as a dependency of all `dev*`, `build*`, and `desktop*` tasks
-- See `frontend/README.md#environment-variables` for full documentation
+`PDF_TUNNER_PORTABLE`
 
-#### Import Paths - CRITICAL
-**ALWAYS use `@app/*` for imports.** Do not use `@core/*` or `@proprietary/*` unless explicitly wrapping/extending a lower layer implementation.
+placed next to `PDF_Tunner.exe`.
 
-For a broader explanation of the frontend layering and override architecture, read @frontend/editor/DeveloperGuide.md
+Before Tauri initializes, PDF_Tunner redirects Windows process environment locations into the package-local `data/` tree. This matters because Tauri plugins, Java, Python, LibreOffice, Calibre and other child processes can otherwise inherit host profile/temp locations.
 
-Before touching colours or theming (tokens, dark mode, accent colours), read @frontend/editor/src/core/theme/README.md — it explains the palette/`--c-*` token system and the rule that literal colours live only in `primitives.css`.
+Portable environment targets include:
 
-```typescript
-// ✅ CORRECT - Use @app/* for all imports
-import { AppLayout } from "@app/components/AppLayout";
-import { useFileContext } from "@app/contexts/FileContext";
-import { FileContext } from "@app/contexts/FileContext";
+- `APPDATA`;
+- `LOCALAPPDATA`;
+- `PROGRAMDATA`;
+- `USERPROFILE`;
+- `HOME`;
+- `TEMP`;
+- `TMP`;
+- PDF_Tunner's own portable-root marker/environment value.
 
-// ❌ WRONG - Do not use @core/* or @proprietary/* in normal code
-import { AppLayout } from "@core/components/AppLayout";
-import { useFileContext } from "@proprietary/contexts/FileContext";
+Bundled tool directories are prepended to `PATH` only when present. Tool-specific environment variables such as `TESSDATA_PREFIX` are set only when their packaged resources exist.
+
+Intended package layout:
+
+```text
+PDF_Tunner/
+  PDF_Tunner.exe
+  PDF_TUNNER_PORTABLE
+  libs/
+  runtime/jre/
+  tools/
+  data/
 ```
 
-**Only use explicit aliases when:**
-- Building layer-specific override that wraps a lower layer's component
-- Example: `import { AppProviders as CoreAppProviders } from "@core/components/AppProviders"` when creating proprietary/AppProviders.tsx that extends the core version
+Do not commit `data/` runtime contents.
 
-The `@app/*` alias automatically resolves to the correct layer based on build target (core/proprietary/saas/desktop/cloud) and handles the fallback cascade — see "Frontend `cloud/` Layer" below for the full per-flavor order.
+## 7. External dependency source of truth
 
-#### Frontend `cloud/` Layer
+Do not build dependency lists from memory. At Stirling 2.14.3 the primary source-of-truth files are:
 
-`@app/*` resolves through a per-flavor cascade — first existing file wins (shadow/override):
+- `app/core/src/main/java/stirling/software/SPDF/config/ExternalAppDepConfig.java`;
+- `app/common/src/main/java/stirling/software/common/configuration/RuntimePathConfig.java`;
+- `docker/base/Dockerfile`;
+- relevant controller/service code for each tool.
 
-- **core** → core
-- **proprietary** → proprietary → core
-- **saas** → saas → cloud → proprietary → core
-- **desktop** → desktop → cloud → proprietary → core
-- **cloud** → cloud → proprietary → core
+`ExternalAppDepConfig` probes the following and disables feature groups when required dependencies are missing:
 
-What goes where:
+| Capability | Runtime command/check |
+| --- | --- |
+| Ghostscript | `gs` |
+| OCRmyPDF | `ocrmypdf` |
+| LibreOffice | `soffice` |
+| WeasyPrint | `weasyprint` (minimum 58) |
+| Poppler HTML conversion | `pdftohtml` |
+| UNO conversion | `unoconvert` |
+| QPDF | `qpdf` (minimum 12) |
+| Tesseract | `tesseract` |
+| real CBR/RAR output | `rar` |
+| Calibre | `ebook-convert` |
+| ImageMagick | `magick` |
+| Python | `python3` or `python` |
+| OpenCV | Python `import cv2` |
 
-- **core** — OSS base.
-- **proprietary** — licensed / offline features.
-- **cloud** — the SHARED hosted/SaaS experience used by BOTH saas + desktop: PAYG, wallet, plan, billing, usage meters, cloud config/team/onboarding.
-- **saas** — web-only: Supabase web auth, AuthCallback, avatar canvas, `window.location`.
-- **desktop** — Tauri-only: keyring authService, tauriHttpClient, native files/windows, backend routing.
+The fat Docker base additionally installs/uses or stages:
 
-`cloud/` MUST NOT import `@supabase/*`, `@tauri-apps/*`, raw `fetch`, `window.location`, `localStorage`, `sessionStorage`, or `import.meta.env.VITE_*` (all enforced by the linter). It reaches platform-specific things only via `@app/*` seams: `services/apiClient`, `auth/session.getAccessToken`, `auth/supabase`, `platform/openExternal`, `services/billing`, `hooks/useSaaSMode` — each provided per-platform in `saas/` and `desktop/`.
+- Calibre;
+- Ghostscript;
+- QPDF;
+- ImageMagick;
+- Poppler;
+- `unpaper`;
+- `pngquant`;
+- LibreOffice;
+- Tesseract language data + OSD;
+- Python;
+- WeasyPrint;
+- `pdf2image`;
+- OpenCV headless;
+- OCRmyPDF;
+- `unoserver`/Unoconvert infrastructure;
+- fonts required by document conversion.
 
-Rule of thumb — **move, don't copy**: share via `cloud/`, override by shadowing the same `@app/*` path in a leaf (`saas/` or `desktop/`).
+When adding a Windows binary/runtime, record its exact version, source and package layout here and in `README.md`.
 
-**Cloud feature flags on desktop.** The local `AppConfigContext` reads `/api/v1/config/app-config` from the LOCAL bundled backend, so cloud-only flags (`aiEngineEnabled`, `premiumEnabled`, …) are never seen on desktop. To read the cloud's view, use `useSaasAppConfig()` (`desktop/hooks/useSaasAppConfig.ts`, backed by the general `saasAppConfigService` — SaaS-mode-only, public endpoint, native HTTP, 5-min cache). It returns `null` outside SaaS mode, so cloud features stay off in local/self-hosted and the server keeps the on/off switch (no desktop release needed to flip a flag). Gate a feature behind a per-platform seam — e.g. `useAiEngineEnabled()` (core reads `useAppConfig()`, desktop reads `useSaasAppConfig()`) — rather than hardcoding the flag on.
+## 8. Windows toolchain strategy
 
-#### Component Override Pattern (Stub/Shadow)
-Use this pattern for desktop-specific or proprietary-specific features WITHOUT runtime checks or conditionals.
+The final portable distribution should prefer deterministic, unpackable Windows builds over installers and machine-wide configuration.
 
-**How it works:**
-1. Core defines stub component (returns null or no-op)
-2. Desktop/proprietary overrides with same path/name
-3. Core imports via `@app/*` - higher layer "shadows" core in those builds
-4. No `@ts-ignore`, no `isTauri()` checks, no runtime conditionals!
+Expected tool root is `tools/`. Keep each upstream tool in a clearly named subdirectory rather than dumping unrelated DLLs into the PDF_Tunner root. Add only required executable directories to `PATH`.
 
-**Example - Desktop-specific footer:**
+For tools whose Windows command differs from Stirling's expected command (for example Ghostscript commonly exposes `gswin64c.exe` while Stirling probes `gs`), provide a deterministic local shim/alias in the portable package and test the exact command that Stirling probes.
 
-```typescript
-// core/components/workbenchBar/WorkbenchBarFooterExtensions.tsx (stub)
-interface WorkbenchBarFooterExtensionsProps {
-  className?: string;
-}
+Do not rely on software preinstalled on the GitHub Actions Windows runner. Validation must explicitly resolve commands from the assembled PDF_Tunner package.
 
-export function WorkbenchBarFooterExtensions(_props: WorkbenchBarFooterExtensionsProps) {
-  return null; // Stub - does nothing in web builds
-}
-```
+## 9. Build workflow
 
-```tsx
-// desktop/components/workbenchBar/WorkbenchBarFooterExtensions.tsx (real implementation)
-import { Box } from '@mantine/core';
-import { BackendHealthIndicator } from '@app/components/BackendHealthIndicator';
+Permanent Windows portable workflow:
 
-interface WorkbenchBarFooterExtensionsProps {
-  className?: string;
-}
+`.github/workflows/pdf-tunner-windows-portable.yml`
 
-export function WorkbenchBarFooterExtensions({ className }: WorkbenchBarFooterExtensionsProps) {
-  return (
-    <Box className={className}>
-      <BackendHealthIndicator />
-    </Box>
-  );
-}
-```
+During stabilization it is manual (`workflow_dispatch`). It must build from this fork, not checkout a second upstream source tree as the legacy project did.
 
-```tsx
-// core/components/shared/WorkbenchBar.tsx (usage - works in ALL builds)
-import { WorkbenchBarFooterExtensions } from '@app/components/workbenchBar/WorkbenchBarFooterExtensions';
+Baseline build sequence:
 
-export function WorkbenchBar() {
-  return (
-    <div>
-      {/* In web builds: renders nothing (stub returns null) */}
-      {/* In desktop builds: renders BackendHealthIndicator */}
-      <WorkbenchBarFooterExtensions className="workbench-bar-footer" />
-    </div>
-  );
-}
-```
+1. checkout the fork branch;
+2. verify the documented upstream base is an ancestor;
+3. install Node 22, Rust stable, Java 25 and Task;
+4. run Stirling's official `task desktop:prepare` for `windows-x64`;
+5. run `task desktop:test`;
+6. build Tauri using the PDF_Tunner config overlay;
+7. assemble an unpacked portable directory with the executable, JRE, backend JAR, marker and bundled tools;
+8. validate the assembled directory;
+9. generate one portable ZIP and its SHA-256 for CI validation;
+10. publish a GitHub Release only after the package reaches release-ready status.
 
-**Build resolution:**
-- **Core build**: `@app/*` → `core/*` → Gets stub (returns null)
-- **Desktop build**: `@app/*` → `desktop/*` → Gets real implementation (shadows core)
+Temporary diagnostic steps may exist on the implementation branch but must be removed or converted into permanent validation before merge/release.
 
-**Benefits:**
-- No runtime checks or feature flags
-- Type-safe across all builds
-- Clean, readable code
-- Build-time optimization (dead code elimination)
+## 10. Validation standard
 
-#### Multi-Tool Workflow Architecture
-Frontend designed for **stateful document processing**:
-- Users upload PDFs once, then chain tools (split → merge → compress → view)
-- File state and processing results persist across tool switches
-- No file reloading between tools - performance critical for large PDFs (up to 100GB+)
+The final validation suite must cover, where automation is technically possible:
 
-#### FileContext - Central State Management
-**Location**: `frontend/editor/src/core/contexts/FileContext.tsx`
-- **Active files**: Currently loaded PDFs and their variants
-- **Tool navigation**: Current mode (viewer/pageEditor/fileEditor/toolName)
-- **Memory management**: PDF document cleanup, blob URL lifecycle, Web Worker management
-- **IndexedDB persistence**: File storage with thumbnail caching
-- **Preview system**: Tools can preview results (e.g., Split → Viewer → back to Split) without context pollution
+- executable startup;
+- backend startup and dynamic port detection;
+- `/api/v1/info/status`;
+- bundled JRE version;
+- dependency command resolution and versions;
+- Tesseract OCR + OSD/languages;
+- OCRmyPDF end-to-end;
+- LibreOffice -> PDF;
+- PDF -> supported Office formats where Stirling exposes it;
+- WeasyPrint;
+- HTML/URL -> PDF;
+- Calibre/EPUB conversions;
+- qpdf;
+- Ghostscript;
+- Poppler/pdftohtml;
+- Python + OpenCV + NumPy where required by installed Python packages;
+- ImageMagick;
+- `pngquant` and `unpaper` when exercised by Stirling functionality;
+- RAR/CBR when a technically redistributable/viable Windows implementation is available;
+- jbig2enc if integrated;
+- representative end-to-end API calls for every major Stirling functional family;
+- portable path containment;
+- clean Java/child-process shutdown;
+- absence of accidental dependency on runner-installed tools;
+- final ZIP integrity;
+- SHA-256.
 
-**Critical**: All file operations go through FileContext. Don't bypass with direct file handling.
+Distinguish automated CI validation from tests that the user must perform manually on a real Windows 10/11 PC.
 
-#### Processing Services
-- **enhancedPDFProcessingService**: Background PDF parsing and manipulation
-- **thumbnailGenerationService**: Web Worker-based with main-thread fallback
-- **fileStorage**: IndexedDB with LRU cache management
+## 11. Branding
 
-#### Memory Management Strategy
-**Why manual cleanup exists**: Large PDFs (up to 100GB+) through multiple tools accumulate:
-- PDF.js documents that need explicit .destroy() calls
-- Blob URLs from tool outputs that need revocation
-- Web Workers that need termination
-Without cleanup: browser crashes with memory leaks.
+Branding target is `PDF_Tunner` for:
 
-#### Tool Development
+- Tauri product/window/binary name;
+- interface name where configurable without breaking upstream architecture;
+- icons/logos where appropriate;
+- portable ZIP and Releases.
 
-**Architecture**: Modular hook-based system with clear separation of concerns:
+Prefer an additive Tauri config overlay such as `frontend/editor/src-tauri/tauri.pdf-tunner.conf.json` over rewriting the upstream Tauri config wholesale.
 
-- **useToolOperation** (`frontend/editor/src/core/hooks/tools/shared/useToolOperation.ts`): Main orchestrator hook
-  - Coordinates all tool operations with consistent interface
-  - Integrates with FileContext for operation tracking
-  - Handles validation, error handling, and UI state management
+Never leave the updater pointed at Stirling upstream in a way that could replace PDF_Tunner with an official Stirling binary. Until PDF_Tunner has its own signed updater metadata, treat in-app self-update as unavailable rather than silently consuming upstream releases.
 
-- **Supporting Hooks**:
-  - **useToolState**: UI state management (loading, progress, error, files)
-  - **useToolApiCalls**: HTTP requests and file processing
-  - **useToolResources**: Blob URLs, thumbnails, ZIP downloads
+## 12. Upstream synchronization
 
-- **Utilities**:
-  - **toolErrorHandler**: Standardized error extraction and i18n support
-  - **toolResponseProcessor**: API response handling (single/zip/custom)
-  - **toolOperationTracker**: FileContext integration utilities
+For a future Stirling update:
 
-**Three Tool Patterns**:
+1. fetch/inspect the new upstream version and exact commit;
+2. compare the PDF_Tunner delta with the new upstream;
+3. update the fork through a dedicated branch;
+4. resolve only real downstream conflicts;
+5. re-audit dependency/path behavior if upstream touched external-tool, desktop/Tauri, packaging or configuration code;
+6. rerun the complete Windows portable validation suite;
+7. update both README and this file with the new base and relevant decisions.
 
-**Pattern 1: Single-File Tools** (Individual processing)
-- Backend processes one file per API call
-- Set `multiFileEndpoint: false`
-- Examples: Compress, Rotate
-```typescript
-return useToolOperation({
-  operationType: 'compress',
-  endpoint: '/api/v1/misc/compress-pdf',
-  buildFormData: (params, file: File) => { /* single file */ },
-  multiFileEndpoint: false,
-});
-```
+Do not reconstruct the fork from scratch for each update.
 
-**Pattern 2: Multi-File Tools** (Batch processing)
-- Backend accepts `MultipartFile[]` arrays in single API call
-- Set `multiFileEndpoint: true`
-- Examples: Split, Merge, Overlay
-```typescript
-return useToolOperation({
-  operationType: 'split',
-  endpoint: '/api/v1/general/split-pages',
-  buildFormData: (params, files: File[]) => { /* all files */ },
-  multiFileEndpoint: true,
-  filePrefix: 'split_',
-});
-```
+## 13. Release/versioning rules
 
-**Pattern 3: Complex Tools** (Custom processing)
-- Tools with complex routing logic or non-standard processing
-- Provide `customProcessor` for full control
-- Examples: Convert, OCR
-```typescript
-return useToolOperation({
-  operationType: 'convert',
-  customProcessor: async (params, files) => { /* custom logic */ },
-});
-```
+- Keep the upstream Stirling version visible.
+- Do not invent unnecessary application versions.
+- Add a PDF_Tunner tuning revision only when a real downstream revision exists.
+- Before a final Release, verify exact ZIP SHA-256 and provenance.
+- Only final published packages enter historical release tracking.
+- When a final revision replaces an older final revision: validate/publish the new one first, record and verify the previous package/hash, remove the previous Release listing, retain its git tag, and clean temporary build infrastructure.
 
-**Benefits**:
-- **No Timeouts**: Operations run until completion (supports 100GB+ files)
-- **Consistent**: All tools follow same pattern and interface
-- **Maintainable**: Single responsibility hooks, easy to test and modify
-- **i18n Ready**: Built-in internationalization support
-- **Type Safe**: Full TypeScript support with generic interfaces
-- **Memory Safe**: Automatic resource cleanup and blob URL management
+No final Release exists yet for this new real-fork implementation.
 
-## Architecture Overview
+## 14. Upstream development conventions retained
 
-### Project Structure
-- **Backend**: Spring Boot application
-- **Frontend**: React-based SPA in `/frontend` directory
-  - **File Storage**: IndexedDB for client-side file persistence and thumbnails
-  - **Internationalization**: JSON-based translations (converted from backend .properties)
-- **PDF Processing**: PDFBox for core PDF operations, LibreOffice for conversions, PDF.js for client-side rendering
-- **Security**: Spring Security with optional authentication (controlled by `DOCKER_ENABLE_SECURITY`)
-- **Configuration**: YAML-based configuration with environment variable overrides
+This fork still follows Stirling's development conventions unless a PDF_Tunner rule above explicitly overrides them:
 
-### Controller Architecture
-- **API Controllers** (`src/main/java/.../controller/api/`): REST endpoints for PDF operations
-  - Organized by function: converters, security, misc, pipeline
-  - Follow pattern: `@RestController` + `@RequestMapping("/api/v1/...")`
+- use Task from repository root (`task --list`);
+- run the relevant quality gate for the area changed;
+- Java: JDK 25 / Spring Boot 4.x / Jackson 3 — inspect current repository imports before coding;
+- frontend: Vite + React + TypeScript; normal imports use `@app/*` so build-layer shadowing continues to work;
+- all frontend file state goes through `FileContext`;
+- preserve Tauri backend cleanup and single-instance behavior;
+- use `frontend/editor/DeveloperGuide.md`, root `DeveloperGuide.md`, `ADDING_TOOLS.md` and current source as authoritative implementation guidance.
 
-### Key Components
-- **SPDFApplication.java**: Main application class with desktop UI and browser launching logic
-- **ConfigInitializer**: Handles runtime configuration and settings files
-- **Pipeline System**: Automated PDF processing workflows via `PipelineController`
-- **Security Layer**: Authentication, authorization, and user management (when enabled)
+The upstream AGENTS file at the pinned base can be consulted through `Stirling-Tools/Stirling-PDF` if more detailed upstream-only guidance is needed.
 
-### Frontend Directory Structure
-The frontend is organized with a clear separation of concerns:
+## 15. PDF_Tunner changelog
 
-- **`frontend/editor/src/core/`**: Main application code (shared, production-ready components)
-  - **`core/components/`**: React components organized by feature
-    - `core/components/tools/`: Individual PDF tool implementations
-    - `core/components/viewer/`: PDF viewer components
-    - `core/components/pageEditor/`: Page manipulation UI
-    - `core/components/tooltips/`: Help tooltips for tools
-    - `core/components/shared/`: Reusable UI components
-  - **`core/contexts/`**: React Context providers
-    - `FileContext.tsx`: Central file state management
-    - `file/`: File reducer and selectors
-    - `toolWorkflow/`: Tool workflow state
-  - **`core/hooks/`**: Custom React hooks
-    - `hooks/tools/`: Tool-specific operation hooks (one directory per tool)
-    - `hooks/tools/shared/`: Shared hook utilities (useToolOperation, etc.)
-  - **`core/constants/`**: Application constants and configuration
-  - **`core/data/`**: Static data (tool taxonomy, etc.)
-  - **`core/services/`**: Business logic services (PDF processing, storage, etc.)
+### Bootstrap v1 work — 2026-08-21
 
-- **`frontend/editor/src/desktop/`**: Desktop-specific (Tauri) code
-- **`frontend/editor/src/proprietary/`**: Proprietary/licensed features
-- **`frontend/editor/src-tauri/`**: Tauri (Rust) native desktop application code
-- **`frontend/editor/public/`**: Static assets served directly
-  - `public/locales/`: Translation JSON files
-
-### Component Architecture
-- **Static Assets**: CSS, JS, and resources in `src/main/resources/static/` (legacy) + `frontend/editor/public/` (modern)
-- **Internationalization**:
-  - Backend: `messages_*.properties` files
-  - Frontend: JSON files in `frontend/editor/public/locales/` (converted from .properties)
-  - Conversion Script: `scripts/convert_properties_to_json.py`
-
-### Configuration Modes
-- **Ultra-lite**: Basic PDF operations only
-- **Standard**: Full feature set
-- **Fat**: Pre-downloaded dependencies for air-gapped environments
-- **Security Mode**: Adds authentication, user management, and enterprise features
-
-### Testing Strategy
-- **Integration Tests**: Cucumber tests in `testing/cucumber/`
-- **Docker Testing**: `test.sh` validates all Docker variants
-- **Manual Testing**: No unit tests currently - relies on UI and API testing
-
-## Development Workflow
-
-1. **Local Development** (using Taskfile):
-   - Backend + frontend: `task dev`
-   - All services (including AI engine): `task dev:all`
-   - Or individually: `task backend:dev` (localhost:8080), `task frontend:dev` (localhost:5173), `task engine:dev` (localhost:5001)
-2. **Quality Gate**: Run `task check` before submitting PRs
-3. **Docker Testing**: Use `./test.sh` for full Docker integration tests
-4. **Code Style**: Spotless enforces Google Java Format automatically (`task backend:format`)
-5. **Translations**:
-   - Backend: Use helper scripts in `/scripts` for multi-language updates
-   - Frontend: Update JSON files in `frontend/editor/public/locales/` or use conversion script
-6. **Documentation**: API docs auto-generated and available at `/swagger-ui/index.html`
-
-## Frontend Architecture Status
-
-- **Core Status**: React SPA architecture complete with multi-tool workflow support
-- **State Management**: FileContext handles all file operations and tool navigation
-- **File Processing**: Production-ready with memory management for large PDF workflows (up to 100GB+)
-- **Tool Integration**: Modular hook architecture with `useToolOperation` orchestrator
-  - Individual hooks: `useToolState`, `useToolApiCalls`, `useToolResources`
-  - Utilities: `toolErrorHandler`, `toolResponseProcessor`, `toolOperationTracker`
-  - Pattern: Each tool creates focused operation hook, UI consumes state/actions
-- **Preview System**: Tool results can be previewed without polluting file context (Split tool example)
-- **Performance**: Web Worker thumbnails, IndexedDB persistence, background processing
-
-## Translation Rules
-
-- **CRITICAL**: Always update translations in `en-US` only - all other languages (including `en-GB`) are handled separately
-- Translation files are located in `frontend/editor/public/locales/`
-- After changing any translation file, run `task pre-commit:fix`
-
-## Important Notes
-
-- **Java Version**: Requires JDK 25.
-- **Lombok**: Used extensively - ensure IDE plugin is installed
-- **File Persistence**:
-  - **Backend**: Designed to be stateless - files are processed in memory/temp locations only
-  - **Frontend**: Uses IndexedDB for client-side file storage and caching (with thumbnails)
-- **Security**: When `DOCKER_ENABLE_SECURITY=false`, security-related classes are excluded from compilation
-- **Import Paths**: ALWAYS use `@app/*` for imports - never use `@core/*` or `@proprietary/*` unless explicitly wrapping/extending a lower layer
-- **FileContext**: All file operations MUST go through FileContext - never bypass with direct File handling
-- **Memory Management**: Manual cleanup required for PDF.js documents and blob URLs - don't remove cleanup code
-- **Tool Development**: New tools should follow `useToolOperation` hook pattern (see `useCompressOperation.ts`)
-- **Performance Target**: Must handle PDFs up to 100GB+ without browser crashes
-- **Preview System**: Tools can preview results without polluting main file context (see Split tool implementation)
-- **Adding Tools**: See `ADDING_TOOLS.md` for complete guide to creating new PDF tools
-
-## Communication Style
-- Be direct and to the point
-- No apologies or conversational filler
-- Answer questions directly without preamble
-- Explain reasoning concisely when asked
-- Avoid unnecessary elaboration
-
-## Decision Making
-- Ask clarifying questions before making assumptions
-- Stop and ask when uncertain about project-specific details
-- Confirm approach before making structural changes
-- Request guidance on preferences (cross-platform vs specific tools, etc.)
-- Verify understanding of requirements before proceeding
-
-
-## Stack reality check (don't trust LLM training data) <!-- bleeding-edge-stack-note -->
-
-This codebase is on bleeding-edge versions of its core JVM stack: **Spring Boot 4.0.6**,
-**Jackson 3 (`tools.jackson`)**, **JDK 21/25 source/target with JDK 25 toolchain**.
-All three are *post*-2024 releases and your training corpus is overwhelmingly Spring Boot 2/3 and
-Jackson 2 patterns — those patterns will compile, run differently, or hallucinate APIs that no
-longer exist.
-
-Before writing or editing Spring / Jackson / JDK code:
-
-1. Open an existing module in `app/core/` or `app/common/` and grep for the actual imports being
-   used — `import tools.jackson...` not `import com.fasterxml.jackson...`, and the new
-   `org.springframework.boot` 4.x package layout.
-2. If you're not sure whether an API exists in this stack version, **check the source on disk
-   first** (the dependency JARs are downloaded under `~/.gradle/caches/modules-2/`).
-3. Do not silently downgrade a Spring Boot 4 pattern to a Spring Boot 3 equivalent. If something
-   doesn't work, surface it to the human — don't guess.
-
-Same goes for Jackson 3's API surface (renamed `ObjectMapper` builder methods, new
-`tools.jackson.databind` namespace) and JDK 25 preview features. Ground your code in this repo's
-actual imports, not what worked three years ago.
+- Confirmed `WillsitoGG/PDF_Tunner` is a real GitHub fork of `Stirling-Tools/Stirling-PDF`.
+- Confirmed fork `main` initially matched upstream exactly at `7fb29d002dbb8fa4b5945d1d1fe8dd164a9f7632` / Stirling 2.14.3.
+- Located legacy reference repository `WillsitoGG/PDF_Tunner_Legacy`.
+- Chose Stirling's official Tauri desktop architecture instead of restoring the legacy C# wrapper.
+- Audited official JLink/JRE 25 desktop behavior and the first external dependency inventory.
+- Started branch `pdf-tunner/windows-portable-v1`.
+- Added the PDF_Tunner portable-environment bootstrap, Tauri branding/config overlay and manual Windows portable build/validation workflow in the same documented change.

@@ -1,0 +1,36 @@
+{
+  "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
+  "productName": "PDF_Tunner",
+  "mainBinaryName": "PDF_Tunner",
+  "identifier": "com.willsitogg.pdf-tunner",
+  "app": {
+    "windows": [
+      {
+        "title": "PDF_Tunner",
+        "width": 1280,
+        "height": 800,
+        "resizable": true,
+        "fullscreen": false,
+        "dragDropEnabled": false,
+        "additionalBrowserArgs": "--enable-features=CertVerifierBuiltinFeature"
+      }
+    ]
+  },
+  "bundle": {
+    "active": false,
+    "createUpdaterArtifacts": false
+  },
+  "plugins": {
+    "deep-link": {
+      "desktop": {
+        "schemes": ["pdf-tunner"]
+      }
+    },
+    "updater": {
+      "endpoints": [
+        "https://github.com/WillsitoGG/PDF_Tunner/releases/latest/download/latest.json"
+      ],
+      "dialog": false
+    }
+  }
+}
