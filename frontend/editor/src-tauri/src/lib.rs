@@ -131,7 +131,7 @@ pub fn run() {
 
       let files = parse_launch_files(&args);
       // Route to the window the user is in (focused -> main -> any) so opens
-      // consolidate into one window instead of spawning a new one.
+      // consolidate into one window instead of spawning a new one).
       let label = target_window_label(app).unwrap_or_else(|| MAIN_WINDOW_LABEL.to_string());
 
       if !files.is_empty() {
@@ -156,9 +156,12 @@ pub fn run() {
 
       {
         let app_handle = app.handle();
-        // On macOS the plugin registers schemes via bundle metadata, so runtime registration is required only on Windows/Linux
+        // Runtime protocol registration writes OS integration state on Windows/Linux.
+        // A portable build deliberately avoids that host mutation.
         #[cfg(any(target_os = "linux", target_os = "windows"))]
-        if let Err(err) = app_handle.deep_link().register_all() {
+        if std::env::var_os("PDF_TUNNER_PORTABLE_ROOT").is_some() {
+          add_log("🧳 Portable mode: skipping deep-link protocol registration".to_string());
+        } else if let Err(err) = app_handle.deep_link().register_all() {
           add_log(format!("⚠️ Failed to register deep link handler: {}", err));
         }
 

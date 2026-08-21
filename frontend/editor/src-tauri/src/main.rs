@@ -19,28 +19,14 @@ fn configure_pdf_tunner_portable_environment() {
   }
 
   let data = root.join("data");
-  let roaming = data.join("appdata").join("Roaming");
-  let local = data.join("appdata").join("Local");
-  let program_data = data.join("programdata");
-  let home = data.join("home");
-  let temp = data.join("temp");
-  let cache = data.join("cache");
+  let calibre_config = data.join("calibre");
+  let _ = fs::create_dir_all(&data);
+  let _ = fs::create_dir_all(&calibre_config);
 
-  for directory in [&roaming, &local, &program_data, &home, &temp, &cache] {
-    let _ = fs::create_dir_all(directory);
-  }
-
-  // Set these before Tauri or any plugin/backend thread is created so all
-  // child processes inherit package-local paths.
+  // Do not rewrite Windows profile variables here. Tauri/WebView2 is native
+  // infrastructure and must initialize against the real Windows profile.
+  // Stirling-owned backend state is redirected by utils::app_data_dir().
   env::set_var("PDF_TUNNER_PORTABLE_ROOT", root);
-  env::set_var("APPDATA", &roaming);
-  env::set_var("LOCALAPPDATA", &local);
-  env::set_var("PROGRAMDATA", &program_data);
-  env::set_var("USERPROFILE", &home);
-  env::set_var("HOME", &home);
-  env::set_var("TEMP", &temp);
-  env::set_var("TMP", &temp);
-  env::set_var("XDG_CACHE_HOME", &cache);
 
   let tools = root.join("tools");
   let tool_paths = [
@@ -78,8 +64,6 @@ fn configure_pdf_tunner_portable_environment() {
     env::set_var("TESSDATA_PREFIX", tessdata);
   }
 
-  let calibre_config = data.join("calibre");
-  let _ = fs::create_dir_all(&calibre_config);
   env::set_var("CALIBRE_CONFIG_DIRECTORY", calibre_config);
 }
 

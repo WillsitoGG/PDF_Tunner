@@ -47,7 +47,7 @@ Do not restore the old `PDF_Tunner_Legacy` architecture in which a separate .NET
 
 Useful legacy ideas retained:
 
-- portable profile/data redirection;
+- portable profile/data redirection where it is safe for the owning component;
 - bundled Java;
 - loopback-only backend;
 - readiness checks;
@@ -76,19 +76,19 @@ The official desktop task currently sets `DISABLE_ADDITIONAL_FEATURES=true`. Tre
 
 Portable mode is enabled by marker file `PDF_TUNNER_PORTABLE` beside the executable.
 
-`frontend/editor/src-tauri/src/main.rs` performs environment redirection **before** Tauri initializes. This is intentionally early so Tauri plugins and every child process inherit package-local locations.
+`frontend/editor/src-tauri/src/main.rs` detects the marker before Tauri starts and sets only PDF_Tunner-owned bootstrap state. **Do not globally replace Windows `APPDATA`, `LOCALAPPDATA`, `PROGRAMDATA`, `USERPROFILE`, `HOME`, `TEMP` or `TMP` before Tauri/WebView2 initializes.** CI proved that the first implementation reached portable directory creation but terminated before Tauri setup/backend logging when those host profile variables were replaced.
 
-Portable environment redirects include:
+The portable boundary is now component-specific:
 
-- `APPDATA` -> `data/appdata/Roaming`;
-- `LOCALAPPDATA` -> `data/appdata/Local`;
-- `PROGRAMDATA` -> `data/programdata`;
-- `USERPROFILE` and `HOME` -> `data/home`;
-- `TEMP` and `TMP` -> `data/temp`;
-- `XDG_CACHE_HOME` -> `data/cache`;
-- `PDF_TUNNER_PORTABLE_ROOT` -> executable directory.
+- `PDF_TUNNER_PORTABLE_ROOT` -> executable directory;
+- `utils::app_data_dir()` -> `<portable root>/data`, which localizes Stirling backend config, logs and working state;
+- `utils::system_provisioning_dir()` -> `<portable root>/data/provisioning`;
+- `CALIBRE_CONFIG_DIRECTORY` -> `<portable root>/data/calibre`;
+- packaged tool directories are prepended to `PATH` only when they exist;
+- `TESSDATA_PREFIX` is set only when packaged Tesseract data exists;
+- Windows/Linux deep-link protocol registration is skipped while portable mode is active so the app does not intentionally register `pdf-tunner://` in the host OS.
 
-When packaged tool directories exist, they are prepended to `PATH`. `TESSDATA_PREFIX` is set only when packaged Tesseract data exists. Calibre config is redirected to package-local data.
+Native Tauri/WebView2 state is not yet claimed fully package-local. Once packaged startup is green, audit its host writes explicitly and contain only those locations that can be redirected without breaking native shell initialization.
 
 Intended layout:
 
@@ -274,10 +274,13 @@ Unless a PDF_Tunner rule above overrides them:
 - Chose Stirling's official Tauri desktop + JLink Java 25 architecture instead of the legacy C# wrapper.
 - Audited the first source-backed external dependency inventory.
 - Created branch `pdf-tunner/windows-portable-v1`.
-- Added pre-Tauri Windows portable environment redirection activated by `PDF_TUNNER_PORTABLE`.
+- Added the initial pre-Tauri Windows portable environment redirection activated by `PDF_TUNNER_PORTABLE`.
 - Added PDF_Tunner Tauri config/branding overlay.
 - Added Windows portable build, backend-health, shutdown, ZIP and SHA-256 validation workflow.
 - Temporarily enabled a push trigger limited to the development branch because the connected GitHub API does not expose manual workflow dispatch.
 - Temporarily enabled a `pull_request` trigger targeting `main` so PR-synchronized runs can be inspected through the connected GitHub tooling; both automatic triggers must be removed before merge to `main`.
 - First CI execution passed Tauri/Cargo tests, production EXE build, portable assembly and bundled JRE 25 validation, then failed at packaged backend startup detection.
 - Added failure-only startup diagnostics so the next run preserves package-local logs/data, portable inventory and process state for root-cause analysis.
+- Diagnostic run #5 confirmed `PDF_Tunner.exe` creates the portable data tree and then exits before Tauri setup or Java/backend logging, isolating the failure ahead of the backend.
+- Replaced global pre-Tauri Windows-profile environment hijacking with targeted Stirling-owned path redirection through `utils::app_data_dir()` and package-local provisioning.
+- Disabled runtime deep-link protocol registration in portable mode to avoid deliberate host-registry integration.
