@@ -9,7 +9,7 @@
 - Initial upstream commit: `7fb29d002dbb8fa4b5945d1d1fe8dd164a9f7632`
 - Development branch: `pdf-tunner/windows-portable-v1`
 - Target: **Windows 10/11 x64 portable ZIP**
-- Status: **portable bootstrap green; WebView2 profile redirection proven; portable Tauri window-state implementation under validation; no final Release yet**
+- Status: **portable bootstrap green; WebView2 profile redirection proven; two-launch portable window-state validation integrated into primary CI and awaiting a green run; no final Release yet**
 
 The full original Stirling documentation and developer guide remain in this fork. Upstream project information is available at [Stirling-Tools/Stirling-PDF](https://github.com/Stirling-Tools/Stirling-PDF).
 
@@ -38,7 +38,7 @@ The Tauri-side `add_log()` path is explicitly redirected to `data/logs/` in port
 
 WebView2 receives the component-specific override `WEBVIEW2_USER_DATA_FOLDER=<portable root>\data\webview2`. Run #15 proved this is effective in the packaged production executable: the profile was populated with 122 files (about 4.6 MB) while Stirling started normally on a dynamic backend port. CI therefore requires a populated `data/webview2` profile and specifically checks that the default host `EBWebView` directory is not newly created under `%LOCALAPPDATA%\com.willsitogg.pdf-tunner\EBWebView`. The parent `%LOCALAPPDATA%\com.willsitogg.pdf-tunner` directory is inventoried separately rather than treated as WebView2 evidence, because other native Tauri state may use the same application identifier.
 
-`tauri-plugin-window-state` 2.2.1 cannot be pointed at a portable directory: it always writes through Tauri's `app_config_dir()` (Roaming AppData). PDF_Tunner therefore keeps the official plugin unchanged outside portable mode, but portable mode substitutes a localized equivalent under `data/tauri/window-state/.window-state.json`. The replacement keeps the upstream state shape (`width`, `height`, `x`, `y`, `prev_x`, `prev_y`, `maximized`, `visible`, `decorated`, `fullscreen`), tracks primary and dynamically-created windows, avoids restoring a saved rectangle that no longer intersects an available monitor, captures the last window before it disappears, and saves the state before PDF_Tunner's terminal `cleanup_before_exit()`/`process::exit()` sequence. This implementation is currently under CI validation and must not be called proven until the packaged run passes.
+`tauri-plugin-window-state` 2.2.1 cannot be pointed at a portable directory: it always writes through Tauri's `app_config_dir()` (Roaming AppData). PDF_Tunner therefore keeps the official plugin unchanged outside portable mode, but portable mode substitutes a localized equivalent under `data/tauri/window-state/.window-state.json`. The replacement keeps the upstream state shape (`width`, `height`, `x`, `y`, `prev_x`, `prev_y`, `maximized`, `visible`, `decorated`, `fullscreen`), tracks primary and dynamically-created windows, avoids restoring a saved rectangle that no longer intersects an available monitor, captures the last window before it disappears, and saves the state before PDF_Tunner's terminal `cleanup_before_exit()`/`process::exit()` sequence. The primary Windows portable workflow now runs a two-launch Win32 validator against the assembled production portable tree before runtime data is reset and the final ZIP is created. The implementation is not called proven until that workflow is green.
 
 The registered `tauri-plugin-store` currently has no application call sites in this fork and remains registered for upstream compatibility. Any future relative store use must be audited because Tauri resolves it through AppData unless explicitly localized.
 
@@ -90,7 +90,7 @@ The upstream fat toolchain also confirms use of `unpaper`, `pngquant`, LibreOffi
 
 ## Build and validation
 
-Workflow: `.github/workflows/pdf-tunner-windows-portable.yml`.
+Primary build workflow: `.github/workflows/pdf-tunner-windows-portable.yml`.
 
 During active development it has `workflow_dispatch` plus **temporary `push` and `pull_request` triggers**. `push` is restricted to `pdf-tunner/windows-portable-v1`; `pull_request` targets `main` so the draft PR can expose workflow runs/logs through the connected GitHub tooling. Both automatic triggers are bootstrap-only and must be removed before the final change reaches `main`.
 
@@ -105,15 +105,16 @@ Bootstrap validation currently targets:
 - `/api/v1/info/status` health response;
 - Java temporary paths under `data/tmp/`, with no new `stirling-pdf` or `stirling-mobile-scanner` directories created in host `%TEMP%`;
 - WebView2 user data under `data/webview2/`, with no new `%LOCALAPPDATA%\com.willsitogg.pdf-tunner\EBWebView` profile;
+- no newly-created `%APPDATA%\com.willsitogg.pdf-tunner` Tauri state in portable mode;
 - inventory of other PDF_Tunner/Stirling app-specific host folders so Tauri/plugin state is classified separately from WebView2;
 - no new `HKCU\Software\Classes\pdf-tunner` protocol registration during portable startup/shutdown;
 - clean parent/child-process shutdown;
 - clean ZIP generation;
 - SHA-256 generation.
 
-The next window-state validation increment must prove that the packaged app writes `data/tauri/window-state/.window-state.json`, that portable startup/shutdown does not create a new `%APPDATA%\com.willsitogg.pdf-tunner` config tree, and then—after the basic integration is green—that a deliberately moved/resized window is restored on a second packaged launch within a small tolerance.
+Window-state proof is part of the primary portable workflow. After the first real startup/backend/containment smoke test, `.github/scripts/validate-portable-window-state.ps1` establishes a clean `%APPDATA%\com.willsitogg.pdf-tunner` baseline, launches the same assembled production executable, deliberately moves/resizes its real Win32 top-level window, closes normally, checks `data/tauri/window-state/.window-state.json` against the measured outer position/client size, relaunches the same portable tree, verifies restoration within tolerance, checks child-process cleanup and fails if any Roaming AppData Tauri state is created. Only after that proof does CI clear generated `data/`, create the final portable ZIP and generate its SHA-256.
 
-If the real packaged-startup smoke test fails, CI writes host-temp/profile/registry/process evidence **before** touching potentially locked browser files. It records a file-count/size/sample summary for the live package-local WebView2 profile and copies logs/configs/temp/pipeline state best-effort, but deliberately does not recursively copy `data/webview2` while Chromium may still own locked files. The resulting `PDF_Tunner-startup-diagnostics` artifact is short-lived diagnostic evidence only, not a Release asset.
+If the real packaged-startup smoke test fails, CI writes host-temp/profile/registry/process evidence **before** touching potentially locked browser files. It records a file-count/size/sample summary for the live package-local WebView2 profile and copies logs/configs/temp/pipeline/Tauri state best-effort, but deliberately does not recursively copy `data/webview2` while Chromium may still own locked files. The resulting `PDF_Tunner-startup-diagnostics` artifact is short-lived diagnostic evidence only, not a Release asset.
 
 Diagnostic run #9 proved the production EXE initializes Tauri, uses package-local data/log/config paths, launches bundled Java 25, starts Stirling 2.14.3 on a dynamic loopback port, answers the real health endpoint and terminates the Java backend during close. It also exposed Java temporary state in host `%LOCALAPPDATA%\Temp` and a parent-process shutdown defect.
 
@@ -122,6 +123,8 @@ Diagnostic run #11 then proved the Java-temp fix and host-integration containmen
 Run #13 closed that bootstrap defect. The complete portable job passed real startup, backend health, local Java temp, registry containment, normal parent shutdown, child cleanup, runtime-data cleanup, ZIP creation and SHA-256 generation. The independently inspected bootstrap ZIP contained the expected executable, Stirling 2.14.3 JAR and bundled Java runtime and matched its published SHA-256.
 
 Run #15 then proved the new WebView2 redirection itself: the packaged app created a real browser profile under `data/webview2` (122 files, about 4.6 MB) and the backend reached `Stirling-PDF running on port: 57658`. Its smoke step failed before shutdown because the first containment assertion watched the entire `%LOCALAPPDATA%\com.willsitogg.pdf-tunner` application root, which is broader than the WebView2 default `EBWebView` path. The failure diagnostics also exposed that recursively copying a live Chromium profile can abort on locked files. Both test-design issues were corrected without weakening the actual WebView2 containment requirement.
+
+Run #19 passed the portable build on the first integrated custom window-state implementation: official desktop preparation/tests, production EXE build, portable assembly, bundled JRE validation, real backend startup/health, Java-temp and WebView2 containment, normal parent/child shutdown, runtime-data reset, ZIP/SHA-256 and artifact upload all completed successfully. Run #19 proves the custom portable state layer does not regress bootstrap; the newly integrated two-launch geometry check provides the remaining persistence/restore proof.
 
 The general upstream `Build and Test Workflow` on the run #13 baseline passed frontend validation/a11y, stubbed and live Playwright, database migration, Docker Compose/images and the official Windows Tauri build. Its sole failure is GitHub `dependency-review`, which reports that Dependency Graph is disabled on this fork; that is a repository security-setting prerequisite rather than a demonstrated PDF_Tunner code regression. Each subsequent downstream commit is checked again for additional failures before it is accepted.
 

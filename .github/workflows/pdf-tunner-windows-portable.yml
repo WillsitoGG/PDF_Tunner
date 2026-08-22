@@ -284,10 +284,18 @@ jobs:
 
           $hostTauriConfigAfter = Test-Path -LiteralPath $hostTauriConfig
           Write-Host "Host Tauri Roaming config existed before launch: $hostTauriConfigExisted; exists after shutdown: $hostTauriConfigAfter; path: $hostTauriConfig"
+          if (-not $hostTauriConfigExisted -and $hostTauriConfigAfter) {
+            throw "Portable startup/shutdown created Tauri Roaming AppData state: $hostTauriConfig"
+          }
 
           if (-not $protocolExisted -and (Test-Path -LiteralPath $protocolKey)) {
             throw "Portable shutdown left pdf-tunner protocol state in the host registry: $protocolKey"
           }
+
+      - name: Validate portable window-state persistence and second-launch restore
+        shell: pwsh
+        run: |
+          & './.github/scripts/validate-portable-window-state.ps1' -PortableRoot './dist/PDF_Tunner' -Tolerance 16
 
       - name: Collect portable startup diagnostics
         if: failure()
@@ -370,7 +378,7 @@ jobs:
           # be alive. Do not recursively copy the live Chromium/WebView2 profile.
           $diagnosticData = Join-Path $diagnostics 'data'
           New-Item -ItemType Directory -Force -Path $diagnosticData | Out-Null
-          foreach ($relative in @('logs', 'configs', 'tmp', 'pipeline')) {
+          foreach ($relative in @('logs', 'configs', 'tmp', 'pipeline', 'tauri')) {
             $source = Join-Path $data $relative
             if (Test-Path -LiteralPath $source) {
               Copy-Item -LiteralPath $source -Destination (Join-Path $diagnosticData $relative) -Recurse -Force -ErrorAction SilentlyContinue
