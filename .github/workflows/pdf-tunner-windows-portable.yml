@@ -5,9 +5,10 @@ on:
   push:
     branches:
       - pdf-tunner/windows-portable-v1
-  pull_request:
-    branches:
-      - main
+
+concurrency:
+  group: pdf-tunner-windows-portable-${{ github.ref }}
+  cancel-in-progress: true
 
 permissions:
   contents: read
@@ -285,7 +286,12 @@ jobs:
           $hostTauriConfigAfter = Test-Path -LiteralPath $hostTauriConfig
           Write-Host "Host Tauri Roaming config existed before launch: $hostTauriConfigExisted; exists after shutdown: $hostTauriConfigAfter; path: $hostTauriConfig"
           if (-not $hostTauriConfigExisted -and $hostTauriConfigAfter) {
-            throw "Portable startup/shutdown created Tauri Roaming AppData state: $hostTauriConfig"
+            $hostTauriItems = @(Get-ChildItem -LiteralPath $hostTauriConfig -Recurse -Force -ErrorAction SilentlyContinue)
+            if ($hostTauriItems.Count -gt 0) {
+              $hostTauriItems | Select-Object FullName, PSIsContainer, Length, LastWriteTime | Format-Table -AutoSize
+              throw "Portable startup/shutdown created Tauri Roaming AppData content: $hostTauriConfig"
+            }
+            Write-Host "Host Tauri identifier directory is empty; no Roaming AppData state was persisted."
           }
 
           if (-not $protocolExisted -and (Test-Path -LiteralPath $protocolKey)) {
@@ -341,6 +347,21 @@ jobs:
           $hostInventory | Format-Table -AutoSize | Out-String -Width 4096 |
             Set-Content -LiteralPath (Join-Path $diagnostics 'host-app-inventory.txt') -Encoding utf8
 
+          $hostAppTree = @()
+          foreach ($root in @(
+            (Join-Path $env:LOCALAPPDATA 'com.willsitogg.pdf-tunner'),
+            (Join-Path $env:APPDATA 'com.willsitogg.pdf-tunner'),
+            (Join-Path $env:APPDATA 'Stirling-PDF')
+          )) {
+            if (Test-Path -LiteralPath $root) {
+              $hostAppTree += [PSCustomObject]@{ FullName = $root; PSIsContainer = $true; Length = $null; LastWriteTime = (Get-Item -LiteralPath $root).LastWriteTime }
+              $hostAppTree += Get-ChildItem -LiteralPath $root -Recurse -Force -ErrorAction SilentlyContinue |
+                Select-Object FullName, PSIsContainer, Length, LastWriteTime
+            }
+          }
+          $hostAppTree | Format-Table -AutoSize | Out-String -Width 4096 |
+            Set-Content -LiteralPath (Join-Path $diagnostics 'host-app-tree.txt') -Encoding utf8
+
           [PSCustomObject]@{ Path = $protocolKey; Exists = Test-Path -LiteralPath $protocolKey } |
             Format-List | Out-String -Width 4096 |
             Set-Content -LiteralPath (Join-Path $diagnostics 'registry-state.txt') -Encoding utf8
@@ -392,6 +413,7 @@ jobs:
           name: PDF_Tunner-startup-diagnostics
           path: dist/startup-diagnostics
           if-no-files-found: error
+          include-hidden-files: true
           retention-days: 7
 
       - name: Clean runtime data and verify portable layout

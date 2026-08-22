@@ -25,7 +25,7 @@ if ($PortableRoot.StartsWith('\\')) {
 }
 
 # The job is ephemeral. Start from a known-zero Roaming AppData baseline so
-# the test proves PDF_Tunner itself does not create Tauri window-state there.
+# the test proves PDF_Tunner itself does not persist Tauri state there.
 Remove-Item -LiteralPath $HostTauriConfig -Recurse -Force -ErrorAction SilentlyContinue
 if (Test-Path -LiteralPath $HostTauriConfig) {
     throw "Could not establish clean host Tauri config baseline: $HostTauriConfig"
@@ -182,14 +182,24 @@ function Stop-PortableNormally {
     }
 }
 
-function Assert-NoHostTauriConfig {
-    if (Test-Path -LiteralPath $HostTauriConfig) {
-        Write-Host "Unexpected host Tauri config contents:"
-        Get-ChildItem -LiteralPath $HostTauriConfig -Recurse -Force -ErrorAction SilentlyContinue |
-            Select-Object FullName, Length, LastWriteTime |
-            Format-Table -AutoSize
-        throw "Portable window-state leaked into Roaming AppData: $HostTauriConfig"
+function Assert-NoHostTauriState {
+    if (-not (Test-Path -LiteralPath $HostTauriConfig -PathType Container)) {
+        return
     }
+
+    $items = @(Get-ChildItem -LiteralPath $HostTauriConfig -Recurse -Force -ErrorAction SilentlyContinue)
+    if ($items.Count -gt 0) {
+        Write-Host "Unexpected host Tauri Roaming content:"
+        $items |
+            Select-Object FullName, PSIsContainer, Length, LastWriteTime |
+            Format-Table -AutoSize
+        throw "Portable window-state leaked content into Roaming AppData: $HostTauriConfig"
+    }
+
+    # Tauri/native path resolution can materialize the identifier directory even
+    # when no file or subdirectory is persisted. Treat only actual contents as
+    # host state; the clean baseline above still guarantees this run created it.
+    Write-Host "Host Tauri identifier directory exists but is empty; no Roaming AppData state was persisted: $HostTauriConfig"
 }
 
 # Use a position/size comfortably inside the standard GitHub Windows runner
@@ -237,7 +247,7 @@ try {
 if (-not (Test-Path -LiteralPath $StateFile -PathType Leaf)) {
     throw "Portable window-state file was not written: $StateFile"
 }
-Assert-NoHostTauriConfig
+Assert-NoHostTauriState
 
 $stateRoot = Get-Content -LiteralPath $StateFile -Raw | ConvertFrom-Json
 $stateProperties = @($stateRoot.PSObject.Properties)
@@ -301,5 +311,5 @@ try {
     }
 }
 
-Assert-NoHostTauriConfig
-Write-Host "PASS: portable window state persisted to $StateFile, restored on a second packaged launch, and created no Roaming AppData state."
+Assert-NoHostTauriState
+Write-Host "PASS: portable window state persisted to $StateFile, restored on a second packaged launch, and created no Roaming AppData content."

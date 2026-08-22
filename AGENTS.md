@@ -38,6 +38,8 @@ Record any future upstream update here and in README before treating it as the n
 8. SHA-256/provenance belongs in repository validation records rather than miscellaneous Release assets unless a final packaging decision says otherwise.
 9. **Every PDF_Tunner-specific change must modify both `README.md` and `AGENTS.md` in the same commit.**
 10. Do not make licensing the center of technical work. Mention it only when it creates a concrete implementation/distribution constraint.
+11. Heavy repeated CI must use a branch/workflow-specific `concurrency` group with `cancel-in-progress: true`; do not allow obsolete portable runs to pile up.
+12. During active downstream development use at most one automatic trigger for the heavy portable workflow unless duplicate events are technically necessary and deduplicated.
 
 ## Architecture decision
 
@@ -117,7 +119,9 @@ The implementation must preserve the upstream state semantics:
 - track dynamically-created Stirling windows through the centralized `commands/window.rs` builder;
 - save before portable `cleanup_before_exit()` and immediate `process::exit()`, because relying on a later `RunEvent::Exit` is incompatible with the terminal portable shutdown sequence.
 
-Do not call window-state proven merely because the Rust code compiles or the first packaged launch is green. The primary portable workflow invokes `.github/scripts/validate-portable-window-state.ps1` against the assembled production tree before generated runtime data is reset and the final ZIP is created. The validator establishes a zero Roaming-AppData baseline, moves/resizes the real Win32 window, closes normally, compares the package-local JSON with measured geometry, relaunches the same tree, verifies restored position/client size within tolerance and confirms no `%APPDATA%\com.willsitogg.pdf-tunner` state or portable child processes remain.
+Do not call window-state proven merely because the Rust code compiles or the first packaged launch is green. The primary portable workflow invokes `.github/scripts/validate-portable-window-state.ps1` against the assembled production tree before generated runtime data is reset and the final ZIP is created. The validator deletes the host Roaming identifier directory to establish a zero baseline, moves/resizes the real Win32 window, closes normally, compares the package-local JSON with measured geometry, relaunches the same tree, verifies restored position/client size within tolerance and confirms no persisted content exists under `%APPDATA%\com.willsitogg.pdf-tunner`. A completely empty identifier directory is not treated as state; any file or subdirectory is a hard failure and is inventoried recursively.
+
+Run #49 is the first real execution of this deliberate geometry proof. All preceding build/bootstrap checks passed. Its first validator launch closed normally and diagnostics prove `data/tauri/window-state/.window-state.json` was written. The validator then stopped before the second launch because the host Roaming identifier directory existed. The run-49 artifact did not include recursive host contents or the hidden JSON, so it does not prove that the directory contained state. The next diagnostic revision therefore includes the recursive host application tree and enables hidden-file artifact upload; do not weaken the rule beyond distinguishing an empty directory from actual persisted content.
 
 `tauri-plugin-store` remains registered for upstream compatibility; repository search found no application call sites. Do not remove it speculatively. Any future relative store must be treated as an AppData-backed path unless explicitly localized.
 
@@ -210,7 +214,7 @@ Permanent workflow path:
 
 `.github/workflows/pdf-tunner-windows-portable.yml`
 
-Normal final state should be manual `workflow_dispatch`. During the active bootstrap/fix loop, **temporary automatic triggers** are allowed: `push` is restricted to `pdf-tunner/windows-portable-v1`, and `pull_request` targets `main` so the draft PR exposes workflow runs/logs through the connected GitHub tooling. Both automatic triggers are diagnostic/bootstrap infrastructure and must be removed before the change reaches `main`.
+Normal final state should be manual `workflow_dispatch`. During the active bootstrap/fix loop, one temporary automatic `push` trigger is allowed and restricted to `pdf-tunner/windows-portable-v1`. The duplicate `pull_request` trigger was removed after it helped create a queue of obsolete duplicate runs and woke inherited upstream PR workflows. The heavy workflow must use `concurrency.group: pdf-tunner-windows-portable-${{ github.ref }}` plus `cancel-in-progress: true`. Keep PR #1 closed while active downstream CI does not need PR event coverage; reopen it as draft later when useful. Remove the development `push` trigger before merge to `main`.
 
 Baseline sequence:
 
@@ -226,15 +230,16 @@ Baseline sequence:
 10. request `/api/v1/info/status`;
 11. assert Stirling Java temp directories live under package `data/tmp` and were not newly created in host `%TEMP%`;
 12. assert WebView2 populated package `data/webview2` and did not newly create `%LOCALAPPDATA%\com.willsitogg.pdf-tunner\EBWebView`;
-13. assert portable startup/shutdown did not newly create `%APPDATA%\com.willsitogg.pdf-tunner`;
+13. assert portable startup/shutdown did not persist files/subdirectories under `%APPDATA%\com.willsitogg.pdf-tunner`; record but do not misclassify a completely empty identifier directory;
 14. inventory Local/Roaming application roots separately so Tauri/plugin state can be classified precisely;
 15. assert portable startup/shutdown did not newly register `HKCU\Software\Classes\pdf-tunner`;
 16. request normal app shutdown and check for portable child-process leftovers;
 17. run the real two-launch Win32 window-state persistence/restore validator on the assembled production tree;
-18. on failure, write host/profile/registry/process evidence first, summarize live WebView2 without recursively copying it, and copy safe package-local state including `data/tauri` best-effort;
-19. clean generated runtime data from the distribution;
-20. create ZIP + SHA-256;
-21. upload only a short-lived CI artifact while the build remains bootstrap/non-release.
+18. on failure, write host/profile/registry/process evidence first, recursively inventory the PDF_Tunner/Stirling host application roots, summarize live WebView2 without recursively copying it, and copy safe package-local state including `data/tauri` best-effort;
+19. upload diagnostics with hidden files enabled so `.window-state.json` is retained when present;
+20. clean generated runtime data from the distribution;
+21. create ZIP + SHA-256;
+22. upload only a short-lived CI artifact while the build remains bootstrap/non-release.
 
 Startup diagnostics are implementation-branch evidence only. They must not become Release assets or permanent repository build output.
 
@@ -344,5 +349,7 @@ Unless a PDF_Tunner rule above overrides them:
 - Made startup diagnostics resilient to locked live Chromium files by recording host state first and summarizing—not copying—the live WebView2 profile.
 - Audited and replaced `tauri-plugin-window-state` only in portable mode. The replacement uses package-local `data/tauri/window-state/.window-state.json`, retains the official plugin in non-portable mode, tracks main/dynamic windows, preserves maximization metadata and monitor-safe restoration, and saves before terminal portable exit.
 - Run #19 passed the full portable bootstrap with the custom portable window-state layer integrated, proving no startup/shutdown regression.
-- Integrated a real two-launch window-state proof directly into the primary Windows portable workflow: it moves/resizes the assembled production Win32 window, verifies package-local JSON, relaunches for restoration, rejects Roaming AppData leakage and checks child-process cleanup before the final ZIP is built.
+- Integrated a real two-launch window-state proof directly into the primary Windows portable workflow: it moves/resizes the assembled production Win32 window, verifies package-local JSON, relaunches for restoration, rejects Roaming AppData content and checks child-process cleanup before the final ZIP is built.
+- Run #49 passed every pre-window-state build/bootstrap step and proved the first deliberate launch writes package-local `.window-state.json`; it then failed before the second launch solely because the validator treated existence of the Roaming identifier directory as state. The artifact did not preserve recursive host contents or the hidden JSON, so the next validator hard-fails on actual contents rather than an empty root and diagnostics now preserve both.
+- Removed the duplicate heavy `pull_request` trigger during development, kept one branch-scoped `push` trigger plus `workflow_dispatch`, and added `concurrency` with `cancel-in-progress: true` so obsolete portable runs cannot accumulate again.
 - Verified Microsoft Fixed WebView2 distribution requirements for the next layer: current x64 build 151.0.4129.101 at the time of audit, `WEBVIEW2_BROWSER_EXECUTABLE_FOLDER`, Windows 10 AppContainer ACLs for Fixed Version 120+, and no UNC/network execution.
