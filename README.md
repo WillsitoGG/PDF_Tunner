@@ -9,7 +9,7 @@
 - Initial upstream commit: `7fb29d002dbb8fa4b5945d1d1fe8dd164a9f7632`
 - Development branch: `pdf-tunner/windows-portable-v1`
 - Target: **Windows 10/11 x64 portable ZIP**
-- Status: **portable bootstrap under active validation; no final Release yet**
+- Status: **portable bootstrap green; host-state containment and external-tool integration still in progress; no final Release yet**
 
 The full original Stirling documentation and developer guide remain in this fork. Upstream project information is available at [Stirling-Tools/Stirling-PDF](https://github.com/Stirling-Tools/Stirling-PDF).
 
@@ -32,13 +32,17 @@ Our downstream work is concentrated on **portable paths, bundled external tools,
 
 Portable mode is explicit: it activates when a file named `PDF_TUNNER_PORTABLE` exists next to `PDF_Tunner.exe`.
 
-The first packaged-startup CI diagnostics showed that globally replacing Windows profile variables (`APPDATA`, `LOCALAPPDATA`, `PROGRAMDATA`, `USERPROFILE`, `HOME`, `TEMP` and `TMP`) before Tauri initialization caused the executable to terminate before Tauri setup/backend logging began. Portable mode therefore uses a narrower boundary: it sets `PDF_TUNNER_PORTABLE_ROOT`, and Stirling's centralized `app_data_dir()` redirects backend configuration, logs and working state to package-local `data/` without rewriting the Windows profile seen by native Tauri/WebView2 infrastructure. Portable system provisioning is likewise resolved under `data/provisioning/`.
+The first packaged-startup CI diagnostics showed that globally replacing Windows profile variables (`APPDATA`, `LOCALAPPDATA`, `PROGRAMDATA`, `USERPROFILE`, `HOME`, `TEMP` and `TMP`) before Tauri initialization caused the executable to terminate before Tauri setup/backend logging began. Portable mode therefore uses a narrower boundary: it sets component-specific overrides while leaving the Windows profile seen by native infrastructure intact. Stirling's centralized `app_data_dir()` redirects backend configuration, logs and working state to package-local `data/`; portable system provisioning is likewise resolved under `data/provisioning/`.
 
-The Tauri-side `add_log()` path is explicitly redirected to `data/logs/` in portable mode, preventing creation of `%APPDATA%\Stirling-PDF\logs`. Java temporary storage is isolated without changing native Windows `TEMP/TMP`: portable bootstrap sets Java-specific `JAVA_TOOL_OPTIONS=-Djava.io.tmpdir=...` so Stirling's normal temporary manager resolves under `data/tmp/stirling-pdf/` and the mobile-scanner service under `data/tmp/stirling-mobile-scanner/`. Bundled tool directories are prepended to `PATH` only when present, packaged Tesseract data is exposed through `TESSDATA_PREFIX` when available, and Calibre configuration is pointed at `data/calibre/`. Runtime deep-link protocol registration is skipped in portable mode to avoid writing the `pdf-tunner://` handler into the host OS registry.
+The Tauri-side `add_log()` path is explicitly redirected to `data/logs/` in portable mode, preventing creation of `%APPDATA%\Stirling-PDF\logs`. Java temporary storage is isolated without changing native Windows `TEMP/TMP`: portable bootstrap sets Java-specific `JAVA_TOOL_OPTIONS=-Djava.io.tmpdir=...` so Stirling's normal temporary manager resolves under `data/tmp/stirling-pdf/` and the mobile-scanner service under `data/tmp/stirling-mobile-scanner/`.
+
+WebView2 is now given its own component-specific user-data override, `WEBVIEW2_USER_DATA_FOLDER=<portable root>\data\webview2`. Microsoft documents that this environment variable replaces the user-data folder passed by the host, so PDF_Tunner can keep cookies, IndexedDB, Local Storage and browser cache in the portable tree without replacing `LOCALAPPDATA`. CI requires that `data/webview2` is actually populated during a real packaged launch and that the default PDF_Tunner WebView2 profile is not newly created in host LocalAppData.
+
+Bundled tool directories are prepended to `PATH` only when present, packaged Tesseract data is exposed through `TESSDATA_PREFIX` when available, and Calibre configuration is pointed at `data/calibre/`. Runtime deep-link protocol registration is skipped in portable mode to avoid writing the `pdf-tunner://` handler into the host OS registry.
 
 Portable shutdown handles `ExitRequested` synchronously: first it terminates the bundled Java backend, then calls Tauri's `cleanup_before_exit()`, and finally exits the process immediately with the requested exit code. This follows Tauri's contract for manual cleanup: after `cleanup_before_exit()` returns, the process must terminate immediately and no further Tauri APIs may be used. Run #11 proved that merely waiting for a later `RunEvent::Exit` after backend cleanup can leave the Windows portable parent alive. Non-portable upstream behavior remains unchanged.
 
-This refinement deliberately does **not** yet claim that every Tauri/WebView2 cache is package-contained; host-side shell/cache behavior will be audited explicitly after the packaged startup is green. The goal remains to minimize host pollution without destabilizing the native shell.
+The WebView2 user-data path is only one part of native state. `tauri-plugin-window-state` 2.2.1 still resolves its `.window-state.json` through Tauri's `app_config_dir()` and does not expose a custom directory; its portable replacement/containment is the next host-state item. The registered `tauri-plugin-store` currently has no application call sites in this fork, but any future use must also be audited because relative stores resolve through Tauri AppData.
 
 Intended final layout:
 
@@ -50,6 +54,7 @@ PDF_Tunner/
   runtime/jre/
   tools/
   data/
+    webview2/
 ```
 
 `data/` contains runtime state and must not be committed.
@@ -94,16 +99,21 @@ Bootstrap validation currently targets:
 - real Java backend startup and dynamic port detection;
 - `/api/v1/info/status` health response;
 - Java temporary paths under `data/tmp/`, with no new `stirling-pdf` or `stirling-mobile-scanner` directories created in host `%TEMP%`;
+- WebView2 user data under `data/webview2/`, with no new default PDF_Tunner WebView2 profile in host `%LOCALAPPDATA%`;
 - no new `HKCU\Software\Classes\pdf-tunner` protocol registration during portable startup/shutdown;
 - clean parent/child-process shutdown;
 - clean ZIP generation;
 - SHA-256 generation.
 
-If the real packaged-startup smoke test fails, CI preserves a short-lived `PDF_Tunner-startup-diagnostics` artifact containing the package-local `data/` tree/logs, portable file inventory, relevant process snapshot, host Stirling-temp state and protocol-registry state. This is diagnostic-only and is not a Release asset.
+If the real packaged-startup smoke test fails, CI preserves a short-lived `PDF_Tunner-startup-diagnostics` artifact containing the package-local `data/` tree/logs, portable file inventory, relevant process snapshot, host Stirling-temp state, host profile state and protocol-registry state. This is diagnostic-only and is not a Release asset.
 
 Diagnostic run #9 proved the production EXE initializes Tauri, uses package-local data/log/config paths, launches bundled Java 25, starts Stirling 2.14.3 on a dynamic loopback port, answers the real health endpoint and terminates the Java backend during close. It also exposed Java temporary state in host `%LOCALAPPDATA%\Temp` and a parent-process shutdown defect.
 
-Diagnostic run #11 then proved the Java-temp fix and host-integration containment: both `stirling-pdf` and `stirling-mobile-scanner` temporary directories were created under package `data/tmp`, no new corresponding host `%TEMP%` directories appeared, the `HKCU\Software\Classes\pdf-tunner` protocol key remained absent, and Java/child processes terminated. Its only remaining failure was that the Tauri parent stayed alive after `ExitRequested`; portable shutdown now follows Tauri's documented terminal-cleanup contract and exits immediately after `cleanup_before_exit()`.
+Diagnostic run #11 then proved the Java-temp fix and host-integration containment: both `stirling-pdf` and `stirling-mobile-scanner` temporary directories were created under package `data/tmp`, no new corresponding host `%TEMP%` directories appeared, the `HKCU\Software\Classes\pdf-tunner` protocol key remained absent, and Java/child processes terminated. Its only remaining failure was that the Tauri parent stayed alive after `ExitRequested`.
+
+Run #13 closed that bootstrap defect. The complete portable job passed real startup, backend health, local Java temp, registry containment, normal parent shutdown, child cleanup, runtime-data cleanup, ZIP creation and SHA-256 generation. The independently inspected bootstrap ZIP contained the expected executable, Stirling 2.14.3 JAR and bundled Java runtime and matched its published SHA-256. The next containment layer is WebView2 user data followed by Tauri window-state persistence.
+
+The general upstream `Build and Test Workflow` on the same commit also passed frontend validation/a11y, stubbed and live Playwright, database migration, Docker Compose/images and the official Windows Tauri build. Its sole failure is GitHub `dependency-review`, which reports that Dependency Graph is disabled on this fork; that is a repository security-setting prerequisite rather than a demonstrated PDF_Tunner code regression.
 
 The next validation layers will exercise every external dependency and representative end-to-end Stirling operation before any final Release is published.
 

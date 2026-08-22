@@ -129,6 +129,10 @@ jobs:
 
           $hostLeak = Join-Path $env:APPDATA 'Stirling-PDF'
           $hostLeakExisted = Test-Path -LiteralPath $hostLeak
+          $hostWebView = Join-Path $env:LOCALAPPDATA 'com.willsitogg.pdf-tunner'
+          $hostWebViewExisted = Test-Path -LiteralPath $hostWebView
+          $hostTauriConfig = Join-Path $env:APPDATA 'com.willsitogg.pdf-tunner'
+          $hostTauriConfigExisted = Test-Path -LiteralPath $hostTauriConfig
           $hostTempRoot = [System.IO.Path]::GetTempPath()
           $hostTempPaths = @(
             (Join-Path $hostTempRoot 'stirling-pdf'),
@@ -186,6 +190,18 @@ jobs:
             throw "Portable startup leaked runtime state into host APPDATA: $hostLeak"
           }
 
+          $portableWebView = Join-Path $portable 'data/webview2'
+          if (-not (Test-Path -LiteralPath $portableWebView -PathType Container)) {
+            throw "Portable WebView2 user-data directory was not created: $portableWebView"
+          }
+          $portableWebViewItems = @(Get-ChildItem -LiteralPath $portableWebView -Recurse -Force -ErrorAction SilentlyContinue)
+          if ($portableWebViewItems.Count -eq 0) {
+            throw "Portable WebView2 user-data directory remained empty: $portableWebView"
+          }
+          if (-not $hostWebViewExisted -and (Test-Path -LiteralPath $hostWebView)) {
+            throw "Portable WebView2 created its default host LocalAppData profile: $hostWebView"
+          }
+
           $portableTemp = Join-Path $portable 'data/tmp'
           $expectedPortableTempPaths = @(
             (Join-Path $portableTemp 'stirling-pdf'),
@@ -236,6 +252,13 @@ jobs:
             throw 'Portable child processes remained after PDF_Tunner exit.'
           }
 
+          if (-not $hostWebViewExisted -and (Test-Path -LiteralPath $hostWebView)) {
+            throw "Portable WebView2 left a default host LocalAppData profile after shutdown: $hostWebView"
+          }
+
+          $hostTauriConfigNow = Test-Path -LiteralPath $hostTauriConfig
+          Write-Host "Host Tauri Roaming config existed before launch: $hostTauriConfigExisted; exists after shutdown: $hostTauriConfigNow; path: $hostTauriConfig"
+
           if (-not $protocolExisted -and (Test-Path -LiteralPath $protocolKey)) {
             throw "Portable shutdown left pdf-tunner protocol state in the host registry: $protocolKey"
           }
@@ -276,6 +299,15 @@ jobs:
             [PSCustomObject]@{ Path = $_; Exists = Test-Path -LiteralPath $_ }
           } | Format-Table -AutoSize | Out-String -Width 4096 |
             Set-Content -LiteralPath (Join-Path $diagnostics 'host-temp-state.txt') -Encoding utf8
+
+          @(
+            (Join-Path $env:LOCALAPPDATA 'com.willsitogg.pdf-tunner'),
+            (Join-Path $env:APPDATA 'com.willsitogg.pdf-tunner'),
+            (Join-Path $env:APPDATA 'Stirling-PDF')
+          ) | ForEach-Object {
+            [PSCustomObject]@{ Path = $_; Exists = Test-Path -LiteralPath $_ }
+          } | Format-Table -AutoSize | Out-String -Width 4096 |
+            Set-Content -LiteralPath (Join-Path $diagnostics 'host-profile-state.txt') -Encoding utf8
 
           $protocolKey = 'HKCU:\Software\Classes\pdf-tunner'
           [PSCustomObject]@{ Path = $protocolKey; Exists = Test-Path -LiteralPath $protocolKey } |

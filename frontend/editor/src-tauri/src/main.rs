@@ -21,14 +21,21 @@ fn configure_pdf_tunner_portable_environment() {
   let data = root.join("data");
   let calibre_config = data.join("calibre");
   let java_temp = data.join("tmp");
+  let webview2_data = data.join("webview2");
   let _ = fs::create_dir_all(&data);
   let _ = fs::create_dir_all(&calibre_config);
   let _ = fs::create_dir_all(&java_temp);
+  let _ = fs::create_dir_all(&webview2_data);
 
   // Do not rewrite Windows profile variables here. Tauri/WebView2 is native
   // infrastructure and must initialize against the real Windows profile.
   // Stirling-owned backend state is redirected by utils::app_data_dir().
   env::set_var("PDF_TUNNER_PORTABLE_ROOT", root);
+
+  // WebView2 supports a component-specific user-data override. Keep the native
+  // Windows profile intact while moving cookies, IndexedDB, caches and browser
+  // profile state into the portable tree.
+  env::set_var("WEBVIEW2_USER_DATA_FOLDER", &webview2_data);
 
   // JAVA_TOOL_OPTIONS is intentionally Java-specific: the native Tauri/WebView2
   // process keeps the real Windows TEMP/TMP, while bundled Java and its Java temp

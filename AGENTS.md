@@ -86,6 +86,7 @@ The portable boundary is component-specific:
 - Tauri-side `add_log()` -> `<portable root>/data/logs/tauri-backend.log`, avoiding `%APPDATA%\Stirling-PDF\logs`;
 - `JAVA_TOOL_OPTIONS=-Djava.io.tmpdir=...` -> `<portable root>/data/tmp` for bundled Java only; do not replace native parent `TEMP/TMP` to achieve this;
 - Stirling's default `system.tempFileManagement.baseTmpDir` therefore resolves to `<portable root>/data/tmp/stirling-pdf`, while `MobileScannerService` resolves to `<portable root>/data/tmp/stirling-mobile-scanner` through `java.io.tmpdir`;
+- `WEBVIEW2_USER_DATA_FOLDER` -> `<portable root>/data/webview2`, containing WebView2 cookies, IndexedDB, Local Storage and browser cache without replacing global `LOCALAPPDATA`;
 - `CALIBRE_CONFIG_DIRECTORY` -> `<portable root>/data/calibre`;
 - packaged tool directories are prepended to `PATH` only when they exist;
 - `TESSDATA_PREFIX` is set only when packaged Tesseract data exists;
@@ -93,7 +94,7 @@ The portable boundary is component-specific:
 
 Portable `ExitRequested` is terminal and synchronous: terminate the bundled backend first, record any final log message, call `AppHandle::cleanup_before_exit()`, then immediately call `std::process::exit()` with the requested code. Tauri explicitly documents that no Tauri API may be used after manual cleanup. Run #11 proved that relying on a later `RunEvent::Exit` can leave the Windows portable parent alive even after Java and other child processes are gone. Keep non-portable upstream behavior unchanged unless upstream itself changes.
 
-Native Tauri/WebView2 state is not yet claimed fully package-local. Once packaged startup is green, audit its host writes explicitly and contain only those locations that can be redirected without breaking native shell initialization.
+WebView2 user data is explicitly redirected and the portable workflow now verifies the package-local profile is populated and that the default `%LOCALAPPDATA%\com.willsitogg.pdf-tunner` profile is not newly created. This does **not** yet prove every Tauri plugin is package-local. `tauri-plugin-window-state` 2.2.1 resolves `.window-state.json` through Tauri `app_config_dir()` and exposes no custom directory; the currently published 2.4.1 builder still has no directory override. Audit the observed `%APPDATA%\com.willsitogg.pdf-tunner` state before replacing only this plugin's persistence in portable mode. `tauri-plugin-store` remains registered to preserve upstream behavior; no application call sites were found in this fork, but any future relative store must be treated as an AppData-backed path unless explicitly localized.
 
 Intended layout:
 
@@ -105,6 +106,7 @@ PDF_Tunner/
   runtime/jre/
   tools/
   data/
+    webview2/
 ```
 
 Never commit generated `data/` contents.
@@ -193,12 +195,14 @@ Baseline sequence:
 9. find the actual backend port from package-local logs;
 10. request `/api/v1/info/status`;
 11. assert Stirling Java temp directories live under package `data/tmp` and were not newly created in host `%TEMP%`;
-12. assert portable startup/shutdown did not newly register `HKCU\Software\Classes\pdf-tunner`;
-13. on packaged-startup failure, preserve package-local logs/data, file inventory, relevant process snapshot, host-temp state and registry state as the short-lived `PDF_Tunner-startup-diagnostics` CI artifact;
-14. request normal app shutdown and check for portable child-process leftovers;
-15. clean runtime data from the distribution;
-16. create ZIP + SHA-256;
-17. upload only a short-lived CI artifact while the build remains bootstrap/non-release.
+12. assert WebView2 populated package `data/webview2` and did not newly create the default PDF_Tunner LocalAppData profile;
+13. record whether Tauri's Roaming AppData config folder appeared so remaining plugin-owned state can be isolated precisely;
+14. assert portable startup/shutdown did not newly register `HKCU\Software\Classes\pdf-tunner`;
+15. on packaged-startup failure, preserve package-local logs/data, file inventory, relevant process snapshot, host-temp state, host-profile state and registry state as the short-lived `PDF_Tunner-startup-diagnostics` CI artifact;
+16. request normal app shutdown and check for portable child-process leftovers;
+17. clean runtime data from the distribution;
+18. create ZIP + SHA-256;
+19. upload only a short-lived CI artifact while the build remains bootstrap/non-release.
 
 Startup diagnostics are implementation-branch evidence only. They must not become Release assets or permanent repository build output.
 
@@ -228,6 +232,8 @@ Before a final Release, automate where technically possible:
 - RAR/CBR if a technically viable packaged Windows implementation is established;
 - jbig2enc if integrated;
 - representative end-to-end API tests across Stirling functional families;
+- WebView2 runtime/profile containment;
+- Tauri/plugin state containment;
 - path containment under portable root;
 - child-process cleanup;
 - no accidental dependency on runner-installed tools;
@@ -301,3 +307,8 @@ Unless a PDF_Tunner rule above overrides them:
 - Strengthened packaged CI to assert local Stirling temp paths, detect new host Stirling-temp leaks, verify no `pdf-tunner` protocol key is created in HKCU, and preserve host-temp/registry evidence on failure.
 - Diagnostic run #11 proved both Stirling Java temp trees are package-local, no new corresponding host `%TEMP%` state is created, no `pdf-tunner` protocol key is registered, and Java/child-process cleanup succeeds.
 - Run #11 isolated the remaining failure to the Tauri parent process staying alive after `ExitRequested`; replaced the rejected wait-for-`RunEvent::Exit` strategy with Tauri's documented terminal sequence: backend cleanup, `cleanup_before_exit()`, immediate `std::process::exit()`.
+- Run #13 passed the complete portable bootstrap: real production startup, backend health, Java-temp containment, protocol-registry containment, parent/child shutdown, clean package reset, ZIP and SHA-256 artifact generation.
+- The general upstream CI on the same commit passed frontend, a11y, Playwright stubbed/live, database migration, Docker Compose/images and official Windows Tauri build; its sole failure is `dependency-review` because GitHub Dependency Graph is disabled on this fork.
+- Audited WebView2/Tauri host-state paths. Chose the component-specific `WEBVIEW2_USER_DATA_FOLDER` override to `data/webview2` instead of replacing `LOCALAPPDATA`, and strengthened portable CI to require a populated local WebView2 profile and detect the default host profile.
+- Audited `tauri-plugin-window-state`: version 2.2.1 writes through Tauri `app_config_dir()` and does not support a custom directory; current 2.4.1 still lacks a directory override. Its portable persistence remains a separate next change after CI records the actual Roaming AppData state.
+- `tauri-plugin-store` remains registered for upstream compatibility; repository search found no application call sites, so it is not removed speculatively.
