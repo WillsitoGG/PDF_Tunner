@@ -243,8 +243,16 @@ pub fn run() {
         RunEvent::ExitRequested { .. } => {
           add_log("🔄 App exit requested, cleaning up...".to_string());
           cleanup_backend();
-          // Use Tauri's built-in cleanup
-          app_handle.cleanup_before_exit();
+          if std::env::var_os("PDF_TUNNER_PORTABLE_ROOT").is_some() {
+            // App::run owns the final Tauri/plugin cleanup. Calling
+            // cleanup_before_exit() manually here can leave the portable process
+            // waiting after ExitRequested; Tauri documents that manual cleanup must
+            // be followed by immediate process exit.
+            add_log("🧳 Portable mode: backend cleanup complete; allowing Tauri runtime final cleanup".to_string());
+          } else {
+            // Preserve upstream desktop behavior outside PDF_Tunner portable mode.
+            app_handle.cleanup_before_exit();
+          }
         }
         RunEvent::WindowEvent { event: WindowEvent::CloseRequested {.. }, label, .. } => {
           add_log("🔄 Window close requested (will cleanup on actual exit)...".to_string());

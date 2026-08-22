@@ -76,18 +76,22 @@ The official desktop task currently sets `DISABLE_ADDITIONAL_FEATURES=true`. Tre
 
 Portable mode is enabled by marker file `PDF_TUNNER_PORTABLE` beside the executable.
 
-`frontend/editor/src-tauri/src/main.rs` detects the marker before Tauri starts and sets only PDF_Tunner-owned bootstrap state. **Do not globally replace Windows `APPDATA`, `LOCALAPPDATA`, `PROGRAMDATA`, `USERPROFILE`, `HOME`, `TEMP` or `TMP` before Tauri/WebView2 initializes.** CI proved that the first implementation reached portable directory creation but terminated before Tauri setup/backend logging when those host profile variables were replaced.
+`frontend/editor/src-tauri/src/main.rs` detects the marker before Tauri starts and sets only PDF_Tunner-owned/bootstrap state. **Do not globally replace Windows `APPDATA`, `LOCALAPPDATA`, `PROGRAMDATA`, `USERPROFILE`, `HOME`, `TEMP` or `TMP` before Tauri/WebView2 initializes.** CI proved that the first implementation reached portable directory creation but terminated before Tauri setup/backend logging when those host profile variables were replaced.
 
-The portable boundary is now component-specific:
+The portable boundary is component-specific:
 
 - `PDF_TUNNER_PORTABLE_ROOT` -> executable directory;
 - `utils::app_data_dir()` -> `<portable root>/data`, which localizes Stirling backend config, logs and working state;
 - `utils::system_provisioning_dir()` -> `<portable root>/data/provisioning`;
 - Tauri-side `add_log()` -> `<portable root>/data/logs/tauri-backend.log`, avoiding `%APPDATA%\Stirling-PDF\logs`;
+- `JAVA_TOOL_OPTIONS=-Djava.io.tmpdir=...` -> `<portable root>/data/tmp` for bundled Java only; do not replace native parent `TEMP/TMP` to achieve this;
+- Stirling's default `system.tempFileManagement.baseTmpDir` therefore resolves to `<portable root>/data/tmp/stirling-pdf`, while `MobileScannerService` resolves to `<portable root>/data/tmp/stirling-mobile-scanner` through `java.io.tmpdir`;
 - `CALIBRE_CONFIG_DIRECTORY` -> `<portable root>/data/calibre`;
 - packaged tool directories are prepended to `PATH` only when they exist;
 - `TESSDATA_PREFIX` is set only when packaged Tesseract data exists;
 - Windows/Linux deep-link protocol registration is skipped while portable mode is active so the app does not intentionally register `pdf-tunner://` in the host OS.
+
+Portable `ExitRequested` performs the backend cleanup but deliberately does not call `AppHandle::cleanup_before_exit()` manually. Tauri documents that callers of manual cleanup must exit immediately afterwards; the normal `App::run` lifecycle owns final portable runtime/plugin cleanup instead. Keep non-portable upstream behavior unchanged unless upstream itself changes.
 
 Native Tauri/WebView2 state is not yet claimed fully package-local. Once packaged startup is green, audit its host writes explicitly and contain only those locations that can be redirected without breaking native shell initialization.
 
@@ -188,11 +192,13 @@ Baseline sequence:
 8. launch the assembled executable;
 9. find the actual backend port from package-local logs;
 10. request `/api/v1/info/status`;
-11. on packaged-startup failure, preserve package-local logs/data, file inventory and a relevant process snapshot as the short-lived `PDF_Tunner-startup-diagnostics` CI artifact;
-12. request normal app shutdown and check for portable child-process leftovers;
-13. clean runtime data from the distribution;
-14. create ZIP + SHA-256;
-15. upload only a short-lived CI artifact while the build remains bootstrap/non-release.
+11. assert Stirling Java temp directories live under package `data/tmp` and were not newly created in host `%TEMP%`;
+12. assert portable startup/shutdown did not newly register `HKCU\Software\Classes\pdf-tunner`;
+13. on packaged-startup failure, preserve package-local logs/data, file inventory, relevant process snapshot, host-temp state and registry state as the short-lived `PDF_Tunner-startup-diagnostics` CI artifact;
+14. request normal app shutdown and check for portable child-process leftovers;
+15. clean runtime data from the distribution;
+16. create ZIP + SHA-256;
+17. upload only a short-lived CI artifact while the build remains bootstrap/non-release.
 
 Startup diagnostics are implementation-branch evidence only. They must not become Release assets or permanent repository build output.
 
@@ -286,3 +292,11 @@ Unless a PDF_Tunner rule above overrides them:
 - Replaced global pre-Tauri Windows-profile environment hijacking with targeted Stirling-owned path redirection through `utils::app_data_dir()` and package-local provisioning.
 - Disabled runtime deep-link protocol registration in portable mode to avoid deliberate host-registry integration.
 - Redirected Stirling's Tauri-side `add_log()` output to package-local `data/logs` in portable mode so startup logging itself does not leak to host `%APPDATA%`.
+
+### 2026-08-22 — packaged startup containment
+
+- Diagnostic run #9 proved the packaged production EXE initializes Tauri, launches bundled Java 25, starts Stirling 2.14.3 on a dynamic loopback port, answers the health endpoint and terminates the Java backend during close.
+- Run #9 exposed two Java-owned host temp directories: `%LOCALAPPDATA%\Temp\stirling-pdf` and `%LOCALAPPDATA%\Temp\stirling-mobile-scanner`.
+- Added Java-specific `java.io.tmpdir` redirection to package-local `data/tmp` without globally replacing native Windows `TEMP/TMP`.
+- Adjusted portable `ExitRequested` cleanup so Tauri's normal `App::run` lifecycle performs final runtime/plugin cleanup after Java termination instead of manually calling `cleanup_before_exit()` and then continuing.
+- Strengthened packaged CI to assert local Stirling temp paths, detect new host Stirling-temp leaks, verify no `pdf-tunner` protocol key is created in HKCU, and preserve host-temp/registry evidence on failure.

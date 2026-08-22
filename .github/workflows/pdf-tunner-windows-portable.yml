@@ -129,6 +129,17 @@ jobs:
 
           $hostLeak = Join-Path $env:APPDATA 'Stirling-PDF'
           $hostLeakExisted = Test-Path -LiteralPath $hostLeak
+          $hostTempRoot = [System.IO.Path]::GetTempPath()
+          $hostTempPaths = @(
+            (Join-Path $hostTempRoot 'stirling-pdf'),
+            (Join-Path $hostTempRoot 'stirling-mobile-scanner')
+          )
+          $hostTempExisted = @{}
+          foreach ($path in $hostTempPaths) {
+            $hostTempExisted[$path] = Test-Path -LiteralPath $path
+          }
+          $protocolKey = 'HKCU:\Software\Classes\pdf-tunner'
+          $protocolExisted = Test-Path -LiteralPath $protocolKey
 
           $process = Start-Process -FilePath $exe -WorkingDirectory $portable -PassThru
           Write-Host "Started PDF_Tunner PID $($process.Id)"
@@ -175,6 +186,34 @@ jobs:
             throw "Portable startup leaked runtime state into host APPDATA: $hostLeak"
           }
 
+          $portableTemp = Join-Path $portable 'data/tmp'
+          $expectedPortableTempPaths = @(
+            (Join-Path $portableTemp 'stirling-pdf'),
+            (Join-Path $portableTemp 'stirling-mobile-scanner')
+          )
+          $portableLogText = (
+            Get-ChildItem -LiteralPath (Join-Path $portable 'data/logs') -File -Filter '*.log' -ErrorAction SilentlyContinue |
+              ForEach-Object { Get-Content -LiteralPath $_.FullName -Raw -ErrorAction SilentlyContinue }
+          ) -join "`n"
+          foreach ($path in $expectedPortableTempPaths) {
+            if (-not (Test-Path -LiteralPath $path -PathType Container)) {
+              throw "Expected package-local Java temp directory was not created: $path"
+            }
+            if ($portableLogText -notlike "*$path*") {
+              throw "Package-local logs did not confirm Java temp path: $path"
+            }
+          }
+
+          foreach ($path in $hostTempPaths) {
+            if (-not $hostTempExisted[$path] -and (Test-Path -LiteralPath $path)) {
+              throw "Portable Java startup leaked Stirling temp state into host TEMP: $path"
+            }
+          }
+
+          if (-not $protocolExisted -and (Test-Path -LiteralPath $protocolKey)) {
+            throw "Portable startup registered pdf-tunner protocol in the host registry: $protocolKey"
+          }
+
           $portableDataItems = @(Get-ChildItem -LiteralPath (Join-Path $portable 'data') -Recurse -Force -ErrorAction SilentlyContinue)
           if ($portableDataItems.Count -eq 0) {
             throw 'Portable startup did not create any package-local runtime data.'
@@ -195,6 +234,10 @@ jobs:
           if ($leftovers.Count -gt 0) {
             $leftovers | Select-Object ProcessId, Name, CommandLine | Format-List
             throw 'Portable child processes remained after PDF_Tunner exit.'
+          }
+
+          if (-not $protocolExisted -and (Test-Path -LiteralPath $protocolKey)) {
+            throw "Portable shutdown left pdf-tunner protocol state in the host registry: $protocolKey"
           }
 
       - name: Collect portable startup diagnostics
@@ -224,6 +267,20 @@ jobs:
             Format-List |
             Out-String -Width 4096 |
             Set-Content -LiteralPath (Join-Path $diagnostics 'processes.txt') -Encoding utf8
+
+          $hostTempRoot = [System.IO.Path]::GetTempPath()
+          @(
+            (Join-Path $hostTempRoot 'stirling-pdf'),
+            (Join-Path $hostTempRoot 'stirling-mobile-scanner')
+          ) | ForEach-Object {
+            [PSCustomObject]@{ Path = $_; Exists = Test-Path -LiteralPath $_ }
+          } | Format-Table -AutoSize | Out-String -Width 4096 |
+            Set-Content -LiteralPath (Join-Path $diagnostics 'host-temp-state.txt') -Encoding utf8
+
+          $protocolKey = 'HKCU:\Software\Classes\pdf-tunner'
+          [PSCustomObject]@{ Path = $protocolKey; Exists = Test-Path -LiteralPath $protocolKey } |
+            Format-List | Out-String -Width 4096 |
+            Set-Content -LiteralPath (Join-Path $diagnostics 'registry-state.txt') -Encoding utf8
 
       - name: Upload portable startup diagnostics
         if: failure()

@@ -20,13 +20,23 @@ fn configure_pdf_tunner_portable_environment() {
 
   let data = root.join("data");
   let calibre_config = data.join("calibre");
+  let java_temp = data.join("tmp");
   let _ = fs::create_dir_all(&data);
   let _ = fs::create_dir_all(&calibre_config);
+  let _ = fs::create_dir_all(&java_temp);
 
   // Do not rewrite Windows profile variables here. Tauri/WebView2 is native
   // infrastructure and must initialize against the real Windows profile.
   // Stirling-owned backend state is redirected by utils::app_data_dir().
   env::set_var("PDF_TUNNER_PORTABLE_ROOT", root);
+
+  // JAVA_TOOL_OPTIONS is intentionally Java-specific: the native Tauri/WebView2
+  // process keeps the real Windows TEMP/TMP, while bundled Java and its Java temp
+  // APIs resolve inside the portable tree. Quotes preserve paths containing spaces.
+  env::set_var(
+    "JAVA_TOOL_OPTIONS",
+    format!("-Djava.io.tmpdir=\"{}\"", java_temp.display()),
+  );
 
   let tools = root.join("tools");
   let tool_paths = [
