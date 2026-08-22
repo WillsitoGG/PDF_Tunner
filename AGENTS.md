@@ -40,7 +40,7 @@ Record any future upstream update here and in README before treating it as the n
 10. Do not make licensing the center of technical work. Mention it only when it creates a concrete implementation/distribution constraint.
 11. Heavy repeated CI must use a branch/workflow-specific `concurrency` group with `cancel-in-progress: true`; do not allow obsolete portable runs to pile up.
 12. During active downstream development use at most one automatic trigger for the heavy portable workflow unless duplicate events are technically necessary and deduplicated.
-13. If connected GitHub tooling cannot enumerate `push` workflow runs natively, maintain a lightweight connector-readable run index rather than asking the user for run URLs. The bridge must never commit/push repository content during execution, must use its own `concurrency`, and must be removed with temporary development CI before final merge.
+13. If connected GitHub tooling cannot enumerate `push` workflow runs natively, expose their IDs through a connector-readable Commit Status bridge inside the existing heavy workflow rather than adding another automatic workflow or asking the user for run URLs. The bridge must not commit/push repository content and must be removed with temporary development CI before final merge.
 
 ## Architecture decision
 
@@ -219,41 +219,41 @@ Normal final state should be manual `workflow_dispatch`. During the active boots
 
 Connector run discovery bridge during active development:
 
-- workflow: `.github/workflows/pdf-tunner-ci-run-index.yml`;
-- trigger: `push` to `pdf-tunner/windows-portable-v1` plus manual `workflow_dispatch`;
-- permissions: `actions: read`, `contents: read`, `issues: write` only;
-- source: GitHub Actions REST `GET /repos/{owner}/{repo}/actions/runs` filtered to `event=push` and the development branch;
-- sink: one fixed machine-maintained comment on closed draft PR #1 (comment ID `5382532657`);
-- fields: workflow name, run number, status, conclusion, head SHA, `run_id`, URL;
-- the connector reads PR comments to discover push `run_id`, then uses normal run/job/log/artifact tools;
-- the bridge never commits or pushes repository content and therefore cannot recurse;
-- it has its own `concurrency` with `cancel-in-progress: true` so index refreshes cannot accumulate;
-- remove it with other temporary development CI before final merge to `main`.
+- implementation: `.github/scripts/publish-push-run-statuses.ps1`, invoked as the first post-checkout step of the existing Windows portable job;
+- permissions: `actions: read`, `contents: read`, `statuses: write`;
+- current run: publishes `GITHUB_RUN_ID`, `GITHUB_RUN_NUMBER`, `GITHUB_SHA` and the exact Actions URL immediately as Commit Status context `pdf-tunner/windows-portable-push`;
+- backfill: queries recent runs of `.github/workflows/pdf-tunner-windows-portable.yml` through GitHub Actions REST filtered to `event=push` and `pdf-tunner/windows-portable-v1`, then publishes the same status context on each historical head SHA;
+- state mapping: active runs -> `pending`; successful completed runs -> `success`; failure/timeout/action-required -> `failure`; other terminal conclusions -> `error`;
+- each status description includes the run number/result and `run_id`; `target_url` is the exact Actions run URL;
+- connected tooling calls `get_commit_combined_status`, extracts the run ID/target URL, then uses normal run/job/log/artifact endpoints;
+- no second workflow or job is created, no repository content is written during execution, and no CI recursion is possible;
+- remove this development-only status bridge with other temporary CI before final merge to `main`.
 
 Baseline sequence:
 
 1. checkout this fork;
-2. verify pinned upstream commit is an ancestor;
-3. setup Node 22, Rust stable, Java 25 and Task;
-4. run `task desktop:prepare` with Windows x64 JPDFium;
-5. run `task desktop:test`;
-6. build Tauri with `tauri.pdf-tunner.conf.json` and no installer;
-7. assemble `PDF_Tunner.exe`, `libs/`, `runtime/jre/`, marker and empty `data/`;
-8. launch the assembled executable;
-9. find the actual backend port from package-local logs;
-10. request `/api/v1/info/status`;
-11. assert Stirling Java temp directories live under package `data/tmp` and were not newly created in host `%TEMP%`;
-12. assert WebView2 populated package `data/webview2` and did not newly create `%LOCALAPPDATA%\com.willsitogg.pdf-tunner\EBWebView`;
-13. assert portable startup/shutdown did not persist files/subdirectories under `%APPDATA%\com.willsitogg.pdf-tunner`; record but do not misclassify a completely empty identifier directory;
-14. inventory Local/Roaming application roots separately so Tauri/plugin state can be classified precisely;
-15. assert portable startup/shutdown did not newly register `HKCU\Software\Classes\pdf-tunner`;
-16. request normal app shutdown and check for portable child-process leftovers;
-17. run the real two-launch Win32 window-state persistence/restore validator on the assembled production tree;
-18. on failure, write host/profile/registry/process evidence first, recursively inventory the PDF_Tunner/Stirling host application roots, summarize live WebView2 without recursively copying it, and copy safe package-local state including `data/tauri` best-effort;
-19. upload diagnostics with hidden files enabled so `.window-state.json` is retained when present;
-20. clean generated runtime data from the distribution;
-21. create ZIP + SHA-256;
-22. upload only a short-lived CI artifact while the build remains bootstrap/non-release.
+2. publish/backfill connector-readable `push` run IDs as Commit Status metadata;
+3. verify pinned upstream commit is an ancestor;
+4. setup Node 22, Rust stable, Java 25 and Task;
+5. run `task desktop:prepare` with Windows x64 JPDFium;
+6. run `task desktop:test`;
+7. build Tauri with `tauri.pdf-tunner.conf.json` and no installer;
+8. assemble `PDF_Tunner.exe`, `libs/`, `runtime/jre/`, marker and empty `data/`;
+9. launch the assembled executable;
+10. find the actual backend port from package-local logs;
+11. request `/api/v1/info/status`;
+12. assert Stirling Java temp directories live under package `data/tmp` and were not newly created in host `%TEMP%`;
+13. assert WebView2 populated package `data/webview2` and did not newly create `%LOCALAPPDATA%\com.willsitogg.pdf-tunner\EBWebView`;
+14. assert portable startup/shutdown did not persist files/subdirectories under `%APPDATA%\com.willsitogg.pdf-tunner`; record but do not misclassify a completely empty identifier directory;
+15. inventory Local/Roaming application roots separately so Tauri/plugin state can be classified precisely;
+16. assert portable startup/shutdown did not newly register `HKCU\Software\Classes\pdf-tunner`;
+17. request normal app shutdown and check for portable child-process leftovers;
+18. run the real two-launch Win32 window-state persistence/restore validator on the assembled production tree;
+19. on failure, write host/profile/registry/process evidence first, recursively inventory the PDF_Tunner/Stirling host application roots, summarize live WebView2 without recursively copying it, and copy safe package-local state including `data/tauri` best-effort;
+20. upload diagnostics with hidden files enabled so `.window-state.json` is retained when present;
+21. clean generated runtime data from the distribution;
+22. create ZIP + SHA-256;
+23. upload only a short-lived CI artifact while the build remains bootstrap/non-release.
 
 Startup diagnostics are implementation-branch evidence only. They must not become Release assets or permanent repository build output.
 
@@ -366,5 +366,5 @@ Unless a PDF_Tunner rule above overrides them:
 - Integrated a real two-launch window-state proof directly into the primary Windows portable workflow: it moves/resizes the assembled production Win32 window, verifies package-local JSON, relaunches for restoration, rejects Roaming AppData content and checks child-process cleanup before the final ZIP is built.
 - Run #49 passed every pre-window-state build/bootstrap step and proved the first deliberate launch writes package-local `.window-state.json`; it then failed before the second launch solely because the validator treated existence of the Roaming identifier directory as state. The artifact did not preserve recursive host contents or the hidden JSON, so the next validator hard-fails on actual contents rather than an empty root and diagnostics now preserve both.
 - Removed the duplicate heavy `pull_request` trigger during development, kept one branch-scoped `push` trigger plus `workflow_dispatch`, and added `concurrency` with `cancel-in-progress: true` so obsolete portable runs cannot accumulate again.
-- Added a lightweight connector-readable push-run index workflow that queries GitHub Actions REST and updates one fixed PR #1 comment, allowing connected tooling to discover `push` run IDs without user-supplied URLs.
+- Replaced the failed separate run-index workflow experiment with an integrated Commit Status bridge: the primary Portable run now publishes its own `run_id` and backfills recent `push` run IDs onto their head commits, making them discoverable through the existing connector without adding another workflow/job.
 - Verified Microsoft Fixed WebView2 distribution requirements for the next layer: current x64 build 151.0.4129.101 at the time of audit, `WEBVIEW2_BROWSER_EXECUTABLE_FOLDER`, Windows 10 AppContainer ACLs for Fixed Version 120+, and no UNC/network execution.

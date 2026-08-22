@@ -11,7 +11,9 @@ concurrency:
   cancel-in-progress: true
 
 permissions:
+  actions: read
   contents: read
+  statuses: write
 
 env:
   PDF_TUNNER_UPSTREAM_VERSION: "2.14.3"
@@ -27,6 +29,13 @@ jobs:
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           fetch-depth: 0
+
+      - name: Publish connector-readable push-run statuses
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          & './.github/scripts/publish-push-run-statuses.ps1'
 
       - name: Verify documented upstream base
         shell: pwsh
