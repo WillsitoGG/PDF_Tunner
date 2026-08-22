@@ -91,7 +91,7 @@ The portable boundary is component-specific:
 - `TESSDATA_PREFIX` is set only when packaged Tesseract data exists;
 - Windows/Linux deep-link protocol registration is skipped while portable mode is active so the app does not intentionally register `pdf-tunner://` in the host OS.
 
-Portable `ExitRequested` performs the backend cleanup but deliberately does not call `AppHandle::cleanup_before_exit()` manually. Tauri documents that callers of manual cleanup must exit immediately afterwards; the normal `App::run` lifecycle owns final portable runtime/plugin cleanup instead. Keep non-portable upstream behavior unchanged unless upstream itself changes.
+Portable `ExitRequested` is terminal and synchronous: terminate the bundled backend first, record any final log message, call `AppHandle::cleanup_before_exit()`, then immediately call `std::process::exit()` with the requested code. Tauri explicitly documents that no Tauri API may be used after manual cleanup. Run #11 proved that relying on a later `RunEvent::Exit` can leave the Windows portable parent alive even after Java and other child processes are gone. Keep non-portable upstream behavior unchanged unless upstream itself changes.
 
 Native Tauri/WebView2 state is not yet claimed fully package-local. Once packaged startup is green, audit its host writes explicitly and contain only those locations that can be redirected without breaking native shell initialization.
 
@@ -298,5 +298,6 @@ Unless a PDF_Tunner rule above overrides them:
 - Diagnostic run #9 proved the packaged production EXE initializes Tauri, launches bundled Java 25, starts Stirling 2.14.3 on a dynamic loopback port, answers the health endpoint and terminates the Java backend during close.
 - Run #9 exposed two Java-owned host temp directories: `%LOCALAPPDATA%\Temp\stirling-pdf` and `%LOCALAPPDATA%\Temp\stirling-mobile-scanner`.
 - Added Java-specific `java.io.tmpdir` redirection to package-local `data/tmp` without globally replacing native Windows `TEMP/TMP`.
-- Adjusted portable `ExitRequested` cleanup so Tauri's normal `App::run` lifecycle performs final runtime/plugin cleanup after Java termination instead of manually calling `cleanup_before_exit()` and then continuing.
 - Strengthened packaged CI to assert local Stirling temp paths, detect new host Stirling-temp leaks, verify no `pdf-tunner` protocol key is created in HKCU, and preserve host-temp/registry evidence on failure.
+- Diagnostic run #11 proved both Stirling Java temp trees are package-local, no new corresponding host `%TEMP%` state is created, no `pdf-tunner` protocol key is registered, and Java/child-process cleanup succeeds.
+- Run #11 isolated the remaining failure to the Tauri parent process staying alive after `ExitRequested`; replaced the rejected wait-for-`RunEvent::Exit` strategy with Tauri's documented terminal sequence: backend cleanup, `cleanup_before_exit()`, immediate `std::process::exit()`.

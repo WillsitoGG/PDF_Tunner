@@ -240,15 +240,21 @@ pub fn run() {
     .expect("error while building tauri application")
     .run(|app_handle, event| {
       match event {
-        RunEvent::ExitRequested { .. } => {
+        RunEvent::ExitRequested { code, .. } => {
           add_log("🔄 App exit requested, cleaning up...".to_string());
           cleanup_backend();
           if std::env::var_os("PDF_TUNNER_PORTABLE_ROOT").is_some() {
-            // App::run owns the final Tauri/plugin cleanup. Calling
-            // cleanup_before_exit() manually here can leave the portable process
-            // waiting after ExitRequested; Tauri documents that manual cleanup must
-            // be followed by immediate process exit.
-            add_log("🧳 Portable mode: backend cleanup complete; allowing Tauri runtime final cleanup".to_string());
+            // Tauri documents cleanup_before_exit() as a terminal cleanup API:
+            // after it returns, the process must exit immediately and no further
+            // Tauri APIs may be used. Run #11 proved that merely waiting for a
+            // later RunEvent::Exit can leave the portable parent alive on Windows.
+            let exit_code = code.unwrap_or(0);
+            add_log(format!(
+              "🧳 Portable mode: backend cleanup complete; performing final Tauri cleanup and exiting with code {}",
+              exit_code
+            ));
+            app_handle.cleanup_before_exit();
+            std::process::exit(exit_code);
           } else {
             // Preserve upstream desktop behavior outside PDF_Tunner portable mode.
             app_handle.cleanup_before_exit();
