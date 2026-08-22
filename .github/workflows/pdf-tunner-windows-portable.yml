@@ -129,7 +129,8 @@ jobs:
 
           $hostLeak = Join-Path $env:APPDATA 'Stirling-PDF'
           $hostLeakExisted = Test-Path -LiteralPath $hostLeak
-          $hostWebView = Join-Path $env:LOCALAPPDATA 'com.willsitogg.pdf-tunner'
+          $hostWebViewRoot = Join-Path $env:LOCALAPPDATA 'com.willsitogg.pdf-tunner'
+          $hostWebView = Join-Path $hostWebViewRoot 'EBWebView'
           $hostWebViewExisted = Test-Path -LiteralPath $hostWebView
           $hostTauriConfig = Join-Path $env:APPDATA 'com.willsitogg.pdf-tunner'
           $hostTauriConfigExisted = Test-Path -LiteralPath $hostTauriConfig
@@ -144,6 +145,12 @@ jobs:
           }
           $protocolKey = 'HKCU:\Software\Classes\pdf-tunner'
           $protocolExisted = Test-Path -LiteralPath $protocolKey
+
+          Write-Host "Pre-launch containment baseline:"
+          Write-Host "  Stirling AppData: $hostLeak (exists=$hostLeakExisted)"
+          Write-Host "  WebView2 EBWebView: $hostWebView (exists=$hostWebViewExisted)"
+          Write-Host "  Tauri Roaming config: $hostTauriConfig (exists=$hostTauriConfigExisted)"
+          Write-Host "  Protocol key: $protocolKey (exists=$protocolExisted)"
 
           $process = Start-Process -FilePath $exe -WorkingDirectory $portable -PassThru
           Write-Host "Started PDF_Tunner PID $($process.Id)"
@@ -186,20 +193,30 @@ jobs:
           }
           Write-Host "Backend health check OK: $statusUri"
 
+          Write-Host 'Containment check: Stirling AppData'
           if (-not $hostLeakExisted -and (Test-Path -LiteralPath $hostLeak)) {
             throw "Portable startup leaked runtime state into host APPDATA: $hostLeak"
           }
 
           $portableWebView = Join-Path $portable 'data/webview2'
+          Write-Host "Containment check: package-local WebView2 profile at $portableWebView"
           if (-not (Test-Path -LiteralPath $portableWebView -PathType Container)) {
             throw "Portable WebView2 user-data directory was not created: $portableWebView"
           }
-          $portableWebViewItems = @(Get-ChildItem -LiteralPath $portableWebView -Recurse -Force -ErrorAction SilentlyContinue)
-          if ($portableWebViewItems.Count -eq 0) {
+          $portableWebViewFiles = @(Get-ChildItem -LiteralPath $portableWebView -Recurse -Force -File -ErrorAction SilentlyContinue)
+          $portableWebViewBytes = ($portableWebViewFiles | Measure-Object -Property Length -Sum).Sum
+          if ($portableWebViewFiles.Count -eq 0) {
             throw "Portable WebView2 user-data directory remained empty: $portableWebView"
           }
+          Write-Host "Portable WebView2 profile populated: $($portableWebViewFiles.Count) files / $portableWebViewBytes bytes"
+
+          Write-Host "Containment check: default host WebView2 EBWebView at $hostWebView"
           if (-not $hostWebViewExisted -and (Test-Path -LiteralPath $hostWebView)) {
-            throw "Portable WebView2 created its default host LocalAppData profile: $hostWebView"
+            throw "Portable WebView2 created its default host EBWebView profile: $hostWebView"
+          }
+          if (-not $hostWebViewExisted -and (Test-Path -LiteralPath $hostWebViewRoot)) {
+            Write-Host "Host LocalAppData app root exists without a new EBWebView profile; recording as non-WebView Tauri evidence: $hostWebViewRoot"
+            Get-ChildItem -LiteralPath $hostWebViewRoot -Force -ErrorAction SilentlyContinue | Select-Object FullName, Length, LastWriteTime | Format-Table -AutoSize
           }
 
           $portableTemp = Join-Path $portable 'data/tmp'
@@ -211,6 +228,7 @@ jobs:
             Get-ChildItem -LiteralPath (Join-Path $portable 'data/logs') -File -Filter '*.log' -ErrorAction SilentlyContinue |
               ForEach-Object { Get-Content -LiteralPath $_.FullName -Raw -ErrorAction SilentlyContinue }
           ) -join "`n"
+          Write-Host 'Containment check: Java temp paths'
           foreach ($path in $expectedPortableTempPaths) {
             if (-not (Test-Path -LiteralPath $path -PathType Container)) {
               throw "Expected package-local Java temp directory was not created: $path"
@@ -226,6 +244,7 @@ jobs:
             }
           }
 
+          Write-Host 'Containment check: protocol registry state'
           if (-not $protocolExisted -and (Test-Path -LiteralPath $protocolKey)) {
             throw "Portable startup registered pdf-tunner protocol in the host registry: $protocolKey"
           }
@@ -233,6 +252,12 @@ jobs:
           $portableDataItems = @(Get-ChildItem -LiteralPath (Join-Path $portable 'data') -Recurse -Force -ErrorAction SilentlyContinue)
           if ($portableDataItems.Count -eq 0) {
             throw 'Portable startup did not create any package-local runtime data.'
+          }
+
+          $hostTauriConfigNow = Test-Path -LiteralPath $hostTauriConfig
+          Write-Host "Tauri Roaming config before close: existed before=$hostTauriConfigExisted; exists now=$hostTauriConfigNow; path=$hostTauriConfig"
+          if (-not $hostTauriConfigExisted -and $hostTauriConfigNow) {
+            Get-ChildItem -LiteralPath $hostTauriConfig -Recurse -Force -ErrorAction SilentlyContinue | Select-Object FullName, Length, LastWriteTime | Format-Table -AutoSize
           }
 
           $closed = $process.CloseMainWindow()
@@ -252,12 +277,13 @@ jobs:
             throw 'Portable child processes remained after PDF_Tunner exit.'
           }
 
+          Write-Host 'Post-shutdown containment check: WebView2 EBWebView'
           if (-not $hostWebViewExisted -and (Test-Path -LiteralPath $hostWebView)) {
-            throw "Portable WebView2 left a default host LocalAppData profile after shutdown: $hostWebView"
+            throw "Portable WebView2 left a default host EBWebView profile after shutdown: $hostWebView"
           }
 
-          $hostTauriConfigNow = Test-Path -LiteralPath $hostTauriConfig
-          Write-Host "Host Tauri Roaming config existed before launch: $hostTauriConfigExisted; exists after shutdown: $hostTauriConfigNow; path: $hostTauriConfig"
+          $hostTauriConfigAfter = Test-Path -LiteralPath $hostTauriConfig
+          Write-Host "Host Tauri Roaming config existed before launch: $hostTauriConfigExisted; exists after shutdown: $hostTauriConfigAfter; path: $hostTauriConfig"
 
           if (-not $protocolExisted -and (Test-Path -LiteralPath $protocolKey)) {
             throw "Portable shutdown left pdf-tunner protocol state in the host registry: $protocolKey"
@@ -271,27 +297,12 @@ jobs:
           New-Item -ItemType Directory -Force -Path $diagnostics | Out-Null
 
           $portable = Join-Path $PWD 'dist/PDF_Tunner'
-          if (Test-Path -LiteralPath $portable) {
-            Get-ChildItem -LiteralPath $portable -Recurse -Force -ErrorAction SilentlyContinue |
-              Select-Object FullName, Length, LastWriteTime |
-              Format-Table -AutoSize |
-              Out-String -Width 4096 |
-              Set-Content -LiteralPath (Join-Path $diagnostics 'portable-tree.txt') -Encoding utf8
-          }
-
           $data = Join-Path $portable 'data'
-          if (Test-Path -LiteralPath $data) {
-            Copy-Item -LiteralPath $data -Destination (Join-Path $diagnostics 'data') -Recurse -Force
-          }
-
-          Get-CimInstance Win32_Process |
-            Where-Object { $_.Name -match 'PDF_Tunner|java' -or ($_.CommandLine -and $_.CommandLine -match 'PDF_Tunner|Stirling') } |
-            Select-Object ProcessId, ParentProcessId, Name, ExecutablePath, CommandLine |
-            Format-List |
-            Out-String -Width 4096 |
-            Set-Content -LiteralPath (Join-Path $diagnostics 'processes.txt') -Encoding utf8
-
           $hostTempRoot = [System.IO.Path]::GetTempPath()
+          $protocolKey = 'HKCU:\Software\Classes\pdf-tunner'
+
+          # Record host state first. This evidence must survive even if Chromium
+          # still owns locked files in data/webview2 after an early smoke failure.
           @(
             (Join-Path $hostTempRoot 'stirling-pdf'),
             (Join-Path $hostTempRoot 'stirling-mobile-scanner')
@@ -300,19 +311,71 @@ jobs:
           } | Format-Table -AutoSize | Out-String -Width 4096 |
             Set-Content -LiteralPath (Join-Path $diagnostics 'host-temp-state.txt') -Encoding utf8
 
-          @(
+          $hostProfilePaths = @(
             (Join-Path $env:LOCALAPPDATA 'com.willsitogg.pdf-tunner'),
+            (Join-Path $env:LOCALAPPDATA 'com.willsitogg.pdf-tunner\EBWebView'),
             (Join-Path $env:APPDATA 'com.willsitogg.pdf-tunner'),
             (Join-Path $env:APPDATA 'Stirling-PDF')
-          ) | ForEach-Object {
+          )
+          $hostProfilePaths | ForEach-Object {
             [PSCustomObject]@{ Path = $_; Exists = Test-Path -LiteralPath $_ }
           } | Format-Table -AutoSize | Out-String -Width 4096 |
             Set-Content -LiteralPath (Join-Path $diagnostics 'host-profile-state.txt') -Encoding utf8
 
-          $protocolKey = 'HKCU:\Software\Classes\pdf-tunner'
+          $hostInventory = @()
+          foreach ($root in @($env:LOCALAPPDATA, $env:APPDATA)) {
+            if (Test-Path -LiteralPath $root) {
+              $hostInventory += Get-ChildItem -LiteralPath $root -Force -ErrorAction SilentlyContinue |
+                Where-Object { $_.Name -match '(?i)pdf.?tunner|stirling|willsitogg|pdf-tunner' } |
+                Select-Object FullName, PSIsContainer, Length, LastWriteTime
+            }
+          }
+          $hostInventory | Format-Table -AutoSize | Out-String -Width 4096 |
+            Set-Content -LiteralPath (Join-Path $diagnostics 'host-app-inventory.txt') -Encoding utf8
+
           [PSCustomObject]@{ Path = $protocolKey; Exists = Test-Path -LiteralPath $protocolKey } |
             Format-List | Out-String -Width 4096 |
             Set-Content -LiteralPath (Join-Path $diagnostics 'registry-state.txt') -Encoding utf8
+
+          Get-CimInstance Win32_Process |
+            Where-Object { $_.Name -match 'PDF_Tunner|java' -or ($_.CommandLine -and $_.CommandLine -match 'PDF_Tunner|Stirling') } |
+            Select-Object ProcessId, ParentProcessId, Name, ExecutablePath, CommandLine |
+            Format-List |
+            Out-String -Width 4096 |
+            Set-Content -LiteralPath (Join-Path $diagnostics 'processes.txt') -Encoding utf8
+
+          if (Test-Path -LiteralPath $portable) {
+            Get-ChildItem -LiteralPath $portable -Recurse -Force -ErrorAction SilentlyContinue |
+              Select-Object FullName, Length, LastWriteTime |
+              Format-Table -AutoSize |
+              Out-String -Width 4096 |
+              Set-Content -LiteralPath (Join-Path $diagnostics 'portable-tree.txt') -Encoding utf8
+          }
+
+          $webView = Join-Path $data 'webview2'
+          if (Test-Path -LiteralPath $webView) {
+            $webViewFiles = @(Get-ChildItem -LiteralPath $webView -Recurse -Force -File -ErrorAction SilentlyContinue)
+            $webViewBytes = ($webViewFiles | Measure-Object -Property Length -Sum).Sum
+            @(
+              "Path: $webView",
+              "Files: $($webViewFiles.Count)",
+              "Bytes: $webViewBytes",
+              '',
+              'Sample files:'
+            ) + @($webViewFiles | Select-Object -First 100 | ForEach-Object { $_.FullName }) |
+              Set-Content -LiteralPath (Join-Path $diagnostics 'webview2-state.txt') -Encoding utf8
+          }
+
+          # Copy only portable state that is safe to read while the app may still
+          # be alive. Do not recursively copy the live Chromium/WebView2 profile.
+          $diagnosticData = Join-Path $diagnostics 'data'
+          New-Item -ItemType Directory -Force -Path $diagnosticData | Out-Null
+          foreach ($relative in @('logs', 'configs', 'tmp', 'pipeline')) {
+            $source = Join-Path $data $relative
+            if (Test-Path -LiteralPath $source) {
+              Copy-Item -LiteralPath $source -Destination (Join-Path $diagnosticData $relative) -Recurse -Force -ErrorAction SilentlyContinue
+            }
+          }
 
       - name: Upload portable startup diagnostics
         if: failure()

@@ -9,7 +9,7 @@
 - Initial upstream commit: `7fb29d002dbb8fa4b5945d1d1fe8dd164a9f7632`
 - Development branch: `pdf-tunner/windows-portable-v1`
 - Target: **Windows 10/11 x64 portable ZIP**
-- Status: **portable bootstrap green; host-state containment and external-tool integration still in progress; no final Release yet**
+- Status: **portable bootstrap green; WebView2 profile redirection proven and host-state containment under active validation; no final Release yet**
 
 The full original Stirling documentation and developer guide remain in this fork. Upstream project information is available at [Stirling-Tools/Stirling-PDF](https://github.com/Stirling-Tools/Stirling-PDF).
 
@@ -36,7 +36,7 @@ The first packaged-startup CI diagnostics showed that globally replacing Windows
 
 The Tauri-side `add_log()` path is explicitly redirected to `data/logs/` in portable mode, preventing creation of `%APPDATA%\Stirling-PDF\logs`. Java temporary storage is isolated without changing native Windows `TEMP/TMP`: portable bootstrap sets Java-specific `JAVA_TOOL_OPTIONS=-Djava.io.tmpdir=...` so Stirling's normal temporary manager resolves under `data/tmp/stirling-pdf/` and the mobile-scanner service under `data/tmp/stirling-mobile-scanner/`.
 
-WebView2 is now given its own component-specific user-data override, `WEBVIEW2_USER_DATA_FOLDER=<portable root>\data\webview2`. Microsoft documents that this environment variable replaces the user-data folder passed by the host, so PDF_Tunner can keep cookies, IndexedDB, Local Storage and browser cache in the portable tree without replacing `LOCALAPPDATA`. CI requires that `data/webview2` is actually populated during a real packaged launch and that the default PDF_Tunner WebView2 profile is not newly created in host LocalAppData.
+WebView2 receives the component-specific override `WEBVIEW2_USER_DATA_FOLDER=<portable root>\data\webview2`. Run #15 proved this is effective in the packaged production executable: the profile was populated with 122 files (about 4.6 MB) while Stirling started normally on a dynamic backend port. CI therefore requires a populated `data/webview2` profile and specifically checks that the default host `EBWebView` directory is not newly created under `%LOCALAPPDATA%\com.willsitogg.pdf-tunner\EBWebView`. The parent `%LOCALAPPDATA%\com.willsitogg.pdf-tunner` directory is inventoried separately rather than treated as WebView2 evidence, because other native Tauri state may use the same application identifier.
 
 Bundled tool directories are prepended to `PATH` only when present, packaged Tesseract data is exposed through `TESSDATA_PREFIX` when available, and Calibre configuration is pointed at `data/calibre/`. Runtime deep-link protocol registration is skipped in portable mode to avoid writing the `pdf-tunner://` handler into the host OS registry.
 
@@ -99,23 +99,26 @@ Bootstrap validation currently targets:
 - real Java backend startup and dynamic port detection;
 - `/api/v1/info/status` health response;
 - Java temporary paths under `data/tmp/`, with no new `stirling-pdf` or `stirling-mobile-scanner` directories created in host `%TEMP%`;
-- WebView2 user data under `data/webview2/`, with no new default PDF_Tunner WebView2 profile in host `%LOCALAPPDATA%`;
+- WebView2 user data under `data/webview2/`, with no new `%LOCALAPPDATA%\com.willsitogg.pdf-tunner\EBWebView` profile;
+- inventory of other PDF_Tunner/Stirling app-specific host folders so Tauri/plugin state is classified separately from WebView2;
 - no new `HKCU\Software\Classes\pdf-tunner` protocol registration during portable startup/shutdown;
 - clean parent/child-process shutdown;
 - clean ZIP generation;
 - SHA-256 generation.
 
-If the real packaged-startup smoke test fails, CI preserves a short-lived `PDF_Tunner-startup-diagnostics` artifact containing the package-local `data/` tree/logs, portable file inventory, relevant process snapshot, host Stirling-temp state, host profile state and protocol-registry state. This is diagnostic-only and is not a Release asset.
+If the real packaged-startup smoke test fails, CI writes host-temp/profile/registry/process evidence **before** touching potentially locked browser files. It records a file-count/size/sample summary for the live package-local WebView2 profile and copies logs/configs/temp/pipeline state best-effort, but deliberately does not recursively copy `data/webview2` while Chromium may still own locked files. The resulting `PDF_Tunner-startup-diagnostics` artifact is short-lived diagnostic evidence only, not a Release asset.
 
 Diagnostic run #9 proved the production EXE initializes Tauri, uses package-local data/log/config paths, launches bundled Java 25, starts Stirling 2.14.3 on a dynamic loopback port, answers the real health endpoint and terminates the Java backend during close. It also exposed Java temporary state in host `%LOCALAPPDATA%\Temp` and a parent-process shutdown defect.
 
 Diagnostic run #11 then proved the Java-temp fix and host-integration containment: both `stirling-pdf` and `stirling-mobile-scanner` temporary directories were created under package `data/tmp`, no new corresponding host `%TEMP%` directories appeared, the `HKCU\Software\Classes\pdf-tunner` protocol key remained absent, and Java/child processes terminated. Its only remaining failure was that the Tauri parent stayed alive after `ExitRequested`.
 
-Run #13 closed that bootstrap defect. The complete portable job passed real startup, backend health, local Java temp, registry containment, normal parent shutdown, child cleanup, runtime-data cleanup, ZIP creation and SHA-256 generation. The independently inspected bootstrap ZIP contained the expected executable, Stirling 2.14.3 JAR and bundled Java runtime and matched its published SHA-256. The next containment layer is WebView2 user data followed by Tauri window-state persistence.
+Run #13 closed that bootstrap defect. The complete portable job passed real startup, backend health, local Java temp, registry containment, normal parent shutdown, child cleanup, runtime-data cleanup, ZIP creation and SHA-256 generation. The independently inspected bootstrap ZIP contained the expected executable, Stirling 2.14.3 JAR and bundled Java runtime and matched its published SHA-256.
 
-The general upstream `Build and Test Workflow` on the same commit also passed frontend validation/a11y, stubbed and live Playwright, database migration, Docker Compose/images and the official Windows Tauri build. Its sole failure is GitHub `dependency-review`, which reports that Dependency Graph is disabled on this fork; that is a repository security-setting prerequisite rather than a demonstrated PDF_Tunner code regression.
+Run #15 then proved the new WebView2 redirection itself: the packaged app created a real browser profile under `data/webview2` (122 files, about 4.6 MB) and the backend reached `Stirling-PDF running on port: 57658`. Its smoke step failed before shutdown because the first containment assertion watched the entire `%LOCALAPPDATA%\com.willsitogg.pdf-tunner` application root, which is broader than the WebView2 default `EBWebView` path. The failure diagnostics also exposed that recursively copying a live Chromium profile can abort on locked files. Both test-design issues are now corrected without weakening the actual WebView2 containment requirement.
 
-The next validation layers will exercise every external dependency and representative end-to-end Stirling operation before any final Release is published.
+The general upstream `Build and Test Workflow` on the run #13 baseline passed frontend validation/a11y, stubbed and live Playwright, database migration, Docker Compose/images and the official Windows Tauri build. Its sole failure is GitHub `dependency-review`, which reports that Dependency Graph is disabled on this fork; that is a repository security-setting prerequisite rather than a demonstrated PDF_Tunner code regression. Each subsequent downstream commit is checked again for additional failures before it is accepted.
+
+The next validation layers will localize Tauri window-state persistence, bundle a Fixed WebView2 Runtime for Windows 10/11 independence, then exercise every external dependency and representative end-to-end Stirling operation before any final Release is published.
 
 ## Upstream synchronization
 
