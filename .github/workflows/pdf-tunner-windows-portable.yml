@@ -16,6 +16,8 @@ permissions:
 env:
   PDF_TUNNER_UPSTREAM_VERSION: "2.14.3"
   PDF_TUNNER_UPSTREAM_COMMIT: "7fb29d002dbb8fa4b5945d1d1fe8dd164a9f7632"
+  PDF_TUNNER_WEBVIEW2_VERSION: "151.0.4129.101"
+  PDF_TUNNER_WEBVIEW2_CAB_SHA256: ""
   CI: "true"
 
 jobs:
@@ -109,6 +111,22 @@ jobs:
           Write-Host "Executable source: $($exe.FullName)"
           Get-ChildItem -LiteralPath $portable -Force | Format-Table Name, Length, Mode
 
+      - name: Stage Microsoft Fixed WebView2 Runtime
+        shell: pwsh
+        run: |
+          & './.github/scripts/prepare-webview2-fixed-runtime.ps1' `
+            -PortableRoot './dist/PDF_Tunner' `
+            -Version $env:PDF_TUNNER_WEBVIEW2_VERSION `
+            -Architecture 'x64' `
+            -ExpectedSha256 $env:PDF_TUNNER_WEBVIEW2_CAB_SHA256
+
+      - name: Validate staged Fixed WebView2 metadata
+        shell: pwsh
+        run: |
+          & './.github/scripts/validate-webview2-fixed-runtime.ps1' `
+            -PortableRoot './dist/PDF_Tunner' `
+            -Version $env:PDF_TUNNER_WEBVIEW2_VERSION
+
       - name: Validate bundled Java runtime
         shell: pwsh
         run: |
@@ -193,6 +211,11 @@ jobs:
             throw "Backend health endpoint returned HTTP $($response.StatusCode)."
           }
           Write-Host "Backend health check OK: $statusUri"
+
+          & './.github/scripts/validate-webview2-fixed-runtime.ps1' `
+            -PortableRoot './dist/PDF_Tunner' `
+            -Version $env:PDF_TUNNER_WEBVIEW2_VERSION `
+            -RequireLiveProcess
 
           Write-Host 'Containment check: Stirling AppData'
           if (-not $hostLeakExisted -and (Test-Path -LiteralPath $hostLeak)) {
@@ -303,6 +326,16 @@ jobs:
         run: |
           & './.github/scripts/validate-portable-window-state.ps1' -PortableRoot './dist/PDF_Tunner' -Tolerance 16
 
+      - name: Require pinned Fixed WebView2 CAB SHA before validated packaging
+        shell: pwsh
+        run: |
+          if ([string]::IsNullOrWhiteSpace($env:PDF_TUNNER_WEBVIEW2_CAB_SHA256)) {
+            $provenance = Join-Path $PWD 'dist/PDF_Tunner/runtime/webview2/PROVENANCE.txt'
+            Write-Host 'Fixed WebView2 discovery run completed. Provenance:'
+            if (Test-Path -LiteralPath $provenance) { Get-Content -LiteralPath $provenance }
+            throw 'Fixed WebView2 CAB SHA-256 is not pinned yet. Record CAB_SHA256 from provenance, set PDF_TUNNER_WEBVIEW2_CAB_SHA256, and rerun before accepting or packaging this layer.'
+          }
+
       - name: Collect portable startup diagnostics
         if: failure()
         shell: pwsh
@@ -315,8 +348,6 @@ jobs:
           $hostTempRoot = [System.IO.Path]::GetTempPath()
           $protocolKey = 'HKCU:\Software\Classes\pdf-tunner'
 
-          # Record host state first. This evidence must survive even if Chromium
-          # still owns locked files in data/webview2 after an early smoke failure.
           @(
             (Join-Path $hostTempRoot 'stirling-pdf'),
             (Join-Path $hostTempRoot 'stirling-mobile-scanner')
@@ -367,7 +398,7 @@ jobs:
             Set-Content -LiteralPath (Join-Path $diagnostics 'registry-state.txt') -Encoding utf8
 
           Get-CimInstance Win32_Process |
-            Where-Object { $_.Name -match 'PDF_Tunner|java' -or ($_.CommandLine -and $_.CommandLine -match 'PDF_Tunner|Stirling') } |
+            Where-Object { $_.Name -match 'PDF_Tunner|java|msedgewebview2' -or ($_.CommandLine -and $_.CommandLine -match 'PDF_Tunner|Stirling|webview2') } |
             Select-Object ProcessId, ParentProcessId, Name, ExecutablePath, CommandLine |
             Format-List |
             Out-String -Width 4096 |
@@ -379,6 +410,11 @@ jobs:
               Format-Table -AutoSize |
               Out-String -Width 4096 |
               Set-Content -LiteralPath (Join-Path $diagnostics 'portable-tree.txt') -Encoding utf8
+          }
+
+          $fixedProvenance = Join-Path $portable 'runtime/webview2/PROVENANCE.txt'
+          if (Test-Path -LiteralPath $fixedProvenance) {
+            Copy-Item -LiteralPath $fixedProvenance -Destination (Join-Path $diagnostics 'webview2-fixed-provenance.txt') -Force
           }
 
           $webView = Join-Path $data 'webview2'
@@ -395,8 +431,6 @@ jobs:
               Set-Content -LiteralPath (Join-Path $diagnostics 'webview2-state.txt') -Encoding utf8
           }
 
-          # Copy only portable state that is safe to read while the app may still
-          # be alive. Do not recursively copy the live Chromium/WebView2 profile.
           $diagnosticData = Join-Path $diagnostics 'data'
           New-Item -ItemType Directory -Force -Path $diagnosticData | Out-Null
           foreach ($relative in @('logs', 'configs', 'tmp', 'pipeline', 'tauri')) {
@@ -430,6 +464,8 @@ jobs:
             'UPSTREAM_BASE.txt',
             'libs',
             'runtime/jre/bin/java.exe',
+            'runtime/webview2/fixed/msedgewebview2.exe',
+            'runtime/webview2/PROVENANCE.txt',
             'data'
           )
           foreach ($relative in $required) {

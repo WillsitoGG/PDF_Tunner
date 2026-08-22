@@ -94,7 +94,7 @@ The portable boundary is component-specific:
 - `TESSDATA_PREFIX` is set only when packaged Tesseract data exists;
 - Windows/Linux deep-link protocol registration is skipped while portable mode is active so the app does not intentionally register `pdf-tunner://` in the host OS.
 
-Run #15 proves the WebView2 override is active in the packaged production EXE: `data/webview2` contained 122 files (~4.6 MB) while the backend reached port 57658. **Do not use the parent `%LOCALAPPDATA%\com.willsitogg.pdf-tunner` directory as a WebView2 leak assertion.** The default WebView2 profile is the `EBWebView` child; test `%LOCALAPPDATA%\com.willsitogg.pdf-tunner\EBWebView` specifically and inventory the parent separately because native Tauri state may share the application identifier.
+Run #15 proves the WebView2 profile override is active in the packaged production EXE: `data/webview2` contained 122 files (~4.6 MB) while the backend reached port 57658. **Do not use the parent `%LOCALAPPDATA%\com.willsitogg.pdf-tunner` directory as a WebView2 leak assertion.** The default WebView2 profile is the `EBWebView` child; test `%LOCALAPPDATA%\com.willsitogg.pdf-tunner\EBWebView` specifically and inventory the parent separately because native Tauri state may share the application identifier.
 
 ### Portable window-state
 
@@ -134,7 +134,13 @@ PDF_Tunner/
   PDF_Tunner.exe
   PDF_TUNNER_PORTABLE
   libs/
-  runtime/jre/
+  runtime/
+    jre/
+    webview2/
+      PROVENANCE.txt
+      fixed/
+        msedgewebview2.exe
+        ...
   tools/
   data/
     webview2/
@@ -143,7 +149,7 @@ PDF_Tunner/
         .window-state.json
 ```
 
-Never commit generated `data/` contents.
+Never commit generated `data/` contents or the downloaded Fixed WebView2 runtime itself to git; CI/build assembly obtains the runtime from Microsoft and packages it into the portable ZIP.
 
 ## Branding/config
 
@@ -216,7 +222,7 @@ Permanent workflow path:
 
 Normal final state should be manual `workflow_dispatch`. During the active bootstrap/fix loop, one temporary automatic `push` trigger is allowed and restricted to `pdf-tunner/windows-portable-v1`. The duplicate `pull_request` trigger was removed after it helped create a queue of obsolete duplicate runs and woke inherited upstream PR workflows. The heavy workflow must use `concurrency.group: pdf-tunner-windows-portable-${{ github.ref }}` plus `cancel-in-progress: true`. Keep PR #1 closed while active downstream CI does not need PR event coverage; reopen it as draft later when useful. Remove the development `push` trigger before merge to `main`.
 
-Baseline sequence:
+Baseline sequence before Fixed WebView2 promotion:
 
 1. checkout this fork;
 2. verify pinned upstream commit is an ancestor;
@@ -245,11 +251,42 @@ Startup diagnostics are implementation-branch evidence only. They must not becom
 
 A failure diagnostics step must itself be resilient. In particular, do not recursively `Copy-Item` a live `data/webview2` tree: Chromium/WebView2 may hold files open and abort the diagnostic before host-state evidence is written. Record host state first, then summarize WebView2 by path/count/bytes/sample and copy only safe subtrees with best-effort error handling.
 
-## Fixed WebView2 next layer
+## Fixed WebView2 staged implementation
 
-After portable window-state passes, bundle a Microsoft Fixed WebView2 Runtime. As of 2026-08-22 the current x64 catalog build verified during this work is `151.0.4129.101` (published 2026-08-20). Reverify before committing because this runtime is serviced frequently.
+An isolated staging branch currently implements Microsoft Fixed WebView2 Runtime **151.0.4129.101 x64** on top of primary baseline commit `52fb5502e3c8c753357aba95415326dfe30ca7cf`. Do not call it proven or promote it to the primary branch until the immediately preceding window-state baseline is accepted.
 
-Use `WEBVIEW2_BROWSER_EXECUTABLE_FOLDER` for the package-local Fixed Runtime and keep `WEBVIEW2_USER_DATA_FOLDER` for the package-local profile. Microsoft documents that unpackaged Win32 apps using Fixed Version 120+ on Windows 10 need read/execute ACLs for SIDs `S-1-15-2-1` (`ALL APPLICATION PACKAGES`) and `S-1-15-2-2` (`ALL RESTRICTED APPLICATION PACKAGES`). Fixed Version cannot run from a network/UNC location. CI/manual validation must prove the bundled runtime is selected rather than a runner-installed Evergreen runtime.
+Runtime contract:
+
+- immutable runtime root: `<portable root>/runtime/webview2/fixed`;
+- provenance file: `<portable root>/runtime/webview2/PROVENANCE.txt`;
+- mutable browser profile remains `<portable root>/data/webview2`;
+- `WEBVIEW2_BROWSER_EXECUTABLE_FOLDER` points at the fixed runtime root;
+- `WEBVIEW2_USER_DATA_FOLDER` continues to point at the package-local profile;
+- missing `msedgewebview2.exe` is a fatal portable bootstrap error; never silently fall back to host Evergreen;
+- reject UNC paths and mapped remote drives via Win32 `GetDriveTypeW`, because Microsoft Fixed Version does not support network execution;
+- recreate Microsoft's required Windows 10 Fixed Version 120+ AppContainer RX grants for `S-1-15-2-1` and `S-1-15-2-2` at each startup because ZIP extraction cannot be assumed to preserve NTFS ACLs;
+- record bootstrap failures under package-local `data/logs/portable-bootstrap-error.log`.
+
+Acquisition contract:
+
+- `.github/scripts/prepare-webview2-fixed-runtime.ps1` receives exact version/architecture and optional expected SHA-256;
+- `frontend/scripts/pdf-tunner-resolve-webview2-fixed.mjs` uses the existing pinned Puppeteer dev dependency to operate Microsoft's official WebView2 selector;
+- accept only HTTPS download URLs whose hostname ends in `.microsoft.com`;
+- compute the CAB SHA-256 before expansion;
+- normalize the directory containing `msedgewebview2.exe` to `runtime/webview2/fixed`;
+- verify `ProductVersion` begins with the requested exact version;
+- write version, architecture, CAB SHA-256 and official selector source to `runtime/webview2/PROVENANCE.txt`;
+- never commit downloaded Microsoft runtime binaries to git.
+
+Validation contract:
+
+- staged workflow variables define `PDF_TUNNER_WEBVIEW2_VERSION=151.0.4129.101` and a deliberately empty `PDF_TUNNER_WEBVIEW2_CAB_SHA256` for the first discovery execution only;
+- the discovery execution must run the real application and all containment/window-state tests but must hard-fail before the validated ZIP is produced while the CAB SHA is empty;
+- record `CAB_SHA256` from `PROVENANCE.txt`, pin it in the workflow, and rerun the full suite before accepting the layer;
+- `.github/scripts/validate-webview2-fixed-runtime.ps1` checks ProductVersion/provenance before launch;
+- live-process mode checks the post-start ACLs and requires at least one actual `msedgewebview2.exe` whose `ExecutablePath` is under the package-local fixed runtime root;
+- diagnostics include WebView2 processes and Fixed Runtime provenance;
+- final layout verification requires both `runtime/webview2/fixed/msedgewebview2.exe` and `runtime/webview2/PROVENANCE.txt`.
 
 ## Final validation target
 
@@ -352,4 +389,4 @@ Unless a PDF_Tunner rule above overrides them:
 - Integrated a real two-launch window-state proof directly into the primary Windows portable workflow: it moves/resizes the assembled production Win32 window, verifies package-local JSON, relaunches for restoration, rejects Roaming AppData content and checks child-process cleanup before the final ZIP is built.
 - Run #49 passed every pre-window-state build/bootstrap step and proved the first deliberate launch writes package-local `.window-state.json`; it then failed before the second launch solely because the validator treated existence of the Roaming identifier directory as state. The artifact did not preserve recursive host contents or the hidden JSON, so the next validator hard-fails on actual contents rather than an empty root and diagnostics now preserve both.
 - Removed the duplicate heavy `pull_request` trigger during development, kept one branch-scoped `push` trigger plus `workflow_dispatch`, and added `concurrency` with `cancel-in-progress: true` so obsolete portable runs cannot accumulate again.
-- Verified Microsoft Fixed WebView2 distribution requirements for the next layer: current x64 build 151.0.4129.101 at the time of audit, `WEBVIEW2_BROWSER_EXECUTABLE_FOLDER`, Windows 10 AppContainer ACLs for Fixed Version 120+, and no UNC/network execution.
+- Staged Microsoft Fixed WebView2 Runtime 151.0.4129.101 x64 on an isolated branch based on `52fb550...`: exact official-selector resolver, CAB SHA/provenance, local-drive enforcement, missing-runtime hard failure, Windows 10 AppContainer ACL recreation, live process-path proof and an explicit hash-discovery gate that prevents validated packaging until the CAB digest is pinned.

@@ -2,6 +2,70 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 #[cfg(target_os = "windows")]
+fn path_is_network_location(path: &std::path::Path) -> bool {
+  use std::path::{Component, Prefix};
+  use windows::{
+    core::PCWSTR,
+    Win32::Storage::FileSystem::GetDriveTypeW,
+  };
+
+  let Some(Component::Prefix(prefix_component)) = path.components().next() else {
+    return false;
+  };
+
+  match prefix_component.kind() {
+    Prefix::UNC(_, _) | Prefix::VerbatimUNC(_, _) => true,
+    Prefix::Disk(letter) | Prefix::VerbatimDisk(letter) => {
+      let drive_root = format!("{}:\\", char::from(letter));
+      let wide = drive_root.encode_utf16().chain(std::iter::once(0)).collect::<Vec<_>>();
+      // DRIVE_REMOTE == 4. Use the numeric Win32 value so no additional constant import is needed.
+      unsafe { GetDriveTypeW(PCWSTR(wide.as_ptr())) == 4 }
+    }
+    Prefix::Verbatim(_) | Prefix::DeviceNS(_) => false,
+  }
+}
+
+#[cfg(target_os = "windows")]
+fn ensure_fixed_webview2_appcontainer_acl(runtime: &std::path::Path) -> Result<(), String> {
+  use std::process::Command;
+
+  // Fixed Version 120+ requires these read/execute grants for unpackaged Win32
+  // apps on Windows 10. The same RX-only grants are harmless and idempotent on
+  // Windows 11, so applying them unconditionally avoids unreliable OS-version
+  // detection while keeping the runtime immutable to AppContainer principals.
+  for sid in ["S-1-15-2-2", "S-1-15-2-1"] {
+    let grant = format!("*{sid}:(OI)(CI)(RX)");
+    let output = Command::new("icacls.exe")
+      .arg(runtime)
+      .arg("/grant")
+      .arg(&grant)
+      .output()
+      .map_err(|error| format!("failed to launch icacls.exe for {sid}: {error}"))?;
+
+    if !output.status.success() {
+      return Err(format!(
+        "icacls.exe failed for {sid} with status {}. stdout: {} stderr: {}",
+        output.status,
+        String::from_utf8_lossy(&output.stdout).trim(),
+        String::from_utf8_lossy(&output.stderr).trim()
+      ));
+    }
+  }
+
+  Ok(())
+}
+
+#[cfg(target_os = "windows")]
+fn fail_portable_bootstrap(data: &std::path::Path, message: &str) -> ! {
+  use std::fs;
+
+  let logs = data.join("logs");
+  let _ = fs::create_dir_all(&logs);
+  let _ = fs::write(logs.join("portable-bootstrap-error.log"), format!("{message}\n"));
+  std::process::exit(2);
+}
+
+#[cfg(target_os = "windows")]
 fn configure_pdf_tunner_portable_environment() {
   use std::{env, fs};
 
@@ -22,19 +86,45 @@ fn configure_pdf_tunner_portable_environment() {
   let calibre_config = data.join("calibre");
   let java_temp = data.join("tmp");
   let webview2_data = data.join("webview2");
+  let fixed_webview2 = root.join("runtime").join("webview2").join("fixed");
   let _ = fs::create_dir_all(&data);
   let _ = fs::create_dir_all(&calibre_config);
   let _ = fs::create_dir_all(&java_temp);
   let _ = fs::create_dir_all(&webview2_data);
+
+  if path_is_network_location(root) {
+    fail_portable_bootstrap(
+      &data,
+      "Microsoft Fixed WebView2 Runtime cannot run from a network or UNC location. Move PDF_Tunner to a local drive.",
+    );
+  }
+
+  if !fixed_webview2.join("msedgewebview2.exe").is_file() {
+    fail_portable_bootstrap(
+      &data,
+      &format!(
+        "Bundled Microsoft Fixed WebView2 Runtime is missing: {}",
+        fixed_webview2.display()
+      ),
+    );
+  }
+
+  if let Err(error) = ensure_fixed_webview2_appcontainer_acl(&fixed_webview2) {
+    fail_portable_bootstrap(
+      &data,
+      &format!("Unable to prepare Microsoft Fixed WebView2 Runtime permissions: {error}"),
+    );
+  }
 
   // Do not rewrite Windows profile variables here. Tauri/WebView2 is native
   // infrastructure and must initialize against the real Windows profile.
   // Stirling-owned backend state is redirected by utils::app_data_dir().
   env::set_var("PDF_TUNNER_PORTABLE_ROOT", root);
 
-  // WebView2 supports a component-specific user-data override. Keep the native
-  // Windows profile intact while moving cookies, IndexedDB, caches and browser
-  // profile state into the portable tree.
+  // The browser executable itself is package-local and version-pinned. The user
+  // profile remains independently redirected so browser state never belongs in
+  // the immutable runtime folder.
+  env::set_var("WEBVIEW2_BROWSER_EXECUTABLE_FOLDER", &fixed_webview2);
   env::set_var("WEBVIEW2_USER_DATA_FOLDER", &webview2_data);
 
   // JAVA_TOOL_OPTIONS is intentionally Java-specific: the native Tauri/WebView2

@@ -9,7 +9,7 @@
 - Initial upstream commit: `7fb29d002dbb8fa4b5945d1d1fe8dd164a9f7632`
 - Development branch: `pdf-tunner/windows-portable-v1`
 - Target: **Windows 10/11 x64 portable ZIP**
-- Status: **portable bootstrap green; WebView2 profile redirection proven; run #49 proved package-local window-state save and isolated the remaining two-launch validation issue to Roaming-AppData classification before the second launch; no final Release yet**
+- Status: **portable bootstrap green; WebView2 profile redirection proven; run #49 proved package-local window-state save and isolated the remaining two-launch validation issue to Roaming-AppData classification before the second launch; Fixed WebView2 is prepared on an isolated staging branch but is not yet promoted/proven; no final Release yet**
 
 The full original Stirling documentation and developer guide remain in this fork. Upstream project information is available at [Stirling-Tools/Stirling-PDF](https://github.com/Stirling-Tools/Stirling-PDF).
 
@@ -53,7 +53,13 @@ PDF_Tunner/
   PDF_Tunner.exe
   PDF_TUNNER_PORTABLE
   libs/
-  runtime/jre/
+  runtime/
+    jre/
+    webview2/
+      PROVENANCE.txt
+      fixed/
+        msedgewebview2.exe
+        ...
   tools/
   data/
     webview2/
@@ -130,7 +136,19 @@ Run #49 was the first execution of the deliberate two-launch geometry validator.
 
 The general upstream `Build and Test Workflow` on the run #13 baseline passed frontend validation/a11y, stubbed and live Playwright, database migration, Docker Compose/images and the official Windows Tauri build. Its sole failure is GitHub `dependency-review`, which reports that Dependency Graph is disabled on this fork; that is a repository security-setting prerequisite rather than a demonstrated PDF_Tunner code regression. Each subsequent downstream commit is checked again for additional failures before it is accepted.
 
-After portable window-state is proven, the next native dependency layer is a bundled Fixed WebView2 Runtime. Microsoft currently lists x64 runtime 151.0.4129.101 (20 August 2026); the integration must use `WEBVIEW2_BROWSER_EXECUTABLE_FOLDER`, retain `WEBVIEW2_USER_DATA_FOLDER`, handle Windows 10 Fixed Version 120+ AppContainer read/execute ACL requirements, reject UNC/network execution, and verify the packaged runtime rather than any Evergreen runtime already installed on the CI host.
+## Fixed WebView2 staged implementation
+
+An isolated staging branch now prepares Microsoft Fixed WebView2 Runtime **151.0.4129.101 x64** without yet promoting it to the primary portable branch. The staged implementation keeps browser state and browser code separate:
+
+- immutable browser runtime: `runtime/webview2/fixed/`;
+- runtime provenance: `runtime/webview2/PROVENANCE.txt`;
+- mutable browser profile: `data/webview2/`.
+
+The runtime packager resolves the exact Fixed Version through Microsoft's current WebView2 selector using the repository's pinned Puppeteer dependency, rejects non-HTTPS URLs and any host outside `*.microsoft.com`, downloads the Microsoft CAB, computes SHA-256, expands it and normalizes the directory containing `msedgewebview2.exe`. The first integration run is explicitly a hash-discovery run: it may record the official CAB digest, but the workflow hard-fails before validated ZIP packaging while `PDF_TUNNER_WEBVIEW2_CAB_SHA256` is empty. The discovered digest must then be pinned and the complete suite rerun.
+
+Portable startup sets `WEBVIEW2_BROWSER_EXECUTABLE_FOLDER=<portable root>\runtime\webview2\fixed` and retains `WEBVIEW2_USER_DATA_FOLDER=<portable root>\data\webview2`. Missing runtime files are a fatal portable-bootstrap error; PDF_Tunner does not silently fall back to an Evergreen runtime installed on the host. UNC paths and mapped remote drives are rejected because Microsoft Fixed Version is not supported from network locations.
+
+For Windows 10 Fixed Version 120+, PDF_Tunner recreates the required read/execute AppContainer ACLs for `S-1-15-2-1` and `S-1-15-2-2` at each portable startup because ZIP extraction does not reliably preserve NTFS ACLs. The staged CI validates ProductVersion/provenance before launch, then while PDF_Tunner is alive proves both ACLs and requires a real `msedgewebview2.exe` process whose `ExecutablePath` is inside the package-local fixed runtime. This layer is **not considered proven until those checks pass with the CAB SHA-256 pinned**.
 
 The following validation layers will then integrate every external dependency and representative end-to-end Stirling operation before any final Release is published.
 
