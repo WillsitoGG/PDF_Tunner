@@ -1,0 +1,75 @@
+name: PDF_Tunner CI Run Index
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - pdf-tunner/windows-portable-v1
+
+concurrency:
+  group: pdf-tunner-ci-run-index-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  actions: read
+  contents: read
+  issues: write
+
+env:
+  PDF_TUNNER_CI_INDEX_COMMENT_ID: "5382532657"
+  PDF_TUNNER_CI_BRANCH: "pdf-tunner/windows-portable-v1"
+
+jobs:
+  publish-run-index:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Publish recent push runs to PR #1 index comment
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+
+          runs_json="$(curl --fail-with-body --silent --show-error --location --get \
+            --header "Authorization: Bearer ${GH_TOKEN}" \
+            --header "Accept: application/vnd.github+json" \
+            --header "X-GitHub-Api-Version: 2022-11-28" \
+            --data-urlencode "event=push" \
+            --data-urlencode "branch=${PDF_TUNNER_CI_BRANCH}" \
+            --data-urlencode "per_page=50" \
+            "https://api.github.com/repos/${GITHUB_REPOSITORY}/actions/runs")"
+
+          rows="$(jq -r '
+            .workflow_runs[] |
+            "| #\(.run_number) | \(.name | gsub("\\|"; "\\\\|")) | \(.status) | \(.conclusion // "—") | `\(.head_sha[0:7])` | `\(.id)` | [run](\(.html_url)) |"
+          ' <<<"${runs_json}")"
+
+          updated_at="$(date -u +'%Y-%m-%dT%H:%M:%SZ')"
+          body="$(cat <<EOF
+          <!-- PDF_TUNNER_CI_RUN_INDEX -->
+          ## PDF_Tunner CI run index
+
+          Connector-readable index of recent GitHub Actions runs triggered by \`push\` on \`${PDF_TUNNER_CI_BRANCH}\`.
+
+          Updated: \`${updated_at}\`
+
+          | Run | Workflow | Status | Conclusion | SHA | Run ID | Link |
+          | --- | --- | --- | --- | --- | --- | --- |
+          ${rows}
+
+          This comment is machine-maintained CI metadata, not release history.
+          EOF
+          )"
+
+          payload="$(jq -n --arg body "${body}" '{body:$body}')"
+          curl --fail-with-body --silent --show-error --location \
+            --request PATCH \
+            --header "Authorization: Bearer ${GH_TOKEN}" \
+            --header "Accept: application/vnd.github+json" \
+            --header "X-GitHub-Api-Version: 2022-11-28" \
+            --header "Content-Type: application/json" \
+            --data "${payload}" \
+            "https://api.github.com/repos/${GITHUB_REPOSITORY}/issues/comments/${PDF_TUNNER_CI_INDEX_COMMENT_ID}" >/dev/null
+
+          echo "Published $(jq '.workflow_runs | length' <<<"${runs_json}") recent push runs to connector-readable PR comment ${PDF_TUNNER_CI_INDEX_COMMENT_ID}."

@@ -40,6 +40,7 @@ Record any future upstream update here and in README before treating it as the n
 10. Do not make licensing the center of technical work. Mention it only when it creates a concrete implementation/distribution constraint.
 11. Heavy repeated CI must use a branch/workflow-specific `concurrency` group with `cancel-in-progress: true`; do not allow obsolete portable runs to pile up.
 12. During active downstream development use at most one automatic trigger for the heavy portable workflow unless duplicate events are technically necessary and deduplicated.
+13. If connected GitHub tooling cannot enumerate `push` workflow runs natively, maintain a lightweight connector-readable run index rather than asking the user for run URLs. The bridge must never commit/push repository content during execution, must use its own `concurrency`, and must be removed with temporary development CI before final merge.
 
 ## Architecture decision
 
@@ -216,6 +217,19 @@ Permanent workflow path:
 
 Normal final state should be manual `workflow_dispatch`. During the active bootstrap/fix loop, one temporary automatic `push` trigger is allowed and restricted to `pdf-tunner/windows-portable-v1`. The duplicate `pull_request` trigger was removed after it helped create a queue of obsolete duplicate runs and woke inherited upstream PR workflows. The heavy workflow must use `concurrency.group: pdf-tunner-windows-portable-${{ github.ref }}` plus `cancel-in-progress: true`. Keep PR #1 closed while active downstream CI does not need PR event coverage; reopen it as draft later when useful. Remove the development `push` trigger before merge to `main`.
 
+Connector run discovery bridge during active development:
+
+- workflow: `.github/workflows/pdf-tunner-ci-run-index.yml`;
+- trigger: `push` to `pdf-tunner/windows-portable-v1` plus manual `workflow_dispatch`;
+- permissions: `actions: read`, `contents: read`, `issues: write` only;
+- source: GitHub Actions REST `GET /repos/{owner}/{repo}/actions/runs` filtered to `event=push` and the development branch;
+- sink: one fixed machine-maintained comment on closed draft PR #1 (comment ID `5382532657`);
+- fields: workflow name, run number, status, conclusion, head SHA, `run_id`, URL;
+- the connector reads PR comments to discover push `run_id`, then uses normal run/job/log/artifact tools;
+- the bridge never commits or pushes repository content and therefore cannot recurse;
+- it has its own `concurrency` with `cancel-in-progress: true` so index refreshes cannot accumulate;
+- remove it with other temporary development CI before final merge to `main`.
+
 Baseline sequence:
 
 1. checkout this fork;
@@ -352,4 +366,5 @@ Unless a PDF_Tunner rule above overrides them:
 - Integrated a real two-launch window-state proof directly into the primary Windows portable workflow: it moves/resizes the assembled production Win32 window, verifies package-local JSON, relaunches for restoration, rejects Roaming AppData content and checks child-process cleanup before the final ZIP is built.
 - Run #49 passed every pre-window-state build/bootstrap step and proved the first deliberate launch writes package-local `.window-state.json`; it then failed before the second launch solely because the validator treated existence of the Roaming identifier directory as state. The artifact did not preserve recursive host contents or the hidden JSON, so the next validator hard-fails on actual contents rather than an empty root and diagnostics now preserve both.
 - Removed the duplicate heavy `pull_request` trigger during development, kept one branch-scoped `push` trigger plus `workflow_dispatch`, and added `concurrency` with `cancel-in-progress: true` so obsolete portable runs cannot accumulate again.
+- Added a lightweight connector-readable push-run index workflow that queries GitHub Actions REST and updates one fixed PR #1 comment, allowing connected tooling to discover `push` run IDs without user-supplied URLs.
 - Verified Microsoft Fixed WebView2 distribution requirements for the next layer: current x64 build 151.0.4129.101 at the time of audit, `WEBVIEW2_BROWSER_EXECUTABLE_FOLDER`, Windows 10 AppContainer ACLs for Fixed Version 120+, and no UNC/network execution.

@@ -94,6 +94,8 @@ Primary build workflow: `.github/workflows/pdf-tunner-windows-portable.yml`.
 
 During active development it has `workflow_dispatch` plus one temporary automatic `push` trigger restricted to `pdf-tunner/windows-portable-v1`. The duplicate `pull_request` trigger was removed after the run-queue incident because it caused the same heavy portable validation to be enqueued twice and also woke inherited Stirling PR workflows. The workflow now uses a branch-scoped `concurrency` group with `cancel-in-progress: true`, so a newer commit supersedes an older portable run instead of accumulating obsolete jobs. The development `push` trigger must still be removed before the final change reaches `main`; the intended permanent state is manual `workflow_dispatch`.
 
+Because the connected GitHub wrapper currently enumerates only pull-request-triggered runs through its commit-run lookup, active development also uses `.github/workflows/pdf-tunner-ci-run-index.yml` as a lightweight connector bridge. On each push to `pdf-tunner/windows-portable-v1` it uses the workflow token with read-only Actions access to query recent `push` runs and updates one fixed machine-maintained comment on closed draft PR #1. The comment records workflow name, run number, status, conclusion, SHA, `run_id` and link. The connector can read that comment, discover any push `run_id`, and then use the normal job/log/artifact endpoints without asking the user to copy run URLs. The index workflow never commits or pushes repository content, has its own `cancel-in-progress` concurrency group, and must be removed with other temporary development CI infrastructure before final merge to `main`.
+
 Bootstrap validation currently targets:
 
 - documented upstream-base ancestry;
