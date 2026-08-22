@@ -1,5 +1,5 @@
 use crate::commands::files::add_opened_file;
-use crate::utils::add_log;
+use crate::utils::{add_log, portable_window_state};
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::Mutex;
@@ -51,7 +51,16 @@ fn build_window(app: &AppHandle, label: &str, url: &str) -> Result<WebviewWindow
     let builder =
         builder.additional_browser_args("--enable-features=CertVerifierBuiltinFeature");
 
-    builder.build().map_err(|e| e.to_string())
+    let window = builder.build().map_err(|e| e.to_string())?;
+    if std::env::var_os("PDF_TUNNER_PORTABLE_ROOT").is_some() {
+        if let Err(err) = portable_window_state::track_window(&window) {
+            add_log(format!(
+                "⚠️ Failed to attach portable window state to '{}': {}",
+                label, err
+            ));
+        }
+    }
+    Ok(window)
 }
 
 // Run `work` on the main thread and await its result. WebView2 on Windows
