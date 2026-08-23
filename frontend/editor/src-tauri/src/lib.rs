@@ -89,8 +89,8 @@ fn window_state_plugin<R: Runtime>() -> tauri::plugin::TauriPlugin<R> {
   if std::env::var_os("PDF_TUNNER_PORTABLE_ROOT").is_some() {
     // The upstream plugin always persists through Tauri app_config_dir(), which
     // is host Roaming AppData on Windows. Portable mode keeps the official
-    // lifecycle instead: load state during plugin setup and restore each fully
-    // created window from on_window_ready, but persist to the package-local path.
+    // lifecycle instead: load state during plugin setup and restore each native
+    // Window delivered by on_window_ready, while persisting package-locally.
     tauri::plugin::Builder::<R, ()>::new("pdf-tunner-portable-window-state")
       .setup(|app_handle, _api| {
         match portable_window_state::initialize(app_handle) {
@@ -101,22 +101,15 @@ fn window_state_plugin<R: Runtime>() -> tauri::plugin::TauriPlugin<R> {
       })
       .on_window_ready(|window| {
         let label = window.label().to_string();
-        if let Some(webview_window) = window.app_handle().get_webview_window(&label) {
-          match portable_window_state::track_window(&webview_window) {
-            Ok(()) => add_log(format!(
-              "🧳 Portable window-state lifecycle attached after window-ready: '{}'",
-              label
-            )),
-            Err(err) => add_log(format!(
-              "⚠️ Failed to restore/track portable window state for '{}': {}",
-              label, err
-            )),
-          }
-        } else {
-          add_log(format!(
-            "⚠️ Portable window-state window-ready hook could not resolve WebviewWindow '{}'",
+        match portable_window_state::track_window(window) {
+          Ok(()) => add_log(format!(
+            "🧳 Portable window-state lifecycle attached to native window-ready object: '{}'",
             label
-          ));
+          )),
+          Err(err) => add_log(format!(
+            "⚠️ Failed to restore/track portable window state for '{}': {}",
+            label, err
+          )),
         }
       })
       .build()
