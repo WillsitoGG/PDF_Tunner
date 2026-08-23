@@ -6,6 +6,8 @@ on:
       - pdf-tunner/appdata-containment-stage
     paths-ignore:
       - .github/staging-validation-result.json
+      - .github/staging-validation-log.txt
+      - .github/staging-validation-artifacts.json
 
 permissions:
   actions: read
@@ -20,39 +22,40 @@ jobs:
         with:
           ref: ${{ github.ref_name }}
 
-      - name: Capture completed portable run 55
+      - name: Capture completed portable run 55 diagnostics
         env:
           GH_TOKEN: ${{ github.token }}
+          RUN_ID: "32659568352"
         shell: bash
         run: |
           set -euo pipefail
-          run_id="$(gh run list \
-            --repo "$GITHUB_REPOSITORY" \
-            --workflow pdf-tunner-windows-portable.yml \
-            --limit 50 \
-            --json databaseId,number \
-            --jq '.[] | select(.number == 55) | .databaseId' \
-            | head -n 1)"
-          if [ -z "$run_id" ]; then
-            echo "Portable workflow run #55 was not found." >&2
-            exit 1
-          fi
-          gh run view "$run_id" \
+          gh run view "$RUN_ID" \
             --repo "$GITHUB_REPOSITORY" \
             --json databaseId,number,status,conclusion,headBranch,headSha,event,createdAt,updatedAt,url,jobs \
             > .github/staging-validation-result.json
+          gh run view "$RUN_ID" \
+            --repo "$GITHUB_REPOSITORY" \
+            --log-failed \
+            > .github/staging-validation-log.txt || true
+          gh api "repos/$GITHUB_REPOSITORY/actions/runs/$RUN_ID/artifacts" \
+            > .github/staging-validation-artifacts.json
+          echo "=== run ==="
           cat .github/staging-validation-result.json
+          echo "=== failed log tail ==="
+          tail -n 250 .github/staging-validation-log.txt || true
+          echo "=== artifacts ==="
+          cat .github/staging-validation-artifacts.json
 
-      - name: Commit observer result to staging only
+      - name: Commit observer diagnostics to staging only
         shell: bash
         run: |
           set -euo pipefail
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add .github/staging-validation-result.json
+          git add .github/staging-validation-result.json .github/staging-validation-log.txt .github/staging-validation-artifacts.json
           if git diff --cached --quiet; then
-            echo "Observer result unchanged."
+            echo "Observer diagnostics unchanged."
             exit 0
           fi
-          git commit -m "ci(pdf-tunner): record staging run 55 result"
+          git commit -m "ci(pdf-tunner): record staging run 55 diagnostics"
           git push origin HEAD:${GITHUB_REF_NAME}
