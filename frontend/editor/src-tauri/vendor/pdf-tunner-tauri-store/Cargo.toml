@@ -1,0 +1,12 @@
+[package]
+name = "pdf-tunner-tauri-store"
+version = "2.4.2"
+description = "PDF_Tunner portable-path shim for tauri-plugin-store 2.4.2"
+edition = "2021"
+rust-version = "1.77.2"
+license = "Apache-2.0 OR MIT"
+publish = false
+
+[dependencies]
+upstream-store = { package = "tauri-plugin-store", version = "=2.4.2" }
+tauri = { version = "2.10", default-features = false }
