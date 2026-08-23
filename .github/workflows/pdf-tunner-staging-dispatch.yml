@@ -1,0 +1,19 @@
+name: PDF_Tunner staging dispatch bridge
+
+on:
+  push:
+    branches:
+      - pdf-tunner/appdata-containment-stage
+
+permissions:
+  actions: write
+  contents: read
+
+jobs:
+  dispatch-portable-validation:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Dispatch heavy portable workflow on this staging ref
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run pdf-tunner-windows-portable.yml --repo "$GITHUB_REPOSITORY" --ref "$GITHUB_REF_NAME"
