@@ -6,7 +6,7 @@ use std::{
     path::PathBuf,
     sync::{Arc, Mutex},
 };
-use tauri::{App, AppHandle, Manager, PhysicalPosition, PhysicalSize, Runtime, WebviewWindow, WindowEvent};
+use tauri::{AppHandle, Manager, PhysicalPosition, PhysicalSize, Runtime, WebviewWindow, WindowEvent};
 
 const WINDOW_STATE_FILE: &str = ".window-state.json";
 
@@ -155,19 +155,27 @@ fn restore_window<R: Runtime>(window: &WebviewWindow<R>, state: &WindowState) ->
     Ok(())
 }
 
-pub fn initialize<R: Runtime>(app: &App<R>) -> Result<(), String> {
+/// Load and manage the portable cache during the portable plugin's setup hook.
+///
+/// This deliberately does not restore any window. The official
+/// tauri-plugin-window-state loads its cache during plugin setup and restores in
+/// `on_window_ready`; doing the restore in the application's later/earlier setup
+/// lifecycle can be overwritten by Tauri's own initial window realization on
+/// Windows. PDF_Tunner mirrors the official timing while changing only the
+/// persistence path.
+pub fn initialize<R: Runtime>(app: &AppHandle<R>) -> Result<(), String> {
     if env::var_os("PDF_TUNNER_PORTABLE_ROOT").is_none() {
         return Ok(());
     }
 
     let cache = PortableWindowStateCache(Arc::new(Mutex::new(load_state()?)));
     let _ = app.manage(cache);
-    for window in app.webview_windows().values() {
-        track_window(window)?;
-    }
     Ok(())
 }
 
+/// Restore one fully-created WebviewWindow and attach the state listeners.
+/// Called from the plugin `on_window_ready` hook for both config-created and
+/// dynamically-created windows.
 pub fn track_window<R: Runtime>(window: &WebviewWindow<R>) -> Result<(), String> {
     if env::var_os("PDF_TUNNER_PORTABLE_ROOT").is_none() {
         return Ok(());

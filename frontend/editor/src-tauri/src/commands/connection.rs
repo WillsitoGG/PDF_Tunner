@@ -6,11 +6,35 @@ use crate::state::connection_state::{
 use crate::utils::{add_log, app_data_dir, system_provisioning_dir};
 use serde::{Deserialize, Serialize};
 use std::fs;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
+use std::sync::OnceLock;
 use tauri::{AppHandle, Manager, State};
 use tauri_plugin_store::StoreExt;
 
-const STORE_FILE: &str = "connection.json";
+#[derive(Clone, Copy)]
+struct ConnectionStorePath;
+
+static CONNECTION_STORE_PATH: OnceLock<PathBuf> = OnceLock::new();
+const STORE_FILE: ConnectionStorePath = ConnectionStorePath;
+
+impl AsRef<Path> for ConnectionStorePath {
+    fn as_ref(&self) -> &Path {
+        CONNECTION_STORE_PATH
+            .get_or_init(|| {
+                if let Some(root) = std::env::var_os("PDF_TUNNER_PORTABLE_ROOT") {
+                    PathBuf::from(root)
+                        .join("data")
+                        .join("tauri")
+                        .join("store")
+                        .join("connection.json")
+                } else {
+                    PathBuf::from("connection.json")
+                }
+            })
+            .as_path()
+    }
+}
+
 const FIRST_LAUNCH_KEY: &str = "setup_completed";
 const CONNECTION_MODE_KEY: &str = "connection_mode";
 const SERVER_CONFIG_KEY: &str = "server_config";
@@ -325,7 +349,7 @@ pub fn apply_provisioning_if_present(app_handle: &AppHandle) -> Result<(), Strin
         );
         store.set(UPDATE_MODE_LOCKED_KEY, serde_json::json!(locked));
         add_log(format!(
-            "🧩 Provisioning set update mode to {:?} (locked={})",
+            "🧩 Provisioned update mode to {:?} (locked={})",
             mode, locked
         ));
     }

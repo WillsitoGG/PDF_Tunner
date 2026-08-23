@@ -1,4 +1,5 @@
 use tauri::{AppHandle, Emitter, Manager, RunEvent, Runtime, WindowEvent};
+use tauri_plugin_log::{Target, TargetKind};
 
 mod utils;
 pub mod commands;
@@ -87,11 +88,68 @@ fn is_app_url(url: &tauri::Url) -> bool {
 fn window_state_plugin<R: Runtime>() -> tauri::plugin::TauriPlugin<R> {
   if std::env::var_os("PDF_TUNNER_PORTABLE_ROOT").is_some() {
     // The upstream plugin always persists through Tauri app_config_dir(), which
-    // is host Roaming AppData on Windows. Portable mode replaces only that
-    // persistence layer; non-portable Stirling keeps the official plugin.
-    tauri::plugin::Builder::<R, ()>::new("pdf-tunner-portable-window-state").build()
+    // is host Roaming AppData on Windows. Portable mode keeps the official
+    // lifecycle instead: load state during plugin setup and restore each fully
+    // created window from on_window_ready, but persist to the package-local path.
+    tauri::plugin::Builder::<R, ()>::new("pdf-tunner-portable-window-state")
+      .setup(|app_handle, _api| {
+        match portable_window_state::initialize(app_handle) {
+          Ok(()) => add_log("🧳 Portable window-state cache initialized".to_string()),
+          Err(err) => add_log(format!("⚠️ Failed to initialize portable window state: {}", err)),
+        }
+        Ok(())
+      })
+      .on_window_ready(|window| {
+        let label = window.label().to_string();
+        if let Some(webview_window) = window.app_handle().get_webview_window(&label) {
+          match portable_window_state::track_window(&webview_window) {
+            Ok(()) => add_log(format!(
+              "🧳 Portable window-state lifecycle attached after window-ready: '{}'",
+              label
+            )),
+            Err(err) => add_log(format!(
+              "⚠️ Failed to restore/track portable window state for '{}': {}",
+              label, err
+            )),
+          }
+        } else {
+          add_log(format!(
+            "⚠️ Portable window-state window-ready hook could not resolve WebviewWindow '{}'",
+            label
+          ));
+        }
+      })
+      .build()
   } else {
     tauri_plugin_window_state::Builder::default().build()
+  }
+}
+
+fn log_plugin<R: Runtime>() -> tauri::plugin::TauriPlugin<R> {
+  if let Some(root) = std::env::var_os("PDF_TUNNER_PORTABLE_ROOT") {
+    let log_dir = std::path::PathBuf::from(root)
+      .join("data")
+      .join("logs")
+      .join("tauri");
+
+    // tauri-plugin-log defaults to stdout + the OS app_log_dir(), which is
+    // LocalAppData/<identifier>/logs on Windows. Keep stdout, but replace only
+    // that host file target with an explicit package-local Folder target.
+    tauri_plugin_log::Builder::new()
+      .level(log::LevelFilter::Info)
+      .clear_targets()
+      .targets([
+        Target::new(TargetKind::Stdout),
+        Target::new(TargetKind::Folder {
+          path: log_dir,
+          file_name: Some("PDF_Tunner".to_string()),
+        }),
+      ])
+      .build()
+  } else {
+    tauri_plugin_log::Builder::new()
+      .level(log::LevelFilter::Info)
+      .build()
   }
 }
 
@@ -119,11 +177,7 @@ pub fn run() {
         })
         .build()
     )
-    .plugin(
-      tauri_plugin_log::Builder::new()
-        .level(log::LevelFilter::Info)
-        .build()
-    )
+    .plugin(log_plugin())
     .plugin(tauri_plugin_opener::init())
     .plugin(tauri_plugin_shell::init())
     .plugin(tauri_plugin_fs::init())
@@ -156,13 +210,6 @@ pub fn run() {
     }))
     .setup(|app| {
       add_log("🚀 Tauri app setup started".to_string());
-
-      if std::env::var_os("PDF_TUNNER_PORTABLE_ROOT").is_some() {
-        match portable_window_state::initialize(app) {
-          Ok(()) => add_log("🧳 Portable window-state persistence initialized".to_string()),
-          Err(err) => add_log(format!("⚠️ Failed to initialize portable window state: {}", err)),
-        }
-      }
 
       // Files passed on the command line at first launch load into the main
       // window once the frontend mounts.
