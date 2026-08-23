@@ -15,7 +15,8 @@ $StateFile = Join-Path $PortableRoot 'data\tauri\window-state\.window-state.json
 $PortableTauriState = @(
     [PSCustomObject]@{ Name = 'HTTP cookie jar'; Path = (Join-Path $PortableRoot 'data\tauri\http\.cookies') },
     [PSCustomObject]@{ Name = 'Tauri log'; Path = (Join-Path $PortableRoot 'data\tauri\logs\PDF_Tunner.log') },
-    [PSCustomObject]@{ Name = 'connection store'; Path = (Join-Path $PortableRoot 'data\tauri\store\connection.json') }
+    [PSCustomObject]@{ Name = 'connection store'; Path = (Join-Path $PortableRoot 'data\tauri\store\connection.json') },
+    [PSCustomObject]@{ Name = 'token store'; Path = (Join-Path $PortableRoot 'data\tauri\store\tokens.json') }
 )
 $HostTauriRoots = @(
     [PSCustomObject]@{ Name = 'LocalAppData'; Path = (Join-Path $env:LOCALAPPDATA 'com.willsitogg.pdf-tunner') },
@@ -167,6 +168,53 @@ function Assert-Near {
     }
 }
 
+function Set-GeometryAndWait {
+    param(
+        [Parameter(Mandatory = $true)][IntPtr]$Hwnd,
+        [Parameter(Mandatory = $true)][int]$X,
+        [Parameter(Mandatory = $true)][int]$Y,
+        [Parameter(Mandatory = $true)][int]$OuterWidth,
+        [Parameter(Mandatory = $true)][int]$OuterHeight,
+        [int]$TimeoutSeconds = 30
+    )
+
+    # Run #55 proved that the native window can become visible before the
+    # Tauri/WebView startup geometry pass has finished. Re-apply the deliberate
+    # normal geometry until it survives that short startup race. This does not
+    # relax the saved-state or second-launch restoration assertions below.
+    $deadline = (Get-Date).AddSeconds($TimeoutSeconds)
+    $last = $null
+    while ((Get-Date) -lt $deadline) {
+        [void][PdfTunnerWindowProbe]::ShowWindow($Hwnd, $SW_RESTORE)
+        if (-not [PdfTunnerWindowProbe]::SetWindowPos(
+            $Hwnd,
+            [IntPtr]::Zero,
+            $X,
+            $Y,
+            $OuterWidth,
+            $OuterHeight,
+            $flags)) {
+            throw 'SetWindowPos failed while establishing first-launch geometry.'
+        }
+
+        Start-Sleep -Milliseconds 750
+        $last = Get-Geometry -Hwnd $Hwnd
+        $positionOk = ([Math]::Abs($last.X - $X) -le $Tolerance) -and
+            ([Math]::Abs($last.Y - $Y) -le $Tolerance)
+        $sizeOk = ([Math]::Abs($last.OuterWidth - $OuterWidth) -le $Tolerance) -and
+            ([Math]::Abs($last.OuterHeight - $OuterHeight) -le $Tolerance)
+        if ($positionOk -and $sizeOk) {
+            return $last
+        }
+    }
+
+    if ($null -ne $last) {
+        Write-Host 'Last geometry observed while establishing deliberate first-launch geometry:'
+        $last | Format-List
+    }
+    throw 'First packaged launch did not retain deliberate normal geometry within the startup window.'
+}
+
 function Stop-PortableNormally {
     param([Parameter(Mandatory = $true)][System.Diagnostics.Process]$Process)
 
@@ -260,24 +308,18 @@ Write-Host '=== First packaged launch: establish and persist deliberate geometry
 $first = Start-Process -FilePath $Exe -WorkingDirectory $PortableRoot -PassThru
 try {
     $firstHwnd = Wait-ForWindow -Process $first
-    [void][PdfTunnerWindowProbe]::ShowWindow($firstHwnd, $SW_RESTORE)
-    if (-not [PdfTunnerWindowProbe]::SetWindowPos(
-        $firstHwnd,
-        [IntPtr]::Zero,
-        $targetX,
-        $targetY,
-        $targetOuterWidth,
-        $targetOuterHeight,
-        $flags)) {
-        throw 'SetWindowPos failed on first launch.'
-    }
-
-    Start-Sleep -Seconds 3
-    $firstGeometry = Get-Geometry -Hwnd $firstHwnd
+    $firstGeometry = Set-GeometryAndWait `
+        -Hwnd $firstHwnd `
+        -X $targetX `
+        -Y $targetY `
+        -OuterWidth $targetOuterWidth `
+        -OuterHeight $targetOuterHeight
     $firstGeometry | Format-List
 
     Assert-Near -Name 'first launch X' -Expected $targetX -Actual $firstGeometry.X -AllowedDelta $Tolerance
     Assert-Near -Name 'first launch Y' -Expected $targetY -Actual $firstGeometry.Y -AllowedDelta $Tolerance
+    Assert-Near -Name 'first launch outer width' -Expected $targetOuterWidth -Actual $firstGeometry.OuterWidth -AllowedDelta $Tolerance
+    Assert-Near -Name 'first launch outer height' -Expected $targetOuterHeight -Actual $firstGeometry.OuterHeight -AllowedDelta $Tolerance
 
     Wait-ForPortableTauriState
     Assert-NoHostTauriState
