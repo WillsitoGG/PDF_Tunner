@@ -1,6 +1,7 @@
 use keyring::{Entry};
 use serde::{Deserialize, Serialize};
-use std::sync::{Arc, Mutex};
+use std::path::{Path, PathBuf};
+use std::sync::{Arc, Mutex, OnceLock};
 use tauri::{AppHandle, Runtime};
 use tauri_plugin_store::StoreExt;
 use tiny_http::{Response, Server};
@@ -9,16 +10,57 @@ use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD};
 use rand::RngExt;
 use rand::distr::Alphanumeric;
 
-const STORE_FILE: &str = "connection.json";
+#[derive(Clone, Copy)]
+struct AuthConnectionStorePath;
+
+#[derive(Clone, Copy)]
+struct TokensStorePath;
+
+static AUTH_CONNECTION_STORE_PATH: OnceLock<PathBuf> = OnceLock::new();
+static TOKENS_STORE_PATH: OnceLock<PathBuf> = OnceLock::new();
+const STORE_FILE: AuthConnectionStorePath = AuthConnectionStorePath;
+const TOKENS_STORE_FILE: TokensStorePath = TokensStorePath;
+const TOKENS_STORE_FILE_NAME: &str = "tokens.json";
+
+fn portable_or_relative_store_path(
+    cache: &'static OnceLock<PathBuf>,
+    file_name: &str,
+) -> &'static Path {
+    cache
+        .get_or_init(|| {
+            if let Some(root) = std::env::var_os("PDF_TUNNER_PORTABLE_ROOT") {
+                PathBuf::from(root)
+                    .join("data")
+                    .join("tauri")
+                    .join("store")
+                    .join(file_name)
+            } else {
+                PathBuf::from(file_name)
+            }
+        })
+        .as_path()
+}
+
+impl AsRef<Path> for AuthConnectionStorePath {
+    fn as_ref(&self) -> &Path {
+        portable_or_relative_store_path(&AUTH_CONNECTION_STORE_PATH, "connection.json")
+    }
+}
+
+impl AsRef<Path> for TokensStorePath {
+    fn as_ref(&self) -> &Path {
+        portable_or_relative_store_path(&TOKENS_STORE_PATH, TOKENS_STORE_FILE_NAME)
+    }
+}
+
 const USER_INFO_KEY: &str = "user_info";
-const TOKENS_STORE_FILE: &str = "tokens.json";
 const REFRESH_TOKEN_STORE_KEY: &str = "refresh_token";
 const AUTH_TOKEN_STORE_KEY: &str = "auth_token";
 const KEYRING_SERVICE: &str = "stirling-pdf";
 const KEYRING_TOKEN_KEY: &str = "auth-token";
 const KEYRING_REFRESH_TOKEN_KEY: &str = "refresh-token";
 
-pub const TOKENS_STORE_FILE_FOR_TESTS: &str = TOKENS_STORE_FILE;
+pub const TOKENS_STORE_FILE_FOR_TESTS: &str = TOKENS_STORE_FILE_NAME;
 pub const REFRESH_TOKEN_STORE_KEY_FOR_TESTS: &str = REFRESH_TOKEN_STORE_KEY;
 
 #[derive(Debug, Serialize, Deserialize, Clone)]

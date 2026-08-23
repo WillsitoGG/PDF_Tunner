@@ -6,11 +6,13 @@ use std::{
     path::PathBuf,
     sync::{Arc, Mutex},
 };
-use tauri::{AppHandle, Manager, PhysicalPosition, PhysicalSize, Runtime, WebviewWindow, WindowEvent};
+use tauri::{
+    AppHandle, Manager, PhysicalPosition, PhysicalSize, Runtime, WebviewWindow, Window, WindowEvent,
+};
 
 const WINDOW_STATE_FILE: &str = ".window-state.json";
 
-#[derive(Clone, Debug, Default, Deserialize, PartialEq, Serialize)]
+#[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
 struct WindowState {
     width: u32,
     height: u32,
@@ -22,6 +24,23 @@ struct WindowState {
     visible: bool,
     decorated: bool,
     fullscreen: bool,
+}
+
+impl Default for WindowState {
+    fn default() -> Self {
+        Self {
+            width: 0,
+            height: 0,
+            x: 0,
+            y: 0,
+            prev_x: 0,
+            prev_y: 0,
+            maximized: false,
+            visible: true,
+            decorated: true,
+            fullscreen: false,
+        }
+    }
 }
 
 #[derive(Clone)]
@@ -47,7 +66,7 @@ fn load_state() -> Result<HashMap<String, WindowState>, String> {
     serde_json::from_slice(&bytes).map_err(|err| format!("parse {}: {err}", path.display()))
 }
 
-fn current_state<R: Runtime>(window: &WebviewWindow<R>) -> Result<WindowState, String> {
+fn current_state<R: Runtime>(window: &Window<R>) -> Result<WindowState, String> {
     let size = window.inner_size().map_err(|err| err.to_string())?;
     let position = window.outer_position().map_err(|err| err.to_string())?;
     Ok(WindowState {
@@ -64,7 +83,7 @@ fn current_state<R: Runtime>(window: &WebviewWindow<R>) -> Result<WindowState, S
     })
 }
 
-fn update_state<R: Runtime>(window: &WebviewWindow<R>, state: &mut WindowState) -> Result<(), String> {
+fn update_state<R: Runtime>(window: &Window<R>, state: &mut WindowState) -> Result<(), String> {
     let maximized = window.is_maximized().map_err(|err| err.to_string())?;
     let minimized = window.is_minimized().map_err(|err| err.to_string())?;
 
@@ -88,7 +107,7 @@ fn update_state<R: Runtime>(window: &WebviewWindow<R>, state: &mut WindowState) 
 }
 
 fn intersects_available_monitor<R: Runtime>(
-    window: &WebviewWindow<R>,
+    window: &Window<R>,
     position: PhysicalPosition<i32>,
     size: PhysicalSize<u32>,
 ) -> Result<bool, String> {
@@ -116,7 +135,7 @@ fn intersects_available_monitor<R: Runtime>(
     Ok(false)
 }
 
-fn restore_window<R: Runtime>(window: &WebviewWindow<R>, state: &WindowState) -> Result<(), String> {
+fn restore_window<R: Runtime>(window: &Window<R>, state: &WindowState) -> Result<(), String> {
     if state.width == 0 || state.height == 0 {
         return Ok(());
     }
@@ -125,8 +144,12 @@ fn restore_window<R: Runtime>(window: &WebviewWindow<R>, state: &WindowState) ->
         .set_decorations(state.decorated)
         .map_err(|err| err.to_string())?;
 
-    let saved_position = PhysicalPosition::new(state.x, state.y);
+    // Match tauri-plugin-window-state 2.2.1 ordering: restore size first,
+    // then monitor-safe position, followed by maximized/fullscreen/visibility.
     let saved_size = PhysicalSize::new(state.width, state.height);
+    window.set_size(saved_size).map_err(|err| err.to_string())?;
+
+    let saved_position = PhysicalPosition::new(state.x, state.y);
     if intersects_available_monitor(window, saved_position, saved_size)? {
         let restore_position = if state.maximized {
             PhysicalPosition::new(state.prev_x, state.prev_y)
@@ -138,7 +161,6 @@ fn restore_window<R: Runtime>(window: &WebviewWindow<R>, state: &WindowState) ->
             .map_err(|err| err.to_string())?;
     }
 
-    window.set_size(saved_size).map_err(|err| err.to_string())?;
     if state.maximized {
         window.maximize().map_err(|err| err.to_string())?;
     }
@@ -159,9 +181,7 @@ fn restore_window<R: Runtime>(window: &WebviewWindow<R>, state: &WindowState) ->
 ///
 /// This deliberately does not restore any window. The official
 /// tauri-plugin-window-state loads its cache during plugin setup and restores in
-/// `on_window_ready`; doing the restore in the application's later/earlier setup
-/// lifecycle can be overwritten by Tauri's own initial window realization on
-/// Windows. PDF_Tunner mirrors the official timing while changing only the
+/// `on_window_ready`. PDF_Tunner mirrors that lifecycle while changing only the
 /// persistence path.
 pub fn initialize<R: Runtime>(app: &AppHandle<R>) -> Result<(), String> {
     if env::var_os("PDF_TUNNER_PORTABLE_ROOT").is_none() {
@@ -173,10 +193,13 @@ pub fn initialize<R: Runtime>(app: &AppHandle<R>) -> Result<(), String> {
     Ok(())
 }
 
-/// Restore one fully-created WebviewWindow and attach the state listeners.
-/// Called from the plugin `on_window_ready` hook for both config-created and
-/// dynamically-created windows.
-pub fn track_window<R: Runtime>(window: &WebviewWindow<R>) -> Result<(), String> {
+/// Restore one native Tauri Window and attach state listeners.
+///
+/// `on_window_ready` yields `Window<R>` before the corresponding WebviewWindow
+/// is guaranteed to be discoverable through `get_webview_window()`. The official
+/// tauri-plugin-window-state 2.2.1 therefore restores directly on `Window<R>`;
+/// portable mode follows the same contract.
+pub fn track_window<R: Runtime>(window: &Window<R>) -> Result<(), String> {
     if env::var_os("PDF_TUNNER_PORTABLE_ROOT").is_none() {
         return Ok(());
     }
@@ -241,20 +264,24 @@ pub fn track_window<R: Runtime>(window: &WebviewWindow<R>) -> Result<(), String>
     Ok(())
 }
 
+/// Defensive final capture used by the existing RunEvent close path once the
+/// WebviewWindow is available. Core tracking/restoration itself is native-Window
+/// based and does not depend on this conversion.
 pub fn capture_window<R: Runtime>(window: &WebviewWindow<R>) -> Result<(), String> {
     if env::var_os("PDF_TUNNER_PORTABLE_ROOT").is_none() {
         return Ok(());
     }
 
-    let cache = window.state::<PortableWindowStateCache>();
+    let native_window = window.as_ref().window();
+    let cache = native_window.state::<PortableWindowStateCache>();
     let mut states = cache
         .0
         .lock()
         .map_err(|_| "portable window-state cache lock poisoned".to_string())?;
     let state = states
-        .entry(window.label().to_string())
-        .or_insert(current_state(window)?);
-    update_state(window, state)
+        .entry(native_window.label().to_string())
+        .or_insert(current_state(native_window)?);
+    update_state(native_window, state)
 }
 
 pub fn save<R: Runtime>(app: &AppHandle<R>) -> Result<PathBuf, String> {
@@ -306,5 +333,14 @@ mod tests {
         ] {
             assert!(value.get(key).is_some(), "missing {key}");
         }
+    }
+
+    #[test]
+    fn default_state_matches_upstream_visibility_and_decorations() {
+        let state = WindowState::default();
+        assert!(state.visible);
+        assert!(state.decorated);
+        assert!(!state.maximized);
+        assert!(!state.fullscreen);
     }
 }
