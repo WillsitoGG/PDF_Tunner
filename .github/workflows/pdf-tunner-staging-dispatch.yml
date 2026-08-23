@@ -1,10 +1,11 @@
-name: PDF_Tunner staging containment fixer
+name: PDF_Tunner staging validation dispatcher
 
 on:
   push:
     branches:
       - pdf-tunner/appdata-containment-stage
     paths-ignore:
+      - .github/staging-active-run-id.txt
       - .github/staging-validation-result.json
       - .github/staging-validation-log.txt
       - .github/staging-validation-artifacts.json
@@ -14,8 +15,7 @@ permissions:
   contents: write
 
 jobs:
-  patch-and-dispatch:
-    if: github.actor != 'github-actions[bot]'
+  dispatch-portable-validation:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout staging branch
@@ -23,230 +23,38 @@ jobs:
         with:
           ref: ${{ github.ref_name }}
 
-      - name: Apply run 55 containment and geometry fixes
-        shell: bash
-        run: |
-          set -euo pipefail
-          python - <<'PY'
-          from pathlib import Path
-
-          def replace_once(text, old, new, label):
-              count = text.count(old)
-              if count != 1:
-                  raise SystemExit(f"{label}: expected exactly one match, found {count}")
-              return text.replace(old, new, 1)
-
-          auth_path = Path('frontend/editor/src-tauri/src/commands/auth.rs')
-          auth = auth_path.read_text(encoding='utf-8')
-          auth = replace_once(
-              auth,
-              'use std::sync::{Arc, Mutex};',
-              'use std::path::PathBuf;\nuse std::sync::{Arc, Mutex};',
-              'auth PathBuf import',
-          )
-          auth = replace_once(
-              auth,
-              'pub const REFRESH_TOKEN_STORE_KEY_FOR_TESTS: &str = REFRESH_TOKEN_STORE_KEY;\n\n#[derive(Debug, Serialize, Deserialize, Clone)]',
-              '''pub const REFRESH_TOKEN_STORE_KEY_FOR_TESTS: &str = REFRESH_TOKEN_STORE_KEY;
-
-fn is_portable_mode() -> bool {
-    std::env::var_os("PDF_TUNNER_PORTABLE_ROOT").is_some()
-}
-
-fn portable_store_path(file_name: &str) -> PathBuf {
-    match std::env::var_os("PDF_TUNNER_PORTABLE_ROOT") {
-        Some(root) => PathBuf::from(root)
-            .join("data")
-            .join("tauri")
-            .join("store")
-            .join(file_name),
-        None => PathBuf::from(file_name),
-    }
-}
-
-#[derive(Debug, Serialize, Deserialize, Clone)]''',
-              'auth portable store helpers',
-          )
-          auth = replace_once(
-              auth,
-              'fn get_keyring_entry() -> Result<Entry, String> {\n    if std::env::var("STIRLING_PDF_TEST_FORCE_AUTH_KEYRING_FAIL").is_ok() {',
-              '''fn get_keyring_entry() -> Result<Entry, String> {
-    if is_portable_mode() {
-        return Err("Windows Credential Manager disabled in PDF_Tunner portable mode".to_string());
-    }
-    if std::env::var("STIRLING_PDF_TEST_FORCE_AUTH_KEYRING_FAIL").is_ok() {''',
-              'auth keyring portable guard',
-          )
-          auth = replace_once(
-              auth,
-              'pub fn get_refresh_token_keyring_entry() -> Result<Entry, String> {\n    if std::env::var("STIRLING_PDF_TEST_FORCE_REFRESH_KEYRING_FAIL").is_ok() {',
-              '''pub fn get_refresh_token_keyring_entry() -> Result<Entry, String> {
-    if is_portable_mode() {
-        return Err("Windows Credential Manager disabled in PDF_Tunner portable mode".to_string());
-    }
-    if std::env::var("STIRLING_PDF_TEST_FORCE_REFRESH_KEYRING_FAIL").is_ok() {''',
-              'refresh keyring portable guard',
-          )
-          token_calls = auth.count('.store(TOKENS_STORE_FILE)')
-          if token_calls == 0:
-              raise SystemExit('auth token store calls: expected at least one match')
-          auth = auth.replace('.store(TOKENS_STORE_FILE)', '.store(portable_store_path(TOKENS_STORE_FILE))')
-          connection_calls = auth.count('.store(STORE_FILE)')
-          if connection_calls == 0:
-              raise SystemExit('auth connection store calls: expected at least one match')
-          auth = auth.replace('.store(STORE_FILE)', '.store(portable_store_path(STORE_FILE))')
-          auth_path.write_text(auth, encoding='utf-8')
-
-          validator_path = Path('.github/scripts/validate-portable-window-state.ps1')
-          validator = validator_path.read_text(encoding='utf-8')
-          validator = replace_once(
-              validator,
-              "    [PSCustomObject]@{ Name = 'connection store'; Path = (Join-Path $PortableRoot 'data\\tauri\\store\\connection.json') }\n)",
-              "    [PSCustomObject]@{ Name = 'connection store'; Path = (Join-Path $PortableRoot 'data\\tauri\\store\\connection.json') },\n    [PSCustomObject]@{ Name = 'token store'; Path = (Join-Path $PortableRoot 'data\\tauri\\store\\tokens.json') }\n)",
-              'validator token store expectation',
-          )
-          validator = replace_once(
-              validator,
-              '''function Stop-PortableNormally {
-    param([Parameter(Mandatory = $true)][System.Diagnostics.Process]$Process)
-''',
-              '''function Set-GeometryAndWait {
-    param(
-        [Parameter(Mandatory = $true)][IntPtr]$Hwnd,
-        [Parameter(Mandatory = $true)][int]$X,
-        [Parameter(Mandatory = $true)][int]$Y,
-        [Parameter(Mandatory = $true)][int]$OuterWidth,
-        [Parameter(Mandatory = $true)][int]$OuterHeight,
-        [int]$TimeoutSeconds = 30
-    )
-
-    # Tauri/WebView startup can apply its initial geometry shortly after the
-    # native window becomes visible. Re-apply our deliberate normal geometry
-    # until it survives that startup phase instead of treating that race as a
-    # persistence failure.
-    $deadline = (Get-Date).AddSeconds($TimeoutSeconds)
-    $last = $null
-    while ((Get-Date) -lt $deadline) {
-        [void][PdfTunnerWindowProbe]::ShowWindow($Hwnd, $SW_RESTORE)
-        if (-not [PdfTunnerWindowProbe]::SetWindowPos(
-            $Hwnd,
-            [IntPtr]::Zero,
-            $X,
-            $Y,
-            $OuterWidth,
-            $OuterHeight,
-            $flags)) {
-            throw 'SetWindowPos failed while establishing first-launch geometry.'
-        }
-
-        Start-Sleep -Milliseconds 750
-        $last = Get-Geometry -Hwnd $Hwnd
-        $positionOk = ([Math]::Abs($last.X - $X) -le $Tolerance) -and
-            ([Math]::Abs($last.Y - $Y) -le $Tolerance)
-        $sizeOk = ([Math]::Abs($last.OuterWidth - $OuterWidth) -le $Tolerance) -and
-            ([Math]::Abs($last.OuterHeight - $OuterHeight) -le $Tolerance)
-        if ($positionOk -and $sizeOk) {
-            return $last
-        }
-    }
-
-    if ($null -ne $last) {
-        Write-Host 'Last geometry observed while establishing deliberate first-launch geometry:'
-        $last | Format-List
-    }
-    throw 'First packaged launch did not retain deliberate normal geometry within the startup window.'
-}
-
-function Stop-PortableNormally {
-    param([Parameter(Mandatory = $true)][System.Diagnostics.Process]$Process)
-''',
-              'validator robust geometry helper',
-          )
-          validator = replace_once(
-              validator,
-              '''    $firstHwnd = Wait-ForWindow -Process $first
-    [void][PdfTunnerWindowProbe]::ShowWindow($firstHwnd, $SW_RESTORE)
-    if (-not [PdfTunnerWindowProbe]::SetWindowPos(
-        $firstHwnd,
-        [IntPtr]::Zero,
-        $targetX,
-        $targetY,
-        $targetOuterWidth,
-        $targetOuterHeight,
-        $flags)) {
-        throw 'SetWindowPos failed on first launch.'
-    }
-
-    Start-Sleep -Seconds 3
-    $firstGeometry = Get-Geometry -Hwnd $firstHwnd
-    $firstGeometry | Format-List
-
-    Assert-Near -Name 'first launch X' -Expected $targetX -Actual $firstGeometry.X -AllowedDelta $Tolerance
-    Assert-Near -Name 'first launch Y' -Expected $targetY -Actual $firstGeometry.Y -AllowedDelta $Tolerance
-''',
-              '''    $firstHwnd = Wait-ForWindow -Process $first
-    $firstGeometry = Set-GeometryAndWait `
-        -Hwnd $firstHwnd `
-        -X $targetX `
-        -Y $targetY `
-        -OuterWidth $targetOuterWidth `
-        -OuterHeight $targetOuterHeight
-    $firstGeometry | Format-List
-
-    Assert-Near -Name 'first launch X' -Expected $targetX -Actual $firstGeometry.X -AllowedDelta $Tolerance
-    Assert-Near -Name 'first launch Y' -Expected $targetY -Actual $firstGeometry.Y -AllowedDelta $Tolerance
-    Assert-Near -Name 'first launch outer width' -Expected $targetOuterWidth -Actual $firstGeometry.OuterWidth -AllowedDelta $Tolerance
-    Assert-Near -Name 'first launch outer height' -Expected $targetOuterHeight -Actual $firstGeometry.OuterHeight -AllowedDelta $Tolerance
-''',
-              'validator first-launch geometry block',
-          )
-          validator_path.write_text(validator, encoding='utf-8')
-
-          note = '''
-
-### Portable profile containment — Run #55 follow-up
-
-Run #55 reached the real packaged window validator after the build, upstream checks, bootstrap and bundled-backend smoke test had passed. Its diagnostic artifact proved the three Run #50 profile leaks were already redirected to `data\\tauri\\http\\.cookies`, `data\\tauri\\logs\\PDF_Tunner.log` and `data\\tauri\\store\\connection.json`. It also exposed a fourth Tauri Store file, `tokens.json`, under host Roaming AppData. Portable mode now routes that file (and the auth module's connection-store access) to `data\\tauri\\store`, and it deliberately bypasses Windows Credential Manager so authentication state does not become host-persistent; non-portable Stirling behavior is unchanged. The validator now expects `tokens.json` package-local and retries the deliberate first-launch geometry through the short Tauri/WebView startup geometry race before testing persistence and second-launch restoration.
-'''
-          for doc_name in ('README.md', 'AGENTS.md'):
-              doc = Path(doc_name)
-              text = doc.read_text(encoding='utf-8')
-              marker = '### Portable profile containment — Run #55 follow-up'
-              if marker in text:
-                  raise SystemExit(f'{doc_name}: Run #55 follow-up marker already exists')
-              doc.write_text(text.rstrip() + note + '\n', encoding='utf-8')
-          PY
-
-          git diff --check
-          git diff -- frontend/editor/src-tauri/src/commands/auth.rs .github/scripts/validate-portable-window-state.ps1 README.md AGENTS.md
-
-      - name: Commit functional staging fix
-        shell: bash
-        run: |
-          set -euo pipefail
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add frontend/editor/src-tauri/src/commands/auth.rs .github/scripts/validate-portable-window-state.ps1 README.md AGENTS.md
-          git commit -m "fix(pdf-tunner): contain portable auth state after run 55"
-          git push origin HEAD:${GITHUB_REF_NAME}
-
-      - name: Dispatch heavy portable validation on fixed staging head
+      - name: Dispatch heavy portable validation for this staging head
         env:
           GH_TOKEN: ${{ github.token }}
         shell: bash
         run: |
           set -euo pipefail
-          fixed_sha="$(git rev-parse HEAD)"
+          head_sha="$(git rev-parse HEAD)"
           gh workflow run pdf-tunner-windows-portable.yml --repo "$GITHUB_REPOSITORY" --ref "$GITHUB_REF_NAME"
+
           for attempt in $(seq 1 30); do
             run_json="$(gh run list --repo "$GITHUB_REPOSITORY" --workflow pdf-tunner-windows-portable.yml --branch "$GITHUB_REF_NAME" --event workflow_dispatch --limit 20 --json databaseId,number,headSha,status,conclusion,createdAt,url)"
-            run_id="$(printf '%s' "$run_json" | jq -r --arg sha "$fixed_sha" '[.[] | select(.headSha == $sha)] | sort_by(.createdAt) | reverse | .[0].databaseId // empty')"
+            run_id="$(printf '%s' "$run_json" | jq -r --arg sha "$head_sha" '[.[] | select(.headSha == $sha)] | sort_by(.createdAt) | reverse | .[0].databaseId // empty')"
             if [ -n "$run_id" ]; then
-              echo "$run_id" > .github/staging-active-run-id.txt
+              printf '%s\n' "$run_id" > .github/staging-active-run-id.txt
               echo "Dispatched heavy validation run ID: $run_id"
               exit 0
             fi
             sleep 2
           done
-          echo "Could not resolve dispatched heavy run for $fixed_sha" >&2
+
+          echo "Could not resolve dispatched heavy run for $head_sha" >&2
           exit 1
+
+      - name: Record dispatched run ID on staging only
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add .github/staging-active-run-id.txt
+          if git diff --cached --quiet; then
+            exit 0
+          fi
+          git commit -m "ci(pdf-tunner): record active staging validation"
+          git push origin HEAD:${GITHUB_REF_NAME}
