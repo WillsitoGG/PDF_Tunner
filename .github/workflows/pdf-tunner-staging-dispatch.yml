@@ -1,19 +1,58 @@
-name: PDF_Tunner staging dispatch bridge
+name: PDF_Tunner staging run observer
 
 on:
   push:
     branches:
       - pdf-tunner/appdata-containment-stage
+    paths-ignore:
+      - .github/staging-validation-result.json
 
 permissions:
-  actions: write
-  contents: read
+  actions: read
+  contents: write
 
 jobs:
-  dispatch-portable-validation:
+  observe-portable-validation:
     runs-on: ubuntu-latest
     steps:
-      - name: Dispatch heavy portable workflow on this staging ref
+      - name: Checkout staging branch
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref_name }}
+
+      - name: Capture completed portable run 55
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh workflow run pdf-tunner-windows-portable.yml --repo "$GITHUB_REPOSITORY" --ref "$GITHUB_REF_NAME"
+        shell: bash
+        run: |
+          set -euo pipefail
+          run_id="$(gh run list \
+            --repo "$GITHUB_REPOSITORY" \
+            --workflow pdf-tunner-windows-portable.yml \
+            --limit 50 \
+            --json databaseId,number \
+            --jq '.[] | select(.number == 55) | .databaseId' \
+            | head -n 1)"
+          if [ -z "$run_id" ]; then
+            echo "Portable workflow run #55 was not found." >&2
+            exit 1
+          fi
+          gh run view "$run_id" \
+            --repo "$GITHUB_REPOSITORY" \
+            --json databaseId,number,status,conclusion,headBranch,headSha,event,createdAt,updatedAt,url,jobs \
+            > .github/staging-validation-result.json
+          cat .github/staging-validation-result.json
+
+      - name: Commit observer result to staging only
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add .github/staging-validation-result.json
+          if git diff --cached --quiet; then
+            echo "Observer result unchanged."
+            exit 0
+          fi
+          git commit -m "ci(pdf-tunner): record staging run 55 result"
+          git push origin HEAD:${GITHUB_REF_NAME}
