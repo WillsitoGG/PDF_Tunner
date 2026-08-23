@@ -91,7 +91,8 @@ The portable boundary is component-specific:
 - `JAVA_TOOL_OPTIONS=-Djava.io.tmpdir=...` -> `<portable root>/data/tmp` for bundled Java only; do not replace native parent `TEMP/TMP` to achieve this;
 - Stirling's default `system.tempFileManagement.baseTmpDir` therefore resolves to `<portable root>/data/tmp/stirling-pdf`, while `MobileScannerService` resolves to `<portable root>/data/tmp/stirling-mobile-scanner` through `java.io.tmpdir`;
 - `WEBVIEW2_USER_DATA_FOLDER` -> `<portable root>/data/webview2`, containing WebView2 cookies, IndexedDB, Local Storage and browser cache without replacing global `LOCALAPPDATA`;
-- desktop connection `tauri-plugin-store` -> `<portable root>/data/tauri/store/connection.json` in portable mode; keep its normal relative `connection.json` outside portable mode;
+- desktop connection/user-info `tauri-plugin-store` -> `<portable root>/data/tauri/store/connection.json` in portable mode; keep the normal relative `connection.json` outside portable mode;
+- auth token fallback `tauri-plugin-store` -> `<portable root>/data/tauri/store/tokens.json` in portable mode; keep the normal relative `tokens.json` outside portable mode and preserve Windows keyring-first behavior;
 - `CALIBRE_CONFIG_DIRECTORY` -> `<portable root>/data/calibre`;
 - packaged tool directories are prepended to `PATH` only when they exist;
 - `TESSDATA_PREFIX` is set only when packaged Tesseract data exists;
@@ -113,29 +114,35 @@ The implementation must preserve the upstream state semantics:
 - `x` / `y`;
 - `prev_x` / `prev_y` so maximization does not lose the prior normal position;
 - `maximized`;
-- `visible`;
-- `decorated`;
+- `visible` defaults to true;
+- `decorated` defaults to true;
 - `fullscreen`;
 - update normal size only when not maximized/minimized;
 - capture the last window before it disappears;
 - restore position only if the saved rectangle still intersects an available monitor;
-- load the portable cache during plugin setup and restore/attach listeners from Tauri `on_window_ready`, matching the official plugin lifecycle so later native window realization cannot overwrite the restored geometry;
-- use the same `on_window_ready` hook for both config-created `main` and dynamically-created windows; do not also call `track_window()` manually after a dynamic builder because that installs duplicate listeners;
+- load the portable cache during plugin setup;
+- in `on_window_ready`, restore and attach listeners directly to the native `tauri::Window<R>` supplied by Tauri, exactly as `tauri-plugin-window-state` 2.2.1 does; **do not try to immediately convert/re-resolve that object through `get_webview_window()` because the WebviewWindow may not yet be registered**;
+- restore in upstream-compatible order: decorations, size, monitor-safe position, maximized, fullscreen, visibility/focus;
+- use the same native `on_window_ready` hook for both config-created `main` and dynamically-created windows; do not also call `track_window()` manually after a dynamic builder because that installs duplicate listeners;
 - save before portable `cleanup_before_exit()` and immediate `process::exit()`, because relying on a later `RunEvent::Exit` is incompatible with the terminal portable shutdown sequence.
 
 Do not call window-state proven merely because the Rust code compiles or the first packaged launch is green. The primary portable workflow invokes `.github/scripts/validate-portable-window-state.ps1` against the assembled production tree before generated runtime data is reset and the final ZIP is created. The validator deletes the host Roaming identifier directory to establish a zero baseline, moves/resizes the real Win32 window, closes normally, compares the package-local JSON with measured geometry, relaunches the same tree, verifies restored position/client size within tolerance and confirms no persisted content exists under `%APPDATA%\com.willsitogg.pdf-tunner`. A completely empty identifier directory is not treated as state; any file or subdirectory is a hard failure and is inventoried recursively.
 
 Run #49 was the first real execution of this deliberate geometry proof. All preceding build/bootstrap checks passed. Its first validator launch closed normally and diagnostics proved `data/tauri/window-state/.window-state.json` was written, but the then-current assertion stopped on the mere existence of the Roaming identifier directory before the second launch. That test-design issue is superseded by the content-aware assertion.
 
-Run #50 (`run_id 32582638502`) reached the real second-launch check. The first launch measured and persisted client 824x581 at x=111/y=87. The second launch ended around 1028x749 at x=0/y=0 and overwrote the saved state. Neither the base nor PDF_Tunner Tauri config defines a minimum for `main`, so the test geometry is valid. The key lifecycle difference from the official plugin was that PDF_Tunner restored during app `setup()` rather than `on_window_ready`; the current implementation corrects that timing. **Do not claim this fix works until the two-launch validator passes on the assembled production EXE.**
+Run #50 (`run_id 32582638502`) reached the real second-launch check. The first launch measured and persisted client 824x581 at x=111/y=87. The second launch ended around 1028x749 at x=0/y=0. Neither the base nor PDF_Tunner Tauri config defines a minimum for `main`, so the test geometry is valid.
+
+Run `32634578447` on commit `eb010bc84e09b57964053530614ff66828a9b3c7` passed every build/bootstrap step through the real packaged backend/containment smoke test, then failed the two-launch geometry validator. The failure artifact provided the actual root cause: **both launches logged `Portable window-state window-ready hook could not resolve WebviewWindow 'main'`**. The hook itself was firing, but PDF_Tunner discarded the valid native `Window` handed to it and attempted an early `get_webview_window()` lookup that returned `None`; therefore no restore or event listeners were attached. The package-local JSON still retained the first-launch 824x581 at x=111/y=87 state. The current candidate removes that conversion and operates directly on `Window<R>`. **Do not claim this fix works until the two-launch validator passes on the assembled production EXE.**
 
 ### Other native Tauri state
 
-Run #50 and run `32598488359` proved there are application call sites for `tauri-plugin-store`: desktop connection settings created `%APPDATA%\com.willsitogg.pdf-tunner\connection.json`. Portable mode must therefore use the absolute package-local `data/tauri/store/connection.json` path while retaining the upstream relative store path outside portable mode. Do not remove the plugin; it is functional state.
+Run `32598488359` proved the connection module's relative `connection.json` leaked to `%APPDATA%\com.willsitogg.pdf-tunner`; commit `eb010bc...` localized it to `data/tauri/store/connection.json`. Run `32634578447` then passed the real startup containment step, proving that connection-store localization and the `tauri-plugin-log` redirection at runtime.
 
-`tauri-plugin-log` 2.8.0 defaults to stdout plus Tauri `app_log_dir()`, which is `%LOCALAPPDATA%\<identifier>\logs` on Windows. Portable mode must retain stdout and replace only the file target with `data/logs/tauri/` via the official `TargetKind::Folder` API.
+The failure artifact from run `32634578447` exposed a second Roaming store: `%APPDATA%\com.willsitogg.pdf-tunner\tokens.json` (2 bytes), created by `commands/auth.rs` when the frontend clears/reads the Tauri Store auth fallback. The same module also had an independent relative `connection.json` used for user info. Portable mode must route both auth stores to `data/tauri/store/` while preserving keyring-first authentication and all non-portable relative paths. The current candidate implements this through `AsRef<Path>` store-path objects, leaving every login/OAuth/token command call site and semantic unchanged; CI proof is still required.
 
-`tauri-plugin-http` 2.5.8 is a separate unresolved containment item. Stirling imports `@tauri-apps/plugin-http` and can issue credentialed requests, so **do not disable its cookies feature merely to remove host state**. Official source ref `tauri-apps/plugins-workspace` `http-v2.5.8` has been verified and hard-wires the cookie jar to `app_cache_dir()/.cookies`, causing `%LOCALAPPDATA%\com.willsitogg.pdf-tunner\.cookies`. Localize this jar with a minimal source-compatible 2.5.8 adaptation, preserve auth/cookie semantics, document exact provenance, and test it before final Release.
+`tauri-plugin-log` 2.8.0 defaults to stdout plus Tauri `app_log_dir()`, which is `%LOCALAPPDATA%\<identifier>\logs` on Windows. Portable mode retains stdout and replaces only the file target with `data/logs/tauri/` via the official `TargetKind::Folder` API; run `32634578447` proved the packaged startup smoke succeeds with this configuration.
+
+`tauri-plugin-http` 2.5.8 is a separate unresolved containment item. Stirling imports `@tauri-apps/plugin-http` and can issue credentialed requests, so **do not disable its cookies feature merely to remove host state**. Official source ref `tauri-apps/plugins-workspace` `http-v2.5.8` has been verified and hard-wires the cookie jar to `app_cache_dir()/.cookies`, causing `%LOCALAPPDATA%\com.willsitogg.pdf-tunner\.cookies`. The current upstream `v2` source still uses the same path, so updating the plugin alone does not solve it. Localize this jar with a minimal source-compatible 2.5.8 adaptation, preserve auth/cookie semantics, document exact provenance, and test it before final Release.
 
 Portable `ExitRequested` is terminal and synchronous: save portable window state, terminate the bundled backend, record final logs, call `AppHandle::cleanup_before_exit()`, then immediately call `std::process::exit()` with the requested code. Tauri explicitly documents that no Tauri API may be used after manual cleanup. Run #11 proved that relying on a later `RunEvent::Exit` can leave the Windows portable parent alive even after Java and other child processes are gone. Keep non-portable upstream behavior unchanged unless upstream itself changes.
 
@@ -155,6 +162,7 @@ PDF_Tunner/
     tauri/
       store/
         connection.json
+        tokens.json
       window-state/
         .window-state.json
       http/
@@ -261,7 +269,7 @@ Baseline sequence:
 11. request `/api/v1/info/status`;
 12. assert Stirling Java temp directories live under package `data/tmp` and were not newly created in host `%TEMP%`;
 13. assert WebView2 populated package `data/webview2` and did not newly create `%LOCALAPPDATA%\com.willsitogg.pdf-tunner\EBWebView`;
-14. assert portable startup/shutdown did not persist files/subdirectories under `%APPDATA%\com.willsitogg.pdf-tunner`, including connection-store state;
+14. assert portable startup/shutdown did not persist files/subdirectories under `%APPDATA%\com.willsitogg.pdf-tunner`, including connection/user-info/token-store state;
 15. assert native Tauri log output is package-local and inventory Local/Roaming application roots separately; keep the known HTTP `.cookies` leak explicitly classified until its dedicated fix lands;
 16. assert portable startup/shutdown did not newly register `HKCU\Software\Classes\pdf-tunner`;
 17. request normal app shutdown and check for portable child-process leftovers;
@@ -278,7 +286,7 @@ A failure diagnostics step must itself be resilient. In particular, do not recur
 
 ## Fixed WebView2 next layer
 
-After portable window-state/store/log containment passes, localize the native HTTP 2.5.8 cookie jar without disabling authentication, then bundle a Microsoft Fixed WebView2 Runtime. As of 2026-08-22 the current x64 catalog build verified during this work is `151.0.4129.101` (published 2026-08-20). Reverify before committing because this runtime is serviced frequently.
+After portable window-state/auth-store containment passes, localize the native HTTP 2.5.8 cookie jar without disabling authentication, then bundle a Microsoft Fixed WebView2 Runtime. As of 2026-08-22 the current x64 catalog build verified during this work is `151.0.4129.101` (published 2026-08-20). Reverify before committing because this runtime is serviced frequently.
 
 Use `WEBVIEW2_BROWSER_EXECUTABLE_FOLDER` for the package-local Fixed Runtime and keep `WEBVIEW2_USER_DATA_FOLDER` for the package-local profile. Microsoft documents that unpackaged Win32 apps using Fixed Version 120+ on Windows 10 need read/execute ACLs for SIDs `S-1-15-2-1` (`ALL APPLICATION PACKAGES`) and `S-1-15-2-2` (`ALL RESTRICTED APPLICATION PACKAGES`). Fixed Version cannot run from a network/UNC location. CI/manual validation must prove the bundled runtime is selected rather than a runner-installed Evergreen runtime.
 
@@ -388,11 +396,13 @@ Unless a PDF_Tunner rule above overrides them:
 
 ### 2026-08-23 — real window restore and native Tauri state audit
 
-- Recovered `push` runs autonomously through the Commit Status bridge; run #50 is `32582638502` and the later primary run is `32598488359`.
+- Recovered `push` runs autonomously through the Commit Status bridge; run #50 is `32582638502`, later primary runs include `32598488359` and `32634578447`.
 - Run #50 proved actual package-local window-state write with measured client 824x581 at x=111/y=87, then proved second-launch restoration still failed around 1028x749 at x=0/y=0.
 - Confirmed the main production Tauri config has no `minWidth`/`minHeight`; the smaller test geometry is valid and must not be weakened to hide the restore defect.
-- Aligned the portable window-state lifecycle with the official plugin: load during plugin setup, restore/track from `on_window_ready`, and remove duplicate manual dynamic-window tracking.
 - Run `32598488359` diagnostics proved the Java backend started successfully on port 53150 and shut down cleanly; the startup step failed instead on real Roaming `%APPDATA%\com.willsitogg.pdf-tunner\connection.json` state.
 - Localized the desktop connection `tauri-plugin-store` to `data/tauri/store/connection.json` in portable mode while preserving normal non-portable behavior.
 - Classified `%LOCALAPPDATA%\com.willsitogg.pdf-tunner\logs\PDF_Tunner.log` as the default `tauri-plugin-log` file target and redirected that target to `data/logs/tauri/` while retaining stdout.
-- Classified `%LOCALAPPDATA%\com.willsitogg.pdf-tunner\.cookies` as `tauri-plugin-http` 2.5.8's persistent cookie jar. Verified official ref `tauri-apps/plugins-workspace` `http-v2.5.8`; cookies/auth must be preserved, so this leak remains explicitly pending a minimal source-compatible localization rather than disabling the feature.
+- Run `32634578447` passed all build/bootstrap checks through the real backend/containment smoke test, proving the connection-store and log redirections; the window validator still failed.
+- Its diagnostics identified the actual window-state defect: `on_window_ready` correctly supplied a native `Window`, but PDF_Tunner immediately tried `get_webview_window("main")`, which returned `None` at that lifecycle point. The candidate now restores/listens directly on the native `Window<R>` and mirrors upstream restore ordering/defaults.
+- The same diagnostics exposed `%APPDATA%\com.willsitogg.pdf-tunner\tokens.json` from the authentication Tauri Store fallback and a second relative `connection.json` path in auth user-info code. Both are localized to `data/tauri/store/` in portable mode without changing keyring/login/OAuth semantics; CI proof is pending.
+- Classified `%LOCALAPPDATA%\com.willsitogg.pdf-tunner\.cookies` as `tauri-plugin-http` 2.5.8's persistent cookie jar. Verified official ref `tauri-apps/plugins-workspace` `http-v2.5.8` and confirmed current `v2` still hard-wires `app_cache_dir()/.cookies`; cookies/auth must be preserved, so this leak remains explicitly pending a minimal source-compatible localization rather than disabling the feature.
