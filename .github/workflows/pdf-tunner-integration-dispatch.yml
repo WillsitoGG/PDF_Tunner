@@ -1,0 +1,24 @@
+name: PDF_Tunner Integration Dispatch
+
+on:
+  push:
+    branches:
+      - pdf-tunner/appdata-primary-integration-stage
+
+permissions:
+  actions: write
+  contents: read
+
+jobs:
+  dispatch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Dispatch portable workflow on integration branch
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TARGET_REF: ${{ github.ref_name }}
+        run: |
+          gh workflow run pdf-tunner-windows-portable.yml \
+            --repo "${{ github.repository }}" \
+            --ref "$TARGET_REF"
+          echo "Dispatched PDF_Tunner Windows Portable for $TARGET_REF @ ${{ github.sha }}"
