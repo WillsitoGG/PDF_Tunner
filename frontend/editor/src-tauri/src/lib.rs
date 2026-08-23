@@ -95,6 +95,33 @@ fn window_state_plugin<R: Runtime>() -> tauri::plugin::TauriPlugin<R> {
   }
 }
 
+fn log_plugin<R: Runtime>() -> tauri::plugin::TauriPlugin<R> {
+  let builder = tauri_plugin_log::Builder::new().level(log::LevelFilter::Info);
+
+  if let Some(root) = std::env::var_os("PDF_TUNNER_PORTABLE_ROOT") {
+    // tauri-plugin-log 2.8.0 defaults to LogDir, which is LocalAppData on
+    // Windows. Portable mode keeps stdout but replaces only that file target.
+    builder
+      .clear_targets()
+      .target(tauri_plugin_log::Target::new(
+        tauri_plugin_log::TargetKind::Stdout,
+      ))
+      .target(tauri_plugin_log::Target::new(
+        tauri_plugin_log::TargetKind::Folder {
+          path: std::path::PathBuf::from(root)
+            .join("data")
+            .join("tauri")
+            .join("logs"),
+          file_name: None,
+        },
+      ))
+      .build()
+  } else {
+    // Preserve official Stirling/Tauri logging behavior outside portable mode.
+    builder.build()
+  }
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
   // WebKitGTK's DMA-BUF renderer crashes the web process on NVIDIA and some
@@ -119,11 +146,7 @@ pub fn run() {
         })
         .build()
     )
-    .plugin(
-      tauri_plugin_log::Builder::new()
-        .level(log::LevelFilter::Info)
-        .build()
-    )
+    .plugin(log_plugin())
     .plugin(tauri_plugin_opener::init())
     .plugin(tauri_plugin_shell::init())
     .plugin(tauri_plugin_fs::init())

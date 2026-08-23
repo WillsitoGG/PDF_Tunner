@@ -12,7 +12,15 @@ $PortableRoot = (Resolve-Path -LiteralPath $PortableRoot).Path
 $Exe = Join-Path $PortableRoot 'PDF_Tunner.exe'
 $Marker = Join-Path $PortableRoot 'PDF_TUNNER_PORTABLE'
 $StateFile = Join-Path $PortableRoot 'data\tauri\window-state\.window-state.json'
-$HostTauriConfig = Join-Path $env:APPDATA 'com.willsitogg.pdf-tunner'
+$PortableTauriState = @(
+    [PSCustomObject]@{ Name = 'HTTP cookie jar'; Path = (Join-Path $PortableRoot 'data\tauri\http\.cookies') },
+    [PSCustomObject]@{ Name = 'Tauri log'; Path = (Join-Path $PortableRoot 'data\tauri\logs\PDF_Tunner.log') },
+    [PSCustomObject]@{ Name = 'connection store'; Path = (Join-Path $PortableRoot 'data\tauri\store\connection.json') }
+)
+$HostTauriRoots = @(
+    [PSCustomObject]@{ Name = 'LocalAppData'; Path = (Join-Path $env:LOCALAPPDATA 'com.willsitogg.pdf-tunner') },
+    [PSCustomObject]@{ Name = 'Roaming AppData'; Path = (Join-Path $env:APPDATA 'com.willsitogg.pdf-tunner') }
+)
 
 if (-not (Test-Path -LiteralPath $Exe -PathType Leaf)) {
     throw "Portable executable missing: $Exe"
@@ -24,11 +32,15 @@ if ($PortableRoot.StartsWith('\\')) {
     throw "Fixed/portable runtime validation must not execute from UNC: $PortableRoot"
 }
 
-# The job is ephemeral. Start from a known-zero Roaming AppData baseline so
-# the test proves PDF_Tunner itself does not persist Tauri state there.
-Remove-Item -LiteralPath $HostTauriConfig -Recurse -Force -ErrorAction SilentlyContinue
-if (Test-Path -LiteralPath $HostTauriConfig) {
-    throw "Could not establish clean host Tauri config baseline: $HostTauriConfig"
+# The job is ephemeral. Start from known-zero Local + Roaming AppData baselines.
+# This cleanup happens BEFORE either validation launch; no host state is deleted
+# after launch, so a green result proves PDF_Tunner did not persist new content.
+foreach ($root in $HostTauriRoots) {
+    Remove-Item -LiteralPath $root.Path -Recurse -Force -ErrorAction SilentlyContinue
+    if (Test-Path -LiteralPath $root.Path) {
+        throw "Could not establish clean host $($root.Name) Tauri baseline: $($root.Path)"
+    }
+    Write-Host "Clean host $($root.Name) baseline: $($root.Path)"
 }
 
 Add-Type -TypeDefinition @'
@@ -183,23 +195,53 @@ function Stop-PortableNormally {
 }
 
 function Assert-NoHostTauriState {
-    if (-not (Test-Path -LiteralPath $HostTauriConfig -PathType Container)) {
-        return
+    foreach ($root in $HostTauriRoots) {
+        if (-not (Test-Path -LiteralPath $root.Path -PathType Container)) {
+            Write-Host "Host $($root.Name) identifier root was not created: $($root.Path)"
+            continue
+        }
+
+        $items = @(Get-ChildItem -LiteralPath $root.Path -Recurse -Force -ErrorAction SilentlyContinue)
+        if ($items.Count -gt 0) {
+            Write-Host "Unexpected host $($root.Name) Tauri content:"
+            $items |
+                Select-Object FullName, PSIsContainer, Length, LastWriteTime |
+                Format-Table -AutoSize
+            throw "Portable PDF_Tunner leaked content into host $($root.Name): $($root.Path)"
+        }
+
+        # Native/Tauri path resolution may materialize the identifier directory
+        # itself. An empty root is not persisted application state.
+        Write-Host "Host $($root.Name) identifier directory exists but is empty: $($root.Path)"
+    }
+}
+
+function Wait-ForPortableTauriState {
+    param([int]$TimeoutSeconds = 30)
+
+    $deadline = (Get-Date).AddSeconds($TimeoutSeconds)
+    while ((Get-Date) -lt $deadline) {
+        $missing = @($PortableTauriState | Where-Object {
+            -not (Test-Path -LiteralPath $_.Path -PathType Leaf)
+        })
+        if ($missing.Count -eq 0) {
+            foreach ($item in $PortableTauriState) {
+                $file = Get-Item -LiteralPath $item.Path
+                Write-Host "Package-local $($item.Name): $($item.Path) ($($file.Length) bytes)"
+            }
+            return
+        }
+        Start-Sleep -Milliseconds 500
     }
 
-    $items = @(Get-ChildItem -LiteralPath $HostTauriConfig -Recurse -Force -ErrorAction SilentlyContinue)
-    if ($items.Count -gt 0) {
-        Write-Host "Unexpected host Tauri Roaming content:"
-        $items |
-            Select-Object FullName, PSIsContainer, Length, LastWriteTime |
-            Format-Table -AutoSize
-        throw "Portable window-state leaked content into Roaming AppData: $HostTauriConfig"
-    }
-
-    # Tauri/native path resolution can materialize the identifier directory even
-    # when no file or subdirectory is persisted. Treat only actual contents as
-    # host state; the clean baseline above still guarantees this run created it.
-    Write-Host "Host Tauri identifier directory exists but is empty; no Roaming AppData state was persisted: $HostTauriConfig"
+    $PortableTauriState | ForEach-Object {
+        [PSCustomObject]@{
+            Name = $_.Name
+            Path = $_.Path
+            Exists = Test-Path -LiteralPath $_.Path -PathType Leaf
+        }
+    } | Format-Table -AutoSize
+    throw 'Expected package-local Tauri state was not fully created.'
 }
 
 # Use a position/size comfortably inside the standard GitHub Windows runner
@@ -237,6 +279,8 @@ try {
     Assert-Near -Name 'first launch X' -Expected $targetX -Actual $firstGeometry.X -AllowedDelta $Tolerance
     Assert-Near -Name 'first launch Y' -Expected $targetY -Actual $firstGeometry.Y -AllowedDelta $Tolerance
 
+    Wait-ForPortableTauriState
+    Assert-NoHostTauriState
     Stop-PortableNormally -Process $first
 } finally {
     if (-not $first.HasExited) {
@@ -304,6 +348,7 @@ try {
     Assert-Near -Name 'restored client width' -Expected ([int]$stored.width) -Actual $restored.ClientWidth -AllowedDelta $Tolerance
     Assert-Near -Name 'restored client height' -Expected ([int]$stored.height) -Actual $restored.ClientHeight -AllowedDelta $Tolerance
 
+    Assert-NoHostTauriState
     Stop-PortableNormally -Process $second
 } finally {
     if (-not $second.HasExited) {
@@ -312,4 +357,4 @@ try {
 }
 
 Assert-NoHostTauriState
-Write-Host "PASS: portable window state persisted to $StateFile, restored on a second packaged launch, and created no Roaming AppData content."
+Write-Host "PASS: portable Tauri state stayed under $PortableRoot\data, window state restored on the second launch, and Local/Roaming AppData contain no PDF_Tunner state."

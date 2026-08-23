@@ -6,11 +6,31 @@ use crate::state::connection_state::{
 use crate::utils::{add_log, app_data_dir, system_provisioning_dir};
 use serde::{Deserialize, Serialize};
 use std::fs;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
+use std::sync::OnceLock;
 use tauri::{AppHandle, Manager, State};
 use tauri_plugin_store::StoreExt;
 
-const STORE_FILE: &str = "connection.json";
+#[derive(Clone, Copy)]
+struct ConnectionStoreFile;
+
+impl AsRef<Path> for ConnectionStoreFile {
+    fn as_ref(&self) -> &Path {
+        static STORE_PATH: OnceLock<PathBuf> = OnceLock::new();
+        STORE_PATH
+            .get_or_init(|| match std::env::var_os("PDF_TUNNER_PORTABLE_ROOT") {
+                Some(root) => PathBuf::from(root)
+                    .join("data")
+                    .join("tauri")
+                    .join("store")
+                    .join("connection.json"),
+                None => PathBuf::from("connection.json"),
+            })
+            .as_path()
+    }
+}
+
+const STORE_FILE: ConnectionStoreFile = ConnectionStoreFile;
 const FIRST_LAUNCH_KEY: &str = "setup_completed";
 const CONNECTION_MODE_KEY: &str = "connection_mode";
 const SERVER_CONFIG_KEY: &str = "server_config";
