@@ -1,0 +1,31 @@
+windows-portable	Validate portable window-state persistence and second-launch restore	﻿2026-08-23T16:52:03.2483543Z ##[group]Run & './.github/scripts/validate-portable-window-state.ps1' -PortableRoot './dist/PDF_Tunner' -Tolerance 16
+windows-portable	Validate portable window-state persistence and second-launch restore	2026-08-23T16:52:03.2484486Z ^[[36;1m& './.github/scripts/validate-portable-window-state.ps1' -PortableRoot './dist/PDF_Tunner' -Tolerance 16^[[0m
+windows-portable	Validate portable window-state persistence and second-launch restore	2026-08-23T16:52:03.2584253Z shell: C:\Program Files\PowerShell\7\pwsh.EXE -command ". '{0}'"
+windows-portable	Validate portable window-state persistence and second-launch restore	2026-08-23T16:52:03.2584608Z env:
+windows-portable	Validate portable window-state persistence and second-launch restore	2026-08-23T16:52:03.2584797Z   PDF_TUNNER_UPSTREAM_VERSION: 2.14.3
+windows-portable	Validate portable window-state persistence and second-launch restore	2026-08-23T16:52:03.2585147Z   PDF_TUNNER_UPSTREAM_COMMIT: 7fb29d002dbb8fa4b5945d1d1fe8dd164a9f7632
+windows-portable	Validate portable window-state persistence and second-launch restore	2026-08-23T16:52:03.2585486Z   CI: true
+windows-portable	Validate portable window-state persistence and second-launch restore	2026-08-23T16:52:03.2585669Z   CARGO_HOME: C:\Users\runneradmin\.cargo
+windows-portable	Validate portable window-state persistence and second-launch restore	2026-08-23T16:52:03.2585920Z   CARGO_INCREMENTAL: 0
+windows-portable	Validate portable window-state persistence and second-launch restore	2026-08-23T16:52:03.2586117Z   CARGO_TERM_COLOR: always
+windows-portable	Validate portable window-state persistence and second-launch restore	2026-08-23T16:52:03.2586452Z   JAVA_HOME: C:\hostedtoolcache\windows\Java_Temurin-Hotspot_jdk\25.0.4-7.0\x64
+windows-portable	Validate portable window-state persistence and second-launch restore	2026-08-23T16:52:03.2586962Z   JAVA_HOME_25_X64: C:\hostedtoolcache\windows\Java_Temurin-Hotspot_jdk\25.0.4-7.0\x64
+windows-portable	Validate portable window-state persistence and second-launch restore	2026-08-23T16:52:03.2587392Z   MAVEN_ARGS: -ntp
+windows-portable	Validate portable window-state persistence and second-launch restore	2026-08-23T16:52:03.2587578Z ##[endgroup]
+windows-portable	Validate portable window-state persistence and second-launch restore	2026-08-23T16:52:03.6628541Z Clean host LocalAppData baseline: C:\Users\runneradmin\AppData\Local\com.willsitogg.pdf-tunner
+windows-portable	Validate portable window-state persistence and second-launch restore	2026-08-23T16:52:03.6647397Z Clean host Roaming AppData baseline: C:\Users\runneradmin\AppData\Roaming\com.willsitogg.pdf-tunner
+windows-portable	Validate portable window-state persistence and second-launch restore	2026-08-23T16:52:09.2739815Z === First packaged launch: establish and persist deliberate geometry ===
+windows-portable	Validate portable window-state persistence and second-launch restore	2026-08-23T16:52:12.4273286Z 
+windows-portable	Validate portable window-state persistence and second-launch restore	2026-08-23T16:52:12.4278784Z ^[[32;1mX            : ^[[0m0
+windows-portable	Validate portable window-state persistence and second-launch restore	2026-08-23T16:52:12.4280349Z ^[[32;1mY            : ^[[0m0
+windows-portable	Validate portable window-state persistence and second-launch restore	2026-08-23T16:52:12.4282158Z ^[[32;1mOuterWidth   : ^[[0m1044
+windows-portable	Validate portable window-state persistence and second-launch restore	2026-08-23T16:52:12.4283712Z ^[[32;1mOuterHeight  : ^[[0m788
+windows-portable	Validate portable window-state persistence and second-launch restore	2026-08-23T16:52:12.4285526Z ^[[32;1mClientWidth  : ^[[0m1028
+windows-portable	Validate portable window-state persistence and second-launch restore	2026-08-23T16:52:12.4287880Z ^[[32;1mClientHeight : ^[[0m749
+windows-portable	Validate portable window-state persistence and second-launch restore	2026-08-23T16:52:12.4341889Z 
+windows-portable	Validate portable window-state persistence and second-launch restore	2026-08-23T16:52:12.7882251Z ^[[31;1mException: ^[[0mD:\a\PDF_Tunner\PDF_Tunner\.github\scripts\validate-portable-window-state.ps1:166^[[0m
+windows-portable	Validate portable window-state persistence and second-launch restore	2026-08-23T16:52:12.7883611Z ^[[31;1m^[[0m^[[36;1mLine |^[[0m
+windows-portable	Validate portable window-state persistence and second-launch restore	2026-08-23T16:52:12.7885129Z ^[[31;1m^[[0m^[[36;1m^[[36;1m 166 | ^[[0m         ^[[36;1mthrow "$Name mismatch: expected $Expected, actual $Actual, de^[[0m …^[[0m
+windows-portable	Validate portable window-state persistence and second-launch restore	2026-08-23T16:52:12.7886640Z ^[[31;1m^[[0m^[[36;1m^[[36;1m^[[0m^[[36;1m^[[0m^[[36;1m     | ^[[31;1m         ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^[[0m
+windows-portable	Validate portable window-state persistence and second-launch restore	2026-08-23T16:52:12.7888155Z ^[[31;1m^[[0m^[[36;1m^[[36;1m^[[0m^[[36;1m^[[0m^[[36;1m^[[31;1m^[[31;1m^[[36;1m     | ^[[31;1mfirst launch X mismatch: expected 111, actual 0, delta 111 > tolerance 16.^[[0m
+windows-portable	Validate portable window-state persistence and second-launch restore	2026-08-23T16:52:12.9728717Z ##[error]Process completed with exit code 1.
