@@ -1,24 +1,50 @@
-name: PDF_Tunner Integration Dispatch
+name: PDF_Tunner Integration Run Resolver
 
 on:
   push:
     branches:
       - pdf-tunner/appdata-primary-integration-stage
+    paths-ignore:
+      - .github/integration-active-run-id.txt
 
 permissions:
-  actions: write
-  contents: read
+  actions: read
+  contents: write
 
 jobs:
-  dispatch:
+  resolve:
     runs-on: ubuntu-latest
     steps:
-      - name: Dispatch portable workflow on integration branch
+      - name: Resolve already-dispatched portable run
         env:
           GH_TOKEN: ${{ github.token }}
-          TARGET_REF: ${{ github.ref_name }}
+          REPO: ${{ github.repository }}
+          TARGET_REF: pdf-tunner/appdata-primary-integration-stage
+          CANDIDATE_SHA: 9f64e9ae7ca86d76e750da1279539196ed360c17
+        shell: bash
         run: |
-          gh workflow run pdf-tunner-windows-portable.yml \
-            --repo "${{ github.repository }}" \
-            --ref "$TARGET_REF"
-          echo "Dispatched PDF_Tunner Windows Portable for $TARGET_REF @ ${{ github.sha }}"
+          set -euo pipefail
+          run_id="$(gh run list \
+            --repo "$REPO" \
+            --workflow pdf-tunner-windows-portable.yml \
+            --branch "$TARGET_REF" \
+            --event workflow_dispatch \
+            --limit 20 \
+            --json databaseId,headSha \
+            --jq ".[] | select(.headSha == \"$CANDIDATE_SHA\") | .databaseId" \
+            | head -n 1)"
+
+          if [[ -z "$run_id" ]]; then
+            echo "No workflow_dispatch run found for $CANDIDATE_SHA" >&2
+            exit 1
+          fi
+
+          echo "Resolved portable run: $run_id"
+          encoded="$(printf '%s\n' "$run_id" | base64 -w0)"
+          gh api \
+            --method PUT \
+            -H "Accept: application/vnd.github+json" \
+            "repos/$REPO/contents/.github/integration-active-run-id.txt" \
+            -f message="ci(staging): record integration run id" \
+            -f content="$encoded" \
+            -f branch="$TARGET_REF"
