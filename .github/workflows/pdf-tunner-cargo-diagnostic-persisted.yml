@@ -8,7 +8,9 @@ on:
       - .github/workflows/pdf-tunner-cargo-diagnostic-persisted.yml
 
 permissions:
+  actions: read
   contents: write
+  statuses: write
 
 env:
   CI: "true"
@@ -19,6 +21,16 @@ jobs:
     steps:
       - name: Checkout diagnostic candidate
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Publish connector-readable diagnostic run id
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          & './.github/scripts/publish-push-run-statuses.ps1' `
+            -Branch 'pdf-tunner/appdata-cargo-diagnostic-persisted-0824' `
+            -WorkflowFile 'pdf-tunner-cargo-diagnostic-persisted.yml' `
+            -Limit 5
 
       - name: Setup Node.js 22
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
