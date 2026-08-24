@@ -1,0 +1,86 @@
+name: PDF_Tunner Cargo Diagnostic Persisted
+
+on:
+  push:
+    branches:
+      - pdf-tunner/appdata-cargo-diagnostic-persisted-0824
+    paths:
+      - .github/workflows/pdf-tunner-cargo-diagnostic-persisted.yml
+
+permissions:
+  contents: write
+
+env:
+  CI: "true"
+
+jobs:
+  cargo-diagnostic:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout diagnostic candidate
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Setup Node.js 22
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@4be9e76fd7c4901c61fb841f559994984270fce7 # stable
+        with:
+          toolchain: stable
+
+      - name: Setup JDK 25
+        uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5.7.0
+        with:
+          distribution: temurin
+          java-version: "25"
+          cache: gradle
+
+      - name: Setup Task
+        uses: go-task/setup-task@01a4adf9db2d14c1de7a560f09170b6e0df736aa # v2.1.0
+
+      - name: Prepare official Stirling desktop build
+        shell: pwsh
+        env:
+          DISABLE_ADDITIONAL_FEATURES: "true"
+          JPDFIUM_PLATFORMS: "windows-x64"
+        run: task desktop:prepare
+
+      - name: Run Cargo tests and capture exact output
+        id: cargo
+        continue-on-error: true
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path './.github/diagnostics' | Out-Null
+          $log = Join-Path $PWD '.github/diagnostics/cargo-test.log'
+          & cargo test --manifest-path frontend/editor/src-tauri/Cargo.toml 2>&1 | Tee-Object -FilePath $log
+          $code = $LASTEXITCODE
+          "" | Add-Content -LiteralPath $log -Encoding utf8
+          "exit_code=$code" | Add-Content -LiteralPath $log -Encoding utf8
+          if ($code -ne 0) { exit $code }
+
+      - name: Persist Cargo diagnostic log to this staging branch
+        if: always()
+        shell: pwsh
+        run: |
+          if (-not (Test-Path -LiteralPath './.github/diagnostics/cargo-test.log')) {
+            New-Item -ItemType Directory -Force -Path './.github/diagnostics' | Out-Null
+            "cargo-test.log was not produced; failure occurred before Cargo test execution." | Set-Content -LiteralPath './.github/diagnostics/cargo-test.log' -Encoding utf8
+          }
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -- '.github/diagnostics/cargo-test.log'
+          git commit -m 'ci: persist Cargo diagnostic result [skip ci]'
+          if ($LASTEXITCODE -eq 0) {
+            git push origin HEAD:pdf-tunner/appdata-cargo-diagnostic-persisted-0824
+          } elseif ($LASTEXITCODE -ne 1) {
+            exit $LASTEXITCODE
+          }
+
+      - name: Fail job if Cargo tests failed
+        if: steps.cargo.outcome == 'failure'
+        shell: pwsh
+        run: throw 'Cargo tests failed; diagnostic log was persisted to the staging branch.'
