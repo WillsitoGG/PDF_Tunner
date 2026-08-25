@@ -19,86 +19,78 @@ jobs:
       - name: Checkout diagnostic branch
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
-      - name: Resolve historical WebView2 CAB from Microsoft Update Catalog
+      - name: Verify exact official Microsoft Fixed WebView2 CAB
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
           $version = '151.0.4129.101'
           $architecture = 'x64'
-          $expectedTitle = "Microsoft Edge-WebView2 Runtime Version 151 Update for x64 based Editions (Build $version)"
-          $searchUrl = "https://www.catalog.update.microsoft.com/Search.aspx?q=$([Uri]::EscapeDataString("Edge-WebView2 $architecture $version"))"
-          $downloadDialogUrl = 'https://www.catalog.update.microsoft.com/DownloadDialog.aspx'
-          $output = '.github/diagnostics/webview2-catalog.txt'
+          $cabUrl = 'https://msedge.sf.dl.delivery.mp.microsoft.com/filestreamingservice/files/d480b710-fe1e-4e4d-ae99-5b62e6391fd3/Microsoft.WebView2.FixedVersionRuntime.151.0.4129.101.x64.cab'
+          $independentExpectedSha = 'c386640d35f7a4604d088925a9bb01938400297f6da6fe985b72614daba87cda'
+          $output = '.github/diagnostics/webview2-fixed-cab-verification.txt'
+          $work = Join-Path $env:RUNNER_TEMP 'pdf-tunner-webview2-fixed-verify'
+          $cab = Join-Path $work 'runtime.cab'
+          $expanded = Join-Path $work 'expanded'
+          Remove-Item -LiteralPath $work -Recurse -Force -ErrorAction SilentlyContinue
+          New-Item -ItemType Directory -Force -Path $expanded | Out-Null
           New-Item -ItemType Directory -Force -Path (Split-Path $output) | Out-Null
 
-          $search = Invoke-WebRequest -Uri $searchUrl -UseBasicParsing -MaximumRedirection 10 -TimeoutSec 90
-          if ($search.StatusCode -ne 200) {
-            throw "Microsoft Update Catalog search returned HTTP $($search.StatusCode)."
+          $uri = [Uri]$cabUrl
+          if ($uri.Scheme -ne 'https' -or $uri.Host.ToLowerInvariant() -ne 'msedge.sf.dl.delivery.mp.microsoft.com') {
+            throw "CAB URL is not the expected official Microsoft Edge CDN URL: $uri"
+          }
+          $expectedFilename = "Microsoft.WebView2.FixedVersionRuntime.$version.$architecture.cab"
+          if ([Uri]::UnescapeDataString([IO.Path]::GetFileName($uri.AbsolutePath)) -ne $expectedFilename) {
+            throw "Unexpected CAB filename: $uri"
           }
 
-          $candidates = @()
-          foreach ($link in @($search.Links)) {
-            if ($link.id -match '^(?<guid>[0-9a-fA-F-]{36})_link$') {
-              $text = [System.Net.WebUtility]::HtmlDecode(($link.InnerText -replace '<[^>]+>', '')).Trim()
-              if ($text -eq $expectedTitle) {
-                $candidates += [pscustomobject]@{ Guid = $Matches.guid; Title = $text }
-              }
-            }
+          Invoke-WebRequest -Uri $cabUrl -OutFile $cab -UseBasicParsing -MaximumRedirection 10 -TimeoutSec 900
+          $size = (Get-Item -LiteralPath $cab).Length
+          if ($size -lt 100MB) {
+            throw "Downloaded CAB is unexpectedly small: $size bytes."
+          }
+          $sha = (Get-FileHash -LiteralPath $cab -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($sha -ne $independentExpectedSha) {
+            throw "SHA-256 mismatch. Calculated $sha; independently published $independentExpectedSha."
           }
 
-          if ($candidates.Count -eq 0) {
-            $pattern = '(?is)<a[^>]+id=["''](?<guid>[0-9a-fA-F-]{36})_link["''][^>]*>(?<title>.*?)</a>'
-            foreach ($match in [regex]::Matches($search.Content, $pattern)) {
-              $text = [System.Net.WebUtility]::HtmlDecode(($match.Groups['title'].Value -replace '<[^>]+>', '')).Trim()
-              if ($text -eq $expectedTitle) {
-                $candidates += [pscustomobject]@{ Guid = $match.Groups['guid'].Value; Title = $text }
-              }
-            }
+          & "$env:SystemRoot\System32\expand.exe" -F:* $cab $expanded | Out-Host
+          if ($LASTEXITCODE -ne 0) {
+            throw "expand.exe failed with exit code $LASTEXITCODE."
           }
-
-          $candidates = @($candidates | Sort-Object Guid -Unique)
-          if ($candidates.Count -ne 1) {
-            throw "Expected exactly one Update Catalog entry for '$expectedTitle'; found $($candidates.Count)."
+          $executables = @(Get-ChildItem -LiteralPath $expanded -Filter 'msedgewebview2.exe' -File -Recurse)
+          if ($executables.Count -lt 1) {
+            throw 'The Fixed Version CAB does not contain msedgewebview2.exe.'
           }
-
-          $guid = $candidates[0].Guid
-          $post = @{ size = 0; updateID = $guid; uidInfo = $guid } | ConvertTo-Json -Compress
-          $body = @{ updateIDs = "[$post]" }
-          $dialog = Invoke-WebRequest -Uri $downloadDialogUrl -Method Post -Body $body -ContentType 'application/x-www-form-urlencoded' -UseBasicParsing -TimeoutSec 90
-          if ($dialog.StatusCode -ne 200) {
-            throw "Microsoft Update Catalog DownloadDialog returned HTTP $($dialog.StatusCode)."
+          $versions = @($executables | ForEach-Object { $_.VersionInfo.ProductVersion } | Sort-Object -Unique)
+          $matching = @($versions | Where-Object { $_ -and $_.StartsWith($version, [StringComparison]::OrdinalIgnoreCase) })
+          if ($matching.Count -lt 1) {
+            throw "No msedgewebview2.exe reports target version $version. Found: $($versions -join ', ')"
           }
-
-          $urlPattern = '(?i)https?://(?:dl\.delivery\.mp\.microsoft\.com|(?:catalog\.s\.)?download\.windowsupdate\.com)/[^''"<>\s]+'
-          $urls = @([regex]::Matches($dialog.Content, $urlPattern) | ForEach-Object { [System.Net.WebUtility]::HtmlDecode($_.Value) } | Select-Object -Unique)
-          $cabUrls = @($urls | Where-Object { ([Uri]$_).AbsolutePath -match '(?i)\.cab$' })
 
           Set-Content -LiteralPath $output -Encoding utf8 -Value @(
-            "SEARCH=$searchUrl",
-            "SEARCH_HTTP_STATUS=$($search.StatusCode)",
-            "TITLE=$expectedTitle",
-            "UPDATE_ID=$guid",
-            "DIALOG_HTTP_STATUS=$($dialog.StatusCode)",
-            "URL_COUNT=$($urls.Count)",
-            "CAB_COUNT=$($cabUrls.Count)"
+            "SOURCE_URL=$cabUrl",
+            "SOURCE_HOST=$($uri.Host)",
+            "VERSION=$version",
+            "ARCHITECTURE=$architecture",
+            "CAB_SIZE_BYTES=$size",
+            "SHA256=$sha",
+            "INDEPENDENT_EXPECTED_SHA256=$independentExpectedSha",
+            "MSEDGEWEBVIEW2_COUNT=$($executables.Count)",
+            "MSEDGEWEBVIEW2_PRODUCT_VERSIONS=$($versions -join ',')",
+            'RESULT=PASS'
           )
-          foreach ($url in $urls) {
-            Add-Content -LiteralPath $output -Encoding utf8 -Value "DOWNLOAD_URL=$url"
-          }
           Get-Content -LiteralPath $output
+          Remove-Item -LiteralPath $work -Recurse -Force -ErrorAction SilentlyContinue
 
-          if ($cabUrls.Count -lt 1) {
-            throw 'No CAB URL was returned by Microsoft Update Catalog.'
-          }
-
-      - name: Persist catalog diagnostic on diagnostic branch
+      - name: Persist CAB verification on diagnostic branch
         if: always()
         shell: pwsh
         run: |
-          $output = '.github/diagnostics/webview2-catalog.txt'
+          $output = '.github/diagnostics/webview2-fixed-cab-verification.txt'
           if (-not (Test-Path -LiteralPath $output)) {
             New-Item -ItemType Directory -Force -Path (Split-Path $output) | Out-Null
-            Set-Content -LiteralPath $output -Encoding utf8 -Value 'ERROR=Catalog diagnostic output file was not produced.'
+            Set-Content -LiteralPath $output -Encoding utf8 -Value 'ERROR=Fixed CAB verification output file was not produced.'
           }
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
@@ -108,5 +100,5 @@ jobs:
             Write-Host 'Diagnostic content unchanged; nothing to persist.'
             exit 0
           }
-          git commit -m 'chore: capture WebView2 catalog diagnostic [skip ci]'
+          git commit -m 'chore: capture Fixed WebView2 CAB verification [skip ci]'
           git push origin "HEAD:${{ github.ref_name }}"
