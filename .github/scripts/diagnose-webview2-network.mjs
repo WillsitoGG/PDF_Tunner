@@ -43,7 +43,7 @@ try {
   });
 
   record(`PAGE=${pageUrl}`);
-  const main = await page.goto(pageUrl, { waitUntil: 'networkidle2', timeout: 90_000 });
+  const main = await page.goto(pageUrl, { waitUntil: 'domcontentloaded', timeout: 90_000 });
   record(`MAIN_STATUS=${main?.status() ?? 'unknown'}`);
   await new Promise((resolve) => setTimeout(resolve, 8000));
 
@@ -61,7 +61,6 @@ try {
     .filter((item) => /version|architecture|download|151\.0\.4129\.101|x64/i.test(`${item.id} ${item.text} ${item.dataValue} ${item.ariaLabel}`)));
   record(`CONTROLS=${JSON.stringify(controls)}`);
 
-  // Open the version selector semantically if present, then capture any additional requests/options.
   const opened = await page.evaluate(() => {
     const normalize = (value) => (value || '').replace(/\s+/g, ' ').trim().toLowerCase();
     const candidates = [...document.querySelectorAll('button, [role="button"]')];
