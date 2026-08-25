@@ -1,0 +1,55 @@
+name: PDF_Tunner WebView2 Resolver Diagnostic
+
+on:
+  push:
+    branches:
+      - pdf-tunner/webview2-resolver-diagnostic
+
+concurrency:
+  group: pdf-tunner-webview2-resolver-diagnostic
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  resolver-diagnostic:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout diagnostic branch
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Setup Node.js 22
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: "22"
+
+      - name: Install minimal Puppeteer dependency
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path '.diagnostic' | Out-Null
+          Copy-Item -LiteralPath '.github/scripts/diagnose-webview2-fixed.mjs' -Destination '.diagnostic/diagnose.mjs'
+          Push-Location '.diagnostic'
+          npm init -y | Out-Null
+          npm install --ignore-scripts --no-audit --no-fund puppeteer@24.25.0
+          Pop-Location
+
+      - name: Resolve Microsoft Fixed WebView2 without downloading CAB
+        shell: pwsh
+        run: |
+          Push-Location '.diagnostic'
+          try {
+            node './diagnose.mjs' '151.0.4129.101' 'x64' 'webview2-resolver-diagnostic.txt'
+          }
+          finally {
+            Pop-Location
+          }
+
+      - name: Upload resolver diagnostic
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: webview2-resolver-diagnostic
+          path: .diagnostic/webview2-resolver-diagnostic.txt
+          if-no-files-found: warn
+          retention-days: 1
