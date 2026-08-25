@@ -19,28 +19,18 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Build clean promotion branch from primary
+      - name: Finalize promotion documentation
         shell: bash
         run: |
           set -euo pipefail
           PRIMARY='bfb96e0d5c0ec2cf937850ea69d79288da243b0c'
-          CANDIDATE='f088d0ad288a21d6419ff94b35c0f76b9667e7d5'
+          FUNCTIONAL='38135400e8bd260beea0d76a0b74a78ed7d46766'
           PROMOTION='pdf-tunner/appdata-promote-ready'
 
-          git fetch origin pdf-tunner/windows-portable-v1 pdf-tunner/appdata-final-clean
+          git fetch origin pdf-tunner/windows-portable-v1 "$PROMOTION"
           test "$(git rev-parse origin/pdf-tunner/windows-portable-v1)" = "$PRIMARY"
-          if git ls-remote --exit-code --heads origin "$PROMOTION" >/dev/null 2>&1; then
-            echo "Promotion branch already exists; refusing to overwrite it."
-            exit 1
-          fi
-
-          git switch --detach "$PRIMARY"
-          git checkout "$CANDIDATE" -- \
-            .github/scripts/validate-portable-window-state.ps1 \
-            frontend/editor/src-tauri/Cargo.toml \
-            frontend/editor/src-tauri/src/lib.rs \
-            frontend/editor/src-tauri/src/utils/portable_window_state.rs \
-            frontend/editor/src-tauri/vendor/tauri-plugin-http
+          test "$(git rev-parse origin/$PROMOTION)" = "$FUNCTIONAL"
+          git switch -C appdata-promote-ready "origin/$PROMOTION"
 
           python - <<'PY'
           from pathlib import Path
@@ -83,8 +73,7 @@ jobs:
               'README old blocker')
           marker = '## External dependency inventory\n'
           proof = '''### AppData containment proof — Run `32825188381`\n\nThe clean candidate `f088d0ad288a21d6419ff94b35c0f76b9667e7d5` passed the complete Windows portable workflow. The job proved official Tauri/Cargo tests, a production `PDF_Tunner.exe`, bundled JRE 25, real dynamic-port backend health, package-local HTTP cookie jar/log/store/window state, deliberate window-state persistence plus second-launch restoration, no non-empty PDF_Tunner identifier state in host Local/Roaming AppData, no new `pdf-tunner://` protocol registration, clean parent/child shutdown, runtime-data reset, ZIP creation, SHA-256 generation and artifact upload. The validated artifact was `PDF_Tunner-Windows-x64-Portable-bootstrap` (Actions artifact `9555320194`).\n\n'''
-          if proof not in readme:
-              readme = replace_once(readme, marker, proof + marker, 'README proof insertion')
+          readme = replace_once(readme, marker, proof + marker, 'README proof insertion')
           readme_path.write_text(readme, encoding='utf-8', newline='\n')
 
           agents_path = Path('AGENTS.md')
@@ -109,8 +98,7 @@ jobs:
               'AGENTS layout proof')
           exit_marker = 'Portable `ExitRequested` is terminal and synchronous:'
           proof_agents = '''### AppData containment closed\n\nRun `32825188381` (job `97731512714`) on clean candidate `f088d0ad288a21d6419ff94b35c0f76b9667e7d5` is the acceptance proof for this phase. It passed official desktop preparation and Tauri/Cargo tests, production Tauri build, bundled JRE validation, real backend startup, the reinforced package-local Tauri-state/two-launch validator, runtime cleanup, ZIP/SHA generation and validated-artifact upload. Required portable locations are `data/tauri/http/.cookies`, `data/logs/tauri/PDF_Tunner.log`, `data/tauri/store/connection.json`, `data/tauri/store/tokens.json` and `data/tauri/window-state/.window-state.json`; host Local/Roaming identifier roots may exist only if empty. The protocol registry key and process tree must remain contained as enforced by the validator. The next portability phase is Fixed WebView2 Runtime; do not reinterpret this AppData proof as proof of the later external-tool bundle.\n\n'''
-          if proof_agents not in agents:
-              agents = replace_once(agents, exit_marker, proof_agents + exit_marker, 'AGENTS proof insertion')
+          agents = replace_once(agents, exit_marker, proof_agents + exit_marker, 'AGENTS proof insertion')
           agents_path.write_text(agents, encoding='utf-8', newline='\n')
           PY
 
@@ -122,11 +110,6 @@ jobs:
 
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add README.md AGENTS.md \
-            .github/scripts/validate-portable-window-state.ps1 \
-            frontend/editor/src-tauri/Cargo.toml \
-            frontend/editor/src-tauri/src/lib.rs \
-            frontend/editor/src-tauri/src/utils/portable_window_state.rs \
-            frontend/editor/src-tauri/vendor/tauri-plugin-http
-          git commit -m 'fix(portable): close AppData containment'
-          git push origin HEAD:"$PROMOTION"
+          git add README.md AGENTS.md
+          git commit -m 'docs(portable): record AppData containment proof'
+          git push origin HEAD:refs/heads/"$PROMOTION"
