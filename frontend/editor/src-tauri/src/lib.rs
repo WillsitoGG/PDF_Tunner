@@ -101,7 +101,7 @@ fn window_state_plugin<R: Runtime>() -> tauri::plugin::TauriPlugin<R> {
       })
       .on_window_ready(|window| {
         let label = window.label().to_string();
-        match portable_window_state::track_window(window) {
+        match portable_window_state::track_window(&window) {
           Ok(()) => add_log(format!(
             "🧳 Portable window-state lifecycle attached to native window-ready object: '{}'",
             label

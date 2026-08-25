@@ -280,8 +280,8 @@ pub fn capture_window<R: Runtime>(window: &WebviewWindow<R>) -> Result<(), Strin
         .map_err(|_| "portable window-state cache lock poisoned".to_string())?;
     let state = states
         .entry(native_window.label().to_string())
-        .or_insert(current_state(native_window)?);
-    update_state(native_window, state)
+        .or_insert(current_state(&native_window)?);
+    update_state(&native_window, state)
 }
 
 pub fn save<R: Runtime>(app: &AppHandle<R>) -> Result<PathBuf, String> {
