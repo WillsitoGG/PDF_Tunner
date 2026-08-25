@@ -1,0 +1,87 @@
+name: PDF_Tunner AppData Clean Materialize
+
+on:
+  push:
+    branches:
+      - pdf-tunner/appdata-final-clean
+    paths:
+      - .github/workflows/pdf-tunner-appdata-clean-materialize.yml
+
+permissions:
+  actions: write
+  contents: write
+
+jobs:
+  materialize-and-dispatch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout clean staging branch
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 0
+
+      - name: Materialize AppData functional changes only
+        shell: pwsh
+        run: |
+          git fetch origin pdf-tunner/appdata-final-stage
+
+          git checkout origin/pdf-tunner/appdata-final-stage -- `
+            .github/scripts/validate-portable-window-state.ps1 `
+            frontend/editor/src-tauri/Cargo.toml `
+            frontend/editor/src-tauri/vendor/tauri-plugin-http
+
+          $windowState = 'frontend/editor/src-tauri/src/utils/portable_window_state.rs'
+          $windowText = Get-Content -LiteralPath $windowState -Raw
+          $windowText = $windowText.Replace('.or_insert(current_state(native_window)?);', '.or_insert(current_state(&native_window)?);')
+          $windowText = $windowText.Replace('update_state(native_window, state)', 'update_state(&native_window, state)')
+          Set-Content -LiteralPath $windowState -Value $windowText -NoNewline -Encoding utf8
+
+          $lib = 'frontend/editor/src-tauri/src/lib.rs'
+          $libText = Get-Content -LiteralPath $lib -Raw
+          $libText = $libText.Replace('portable_window_state::track_window(window)', 'portable_window_state::track_window(&window)')
+          Set-Content -LiteralPath $lib -Value $libText -NoNewline -Encoding utf8
+
+          if ((Select-String -LiteralPath $windowState -SimpleMatch '.or_insert(current_state(&native_window)?);').Count -ne 1) {
+            throw 'Borrow fix for current_state was not applied exactly once.'
+          }
+          if ((Select-String -LiteralPath $windowState -SimpleMatch 'update_state(&native_window, state)').Count -ne 1) {
+            throw 'Borrow fix for update_state was not applied exactly once.'
+          }
+          if ((Select-String -LiteralPath $lib -SimpleMatch 'portable_window_state::track_window(&window)').Count -ne 1) {
+            throw 'Borrow fix for track_window was not applied exactly once.'
+          }
+
+          if (Test-Path -LiteralPath '.github/workflows/pdf-tunner-appdata-final-dispatch.yml') {
+            throw 'Temporary appdata-final dispatcher leaked into clean staging branch.'
+          }
+          if (Test-Path -LiteralPath 'frontend/editor/src-tauri/vendor/pdf-tunner-tauri-store') {
+            throw 'Deprecated Store shim must not exist in clean staging branch.'
+          }
+
+          git diff --check
+          git status --short
+
+      - name: Commit clean functional candidate
+        shell: pwsh
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -- `
+            .github/scripts/validate-portable-window-state.ps1 `
+            frontend/editor/src-tauri/Cargo.toml `
+            frontend/editor/src-tauri/vendor/tauri-plugin-http `
+            frontend/editor/src-tauri/src/utils/portable_window_state.rs `
+            frontend/editor/src-tauri/src/lib.rs
+          git commit -m 'fix(portable): finalize AppData containment candidate'
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          git push origin HEAD:pdf-tunner/appdata-final-clean
+
+      - name: Dispatch one complete portable validation
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh workflow run pdf-tunner-windows-portable.yml \
+            --repo "${{ github.repository }}" \
+            --ref pdf-tunner/appdata-final-clean
+          echo "Dispatched complete portable validation for pdf-tunner/appdata-final-clean"
