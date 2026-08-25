@@ -6,7 +6,7 @@ fn path_is_network_location(path: &std::path::Path) -> bool {
   use std::path::{Component, Prefix};
   use windows::{
     core::PCWSTR,
-    Win32::Storage::FileSystem::{GetDriveTypeW, DRIVE_REMOTE},
+    Win32::Storage::FileSystem::GetDriveTypeW,
   };
 
   let Some(Component::Prefix(prefix_component)) = path.components().next() else {
@@ -18,7 +18,8 @@ fn path_is_network_location(path: &std::path::Path) -> bool {
     Prefix::Disk(letter) | Prefix::VerbatimDisk(letter) => {
       let drive_root = format!("{}:\\", char::from(letter));
       let wide = drive_root.encode_utf16().chain(std::iter::once(0)).collect::<Vec<_>>();
-      unsafe { GetDriveTypeW(PCWSTR(wide.as_ptr())) == DRIVE_REMOTE }
+      // Win32 GetDriveTypeW returns 4 for DRIVE_REMOTE.
+      unsafe { GetDriveTypeW(PCWSTR(wide.as_ptr())) == 4 }
     }
     Prefix::Verbatim(_) | Prefix::DeviceNS(_) => false,
   }
