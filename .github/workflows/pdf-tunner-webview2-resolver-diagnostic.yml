@@ -19,55 +19,80 @@ jobs:
       - name: Checkout diagnostic branch
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
-      - name: Setup Node.js 22
-        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
-        with:
-          node-version: "22"
-
-      - name: Install minimal Puppeteer dependency
+      - name: Resolve Fixed WebView2 CAB from official Microsoft page
         shell: pwsh
         run: |
-          New-Item -ItemType Directory -Force -Path '.diagnostic' | Out-Null
-          Copy-Item -LiteralPath '.github/scripts/diagnose-webview2-fixed.mjs' -Destination '.diagnostic/diagnose.mjs'
-          Push-Location '.diagnostic'
-          npm init -y | Out-Null
-          npm install --ignore-scripts --no-audit --no-fund puppeteer@24.25.0
-          Pop-Location
+          $ErrorActionPreference = 'Stop'
+          $version = '151.0.4129.101'
+          $arch = 'x64'
+          $pageUrl = 'https://developer.microsoft.com/en-us/microsoft-edge/webview2/?form=MA13LH#download-section'
+          $output = '.github/diagnostics/webview2-resolver.txt'
+          New-Item -ItemType Directory -Force -Path (Split-Path $output) | Out-Null
 
-      - name: Resolve Microsoft Fixed WebView2 without downloading CAB
-        shell: pwsh
-        run: |
-          Push-Location '.diagnostic'
-          try {
-            node './diagnose.mjs' '151.0.4129.101' 'x64' 'webview2-resolver-diagnostic.txt'
+          $response = Invoke-WebRequest -Uri $pageUrl -UseBasicParsing -MaximumRedirection 10 -TimeoutSec 90
+          $html = [System.Net.WebUtility]::HtmlDecode($response.Content)
+          $filename = "Microsoft.WebView2.FixedVersionRuntime.$version.$arch.cab"
+          $escapedFilename = [Regex]::Escape($filename)
+          $urlPattern = "https://[A-Za-z0-9._-]+/[^`\"'<>\s]*$escapedFilename(?:\?[^`\"'<>\s]*)?"
+          $matches = @([Regex]::Matches($html, $urlPattern, [System.Text.RegularExpressions.RegexOptions]::IgnoreCase) | ForEach-Object { $_.Value } | Select-Object -Unique)
+
+          $lines = @(
+            "PAGE=$pageUrl",
+            "HTTP_STATUS=$($response.StatusCode)",
+            "HTML_LENGTH=$($html.Length)",
+            "TARGET_FILENAME=$filename",
+            "MATCH_COUNT=$($matches.Count)"
+          )
+
+          if ($matches.Count -gt 0) {
+            foreach ($candidate in $matches) {
+              $lines += "CANDIDATE=$candidate"
+            }
           }
-          finally {
-            Pop-Location
+          else {
+            $index = $html.IndexOf($filename, [System.StringComparison]::OrdinalIgnoreCase)
+            $lines += "FILENAME_INDEX=$index"
+            if ($index -ge 0) {
+              $start = [Math]::Max(0, $index - 700)
+              $length = [Math]::Min(1400, $html.Length - $start)
+              $excerpt = $html.Substring($start, $length) -replace "`r|`n", ' '
+              $lines += "EXCERPT=$excerpt"
+            }
           }
 
-      - name: Upload resolver diagnostic
-        if: always()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        with:
-          name: webview2-resolver-diagnostic
-          path: .diagnostic/webview2-resolver-diagnostic.txt
-          if-no-files-found: warn
-          retention-days: 1
+          Set-Content -LiteralPath $output -Encoding utf8 -Value $lines
+          Get-Content -LiteralPath $output
+
+          if ($matches.Count -ne 1) {
+            throw "Expected exactly one official Fixed WebView2 CAB URL; found $($matches.Count)."
+          }
+
+          $resolved = [Uri]$matches[0]
+          $allowedHosts = @(
+            'msedge.sf.dl.delivery.mp.microsoft.com',
+            'msedge.b.tlu.dl.delivery.mp.microsoft.com'
+          )
+          if ($resolved.Scheme -ne 'https' -or $allowedHosts -notcontains $resolved.Host.ToLowerInvariant()) {
+            throw "Resolved URL is outside approved Microsoft Edge CDN hosts: $resolved"
+          }
+          if ($resolved.AbsoluteUri -match 'PA30|PA19') {
+            throw "Resolved URL appears to be a delta package: $resolved"
+          }
+
+          Add-Content -LiteralPath $output -Encoding utf8 -Value "RESOLVED_CAB=$($resolved.AbsoluteUri)"
 
       - name: Persist resolver diagnostic on diagnostic branch
         if: always()
         shell: pwsh
         run: |
-          $source = '.diagnostic/webview2-resolver-diagnostic.txt'
-          if (-not (Test-Path -LiteralPath $source)) {
-            New-Item -ItemType Directory -Force -Path '.diagnostic' | Out-Null
-            Set-Content -LiteralPath $source -Encoding utf8 -Value 'ERROR=diagnostic output file was not produced.'
+          $output = '.github/diagnostics/webview2-resolver.txt'
+          if (-not (Test-Path -LiteralPath $output)) {
+            New-Item -ItemType Directory -Force -Path (Split-Path $output) | Out-Null
+            Set-Content -LiteralPath $output -Encoding utf8 -Value 'ERROR=diagnostic output file was not produced.'
           }
-          New-Item -ItemType Directory -Force -Path '.github/diagnostics' | Out-Null
-          Copy-Item -LiteralPath $source -Destination '.github/diagnostics/webview2-resolver.txt' -Force
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add '.github/diagnostics/webview2-resolver.txt'
+          git add $output
           git diff --cached --quiet
           if ($LASTEXITCODE -eq 0) {
             Write-Host 'Diagnostic content unchanged; nothing to persist.'
