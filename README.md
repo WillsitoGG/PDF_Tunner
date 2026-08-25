@@ -9,7 +9,7 @@
 - Initial upstream commit: `7fb29d002dbb8fa4b5945d1d1fe8dd164a9f7632`
 - Development branch: `pdf-tunner/windows-portable-v1`
 - Target: **Windows 10/11 x64 portable ZIP**
-- Status: **AppData containment is CI-proven on the assembled Windows portable package; Run `32825188381` passed official Tauri/Cargo tests, production build, real backend startup, package-local Tauri HTTP/log/store/window state, two-launch window restore, host AppData/registry/process containment, ZIP creation and SHA-256. Next portability phase: bundled Fixed WebView2 Runtime.**
+- Status: **AppData containment is CI-proven. Fixed WebView2 Runtime `151.0.4129.101` x64 is now pinned for staging to the verified Microsoft CDN CAB with SHA-256 `c386640d35f7a4604d088925a9bb01938400297f6da6fe985b72614daba87cda`; full assembled-package acceptance is the current gate.**
 
 The full original Stirling documentation and developer guide remain in this fork. Upstream project information is available at [Stirling-Tools/Stirling-PDF](https://github.com/Stirling-Tools/Stirling-PDF).
 
@@ -76,6 +76,14 @@ PDF_Tunner/
 ### AppData containment proof — Run `32825188381`
 
 The clean candidate `f088d0ad288a21d6419ff94b35c0f76b9667e7d5` passed the complete Windows portable workflow. The job proved official Tauri/Cargo tests, a production `PDF_Tunner.exe`, bundled JRE 25, real dynamic-port backend health, package-local HTTP cookie jar/log/store/window state, deliberate window-state persistence plus second-launch restoration, no non-empty PDF_Tunner identifier state in host Local/Roaming AppData, no new `pdf-tunner://` protocol registration, clean parent/child shutdown, runtime-data reset, ZIP creation, SHA-256 generation and artifact upload. The validated artifact was `PDF_Tunner-Windows-x64-Portable-bootstrap` (Actions artifact `9555320194`).
+
+## Fixed WebView2 Runtime staging
+
+The Fixed WebView2 layer is pinned to Microsoft WebView2 Fixed Version Runtime **151.0.4129.101 x64**. Microsoft subsequently advanced the live developer-page API to newer 151 builds, so PDF_Tunner no longer scrapes mutable page controls for this historical target. The staging workflow pins the exact official Microsoft CDN CAB URL and requires SHA-256 `c386640d35f7a4604d088925a9bb01938400297f6da6fe985b72614daba87cda` before extraction.
+
+Diagnostic Run `32853225739` independently downloaded that CAB from `msedge.sf.dl.delivery.mp.microsoft.com`, measured **307,241,094 bytes**, recalculated the same SHA-256, expanded **257 files**, found exactly one `msedgewebview2.exe`, and verified ProductVersion **151.0.4129.101**. The staging preparation script additionally rejects non-HTTPS/non-approved CDN hosts, a filename that is not exactly `Microsoft.WebView2.FixedVersionRuntime.151.0.4129.101.x64.cab`, delta markers, hash mismatch, missing runtime executable, or an unexpected product version.
+
+The normalized runtime is staged at `runtime/webview2/fixed/`; provenance is written to `runtime/webview2/PROVENANCE.txt`. `WEBVIEW2_BROWSER_EXECUTABLE_FOLDER` selects this package-local runtime while the already-proven `WEBVIEW2_USER_DATA_FOLDER` keeps browser state under `data/webview2`. Windows 10 AppContainer ACL and network-location checks remain part of the runtime/launch validation before this phase can be called accepted.
 
 ## External dependency inventory
 
@@ -154,7 +162,7 @@ The earlier push run `32598488359` failed in startup containment even though its
 
 The general upstream `Build and Test Workflow` on the run #13 baseline passed frontend validation/a11y, stubbed and live Playwright, database migration, Docker Compose/images and the official Windows Tauri build. Its sole failure is GitHub `dependency-review`, which reports that Dependency Graph is disabled on this fork; that is a repository security-setting prerequisite rather than a demonstrated PDF_Tunner code regression. Each subsequent downstream commit is checked again for additional failures before it is accepted.
 
-After portable window-state/auth-store containment is proven, complete the native HTTP cookie localization and then integrate the already-staged bundled Fixed WebView2 Runtime. Microsoft currently lists x64 runtime 151.0.4129.101 (20 August 2026); the integration must use `WEBVIEW2_BROWSER_EXECUTABLE_FOLDER`, retain `WEBVIEW2_USER_DATA_FOLDER`, handle Windows 10 Fixed Version 120+ AppContainer read/execute ACL requirements, reject UNC/network execution, and verify the packaged runtime rather than any Evergreen runtime already installed on the CI host.
+The native HTTP cookie localization and AppData-containment phase are proven. The current candidate now stages the independently verified Fixed WebView2 Runtime 151.0.4129.101 x64 using a pinned Microsoft CDN URL and SHA-256. Acceptance still requires the heavy staging workflow to prove runtime selection, Windows 10-compatible ACL handling, network-location rejection, backend health, portable state containment, two-launch window restore and clean shutdown on the assembled production tree.
 
 The following validation layers will then integrate every external dependency and representative end-to-end Stirling operation before any final Release is published.
 

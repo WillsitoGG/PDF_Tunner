@@ -288,12 +288,15 @@ Startup diagnostics are implementation-branch evidence only. They must not becom
 
 A failure diagnostics step must itself be resilient. In particular, do not recursively `Copy-Item` a live `data/webview2` tree: Chromium/WebView2 may hold files open and abort the diagnostic before host-state evidence is written. Record host state first, then summarize WebView2 by path/count/bytes/sample and copy only safe subtrees with best-effort error handling.
 
-## Fixed WebView2 next layer
+## Fixed WebView2 runtime staging
 
-After portable window-state/auth-store containment passes, localize the native HTTP 2.5.8 cookie jar without disabling authentication, then bundle a Microsoft Fixed WebView2 Runtime. As of 2026-08-22 the current x64 catalog build verified during this work is `151.0.4129.101` (published 2026-08-20). Reverify before committing because this runtime is serviced frequently.
+PDF_Tunner pins Microsoft WebView2 Fixed Version Runtime **151.0.4129.101 x64** for this phase. The exact official CDN source is `https://msedge.sf.dl.delivery.mp.microsoft.com/filestreamingservice/files/d480b710-fe1e-4e4d-ae99-5b62e6391fd3/Microsoft.WebView2.FixedVersionRuntime.151.0.4129.101.x64.cab`; required CAB SHA-256 is `c386640d35f7a4604d088925a9bb01938400297f6da6fe985b72614daba87cda`.
 
-Use `WEBVIEW2_BROWSER_EXECUTABLE_FOLDER` for the package-local Fixed Runtime and keep `WEBVIEW2_USER_DATA_FOLDER` for the package-local profile. Microsoft documents that unpackaged Win32 apps using Fixed Version 120+ on Windows 10 need read/execute ACLs for SIDs `S-1-15-2-1` (`ALL APPLICATION PACKAGES`) and `S-1-15-2-2` (`ALL RESTRICTED APPLICATION PACKAGES`). Fixed Version cannot run from a network/UNC location. CI/manual validation must prove the bundled runtime is selected rather than a runner-installed Evergreen runtime.
+Do not reintroduce DOM scraping to resolve this historical runtime. Microsoft services the live developer-page API frequently and it no longer lists `.101`; reproducibility for this pinned phase comes from exact official URL + exact filename + pinned SHA-256 + post-extraction ProductVersion validation. Diagnostic Run `32853225739` independently downloaded the official CAB, measured 307,241,094 bytes, matched the pinned SHA-256, expanded 257 files, found one `msedgewebview2.exe`, and verified ProductVersion `151.0.4129.101`.
 
+`.github/scripts/prepare-webview2-fixed-runtime.ps1` must reject URLs outside approved Microsoft Edge CDN hosts, non-HTTPS URLs, an unexpected CAB filename, PA30/PA19 delta markers, missing/unpinned SHA-256, hash mismatch, missing `msedgewebview2.exe`, or ProductVersion mismatch. The normalized runtime belongs at `runtime/webview2/fixed/`; `runtime/webview2/PROVENANCE.txt` records version, architecture, CAB hash, exact source URL/CDN host and the validation method. The downloaded CAB itself must not remain in the portable package.
+
+Use `WEBVIEW2_BROWSER_EXECUTABLE_FOLDER` for the package-local Fixed Runtime and keep `WEBVIEW2_USER_DATA_FOLDER` for the package-local profile. Microsoft documents that unpackaged Win32 apps using Fixed Version 120+ on Windows 10 need read/execute ACLs for SIDs `S-1-15-2-1` (`ALL APPLICATION PACKAGES`) and `S-1-15-2-2` (`ALL RESTRICTED APPLICATION PACKAGES`). Fixed Version cannot run from a network/UNC location. CI must prove the bundled process actually launches from the package-local runtime rather than a runner-installed Evergreen runtime before this layer is accepted.
 ## Final validation target
 
 Before a final Release, automate where technically possible:
@@ -410,3 +413,11 @@ Unless a PDF_Tunner rule above overrides them:
 - Its diagnostics identified the actual window-state defect: `on_window_ready` correctly supplied a native `Window`, but PDF_Tunner immediately tried `get_webview_window("main")`, which returned `None` at that lifecycle point. The candidate now restores/listens directly on the native `Window<R>` and mirrors upstream restore ordering/defaults.
 - The same diagnostics exposed `%APPDATA%\com.willsitogg.pdf-tunner\tokens.json` from the authentication Tauri Store fallback and a second relative `connection.json` path in auth user-info code. Both are localized to `data/tauri/store/` in portable mode without changing keyring/login/OAuth semantics; CI proof is pending.
 - Classified `%LOCALAPPDATA%\com.willsitogg.pdf-tunner\.cookies` as `tauri-plugin-http` 2.5.8's persistent cookie jar. Verified official ref `tauri-apps/plugins-workspace` `http-v2.5.8` and confirmed current `v2` still hard-wires `app_cache_dir()/.cookies`; cookies/auth must be preserved, so this leak remains explicitly pending a minimal source-compatible localization rather than disabling the feature.
+### 2026-08-25 — Fixed WebView2 source pin and resolver hardening
+
+- Diagnosed staging Run #2: all build/test/portable-assembly steps passed until the Fixed WebView2 staging step; the failure was the mutable Microsoft developer-page DOM resolver, not the runtime/build itself.
+- Confirmed Microsoft's current `/microsoft-edge/api/webview2` data source and that it had already advanced beyond pinned `.101`, so historical `.101` could not be resolved safely from the live selector.
+- Rejected Microsoft Update Catalog as a substitute source because its `.101` entry provides the Evergreen standalone installer rather than the required Fixed Version CAB.
+- Located the exact historical Fixed Version `.101` x64 URL on Microsoft's own Edge CDN and independently verified it in Run `32853225739`: 307,241,094-byte CAB, SHA-256 `c386640d35f7a4604d088925a9bb01938400297f6da6fe985b72614daba87cda`, 257 expanded files and `msedgewebview2.exe` ProductVersion `151.0.4129.101`.
+- Replaced mutable DOM resolution with an exact official Microsoft CDN URL plus mandatory pinned SHA-256 and exact-filename validation; removed the now-unused PDF_Tunner Puppeteer resolver script.
+- Full assembled-package staging validation remains the acceptance gate; do not promote this layer solely from the independent CAB verification.

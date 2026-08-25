@@ -17,7 +17,8 @@ env:
   PDF_TUNNER_UPSTREAM_COMMIT: "7fb29d002dbb8fa4b5945d1d1fe8dd164a9f7632"
   PDF_TUNNER_WEBVIEW2_FIXED_VERSION: "151.0.4129.101"
   PDF_TUNNER_WEBVIEW2_FIXED_ARCH: "x64"
-  PDF_TUNNER_WEBVIEW2_FIXED_SHA256: ""
+  PDF_TUNNER_WEBVIEW2_FIXED_URL: "https://msedge.sf.dl.delivery.mp.microsoft.com/filestreamingservice/files/d480b710-fe1e-4e4d-ae99-5b62e6391fd3/Microsoft.WebView2.FixedVersionRuntime.151.0.4129.101.x64.cab"
+  PDF_TUNNER_WEBVIEW2_FIXED_SHA256: "c386640d35f7a4604d088925a9bb01938400297f6da6fe985b72614daba87cda"
   CI: "true"
 
 jobs:
@@ -110,6 +111,7 @@ jobs:
             -PortableRoot './dist/PDF_Tunner' `
             -Version $env:PDF_TUNNER_WEBVIEW2_FIXED_VERSION `
             -Architecture $env:PDF_TUNNER_WEBVIEW2_FIXED_ARCH `
+            -DownloadUrl $env:PDF_TUNNER_WEBVIEW2_FIXED_URL `
             -ExpectedSha256 $env:PDF_TUNNER_WEBVIEW2_FIXED_SHA256
 
       - name: Validate staged Fixed WebView2 metadata and tree

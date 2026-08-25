@@ -8,6 +8,9 @@ param(
   [ValidateSet('x64', 'x86', 'arm64')]
   [string]$Architecture = 'x64',
 
+  [Parameter(Mandatory = $true)]
+  [string]$DownloadUrl,
+
   [string]$ExpectedSha256 = ''
 )
 
@@ -32,31 +35,26 @@ Remove-Item -LiteralPath $fixedRoot -Recurse -Force -ErrorAction SilentlyContinu
 New-Item -ItemType Directory -Force -Path $fixedRoot | Out-Null
 
 try {
-  Push-Location (Join-Path $repoRoot 'frontend')
-  try {
-    $downloadUrl = (& node './scripts/pdf-tunner-resolve-webview2-fixed.mjs' $Version $Architecture).Trim()
-    if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($downloadUrl)) {
-      throw 'Official WebView2 Fixed Runtime download URL could not be resolved.'
-    }
-  }
-  finally {
-    Pop-Location
+  $downloadUrl = $DownloadUrl.Trim()
+  if ([string]::IsNullOrWhiteSpace($downloadUrl)) {
+    throw 'Pinned WebView2 Fixed Runtime download URL is empty.'
   }
 
   $uri = [Uri]$downloadUrl
   $host = $uri.Host.ToLowerInvariant()
   if ($uri.Scheme -ne 'https' -or $allowedHosts -notcontains $host) {
-    throw "Refusing WebView2 download URL outside the approved Microsoft CDN hosts: $downloadUrl"
-  }
-  if ($uri.AbsolutePath -notmatch '(?i)\.cab$') {
-    throw "Resolved WebView2 payload is not a CAB archive: $downloadUrl"
+    throw "Refusing WebView2 download URL outside the approved Microsoft Edge CDN hosts: $downloadUrl"
   }
   if ($uri.AbsoluteUri -match '(?i)(PA30|PA19)') {
     throw "Resolved WebView2 payload appears to be a delta package rather than a complete Fixed Runtime: $downloadUrl"
   }
+  $resolvedName = [Uri]::UnescapeDataString([System.IO.Path]::GetFileName($uri.AbsolutePath))
+  if ($resolvedName -ne $cabName) {
+    throw "Pinned WebView2 payload filename '$resolvedName' does not match expected '$cabName'."
+  }
 
-  Write-Host "Resolved official Microsoft WebView2 Fixed Runtime URL for $Version / $Architecture from $host."
-  Invoke-WebRequest -Uri $downloadUrl -OutFile $cabPath -UseBasicParsing
+  Write-Host "Using pinned official Microsoft WebView2 Fixed Runtime URL for $Version / $Architecture from $host."
+  Invoke-WebRequest -Uri $downloadUrl -OutFile $cabPath -UseBasicParsing -MaximumRedirection 10 -TimeoutSec 900
 
   $cabHash = (Get-FileHash -LiteralPath $cabPath -Algorithm SHA256).Hash.ToLowerInvariant()
   Write-Host "Official WebView2 Fixed Runtime CAB SHA-256: $cabHash"
@@ -71,7 +69,7 @@ try {
     }
   }
   else {
-    Write-Warning 'ExpectedSha256 is not pinned yet. Treat this as discovery evidence only; pin the official CAB hash before promotion.'
+    throw 'ExpectedSha256 must be pinned for a Fixed WebView2 staging build.'
   }
 
   & expand.exe $cabPath -F:* $expandedRoot | Out-Host
@@ -113,8 +111,9 @@ try {
     "Version=$Version",
     "Architecture=$Architecture",
     "CAB_SHA256=$cabHash",
+    "Source_URL=$downloadUrl",
     "CDN_Host=$host",
-    'Selector=https://developer.microsoft.com/en-us/microsoft-edge/webview2'
+    'Verification=URL host + exact CAB filename + pinned SHA-256 + packaged msedgewebview2.exe ProductVersion'
   )
 
   $files = @(Get-ChildItem -LiteralPath $fixedRoot -Recurse -Force -File)
