@@ -1,4 +1,4 @@
-name: PDF_Tunner WebView2 Resolver Diagnostic
+name: PDF_Tunner WebView2 Staging Applier
 
 on:
   push:
@@ -6,99 +6,276 @@ on:
       - pdf-tunner/webview2-resolver-diagnostic
 
 concurrency:
-  group: pdf-tunner-webview2-resolver-diagnostic
+  group: pdf-tunner-webview2-staging-applier
   cancel-in-progress: true
 
 permissions:
   contents: write
 
 jobs:
-  resolver-diagnostic:
+  apply-staging-fix:
     runs-on: windows-latest
     steps:
-      - name: Checkout diagnostic branch
+      - name: Checkout WebView2 staging branch
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          ref: pdf-tunner/webview2-fixed-v151-final-stage
+          fetch-depth: 0
 
-      - name: Verify exact official Microsoft Fixed WebView2 CAB
+      - name: Apply verified Fixed WebView2 pin and documentation atomically
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
+          $expectedHead = '34589d423238f6a9ad33a5e9bcd4e171bc791d2b'
+          $actualHead = (& git rev-parse HEAD).Trim()
+          if ($actualHead -ne $expectedHead) {
+            throw "Staging branch moved unexpectedly. Expected $expectedHead, got $actualHead."
+          }
+
           $version = '151.0.4129.101'
           $architecture = 'x64'
           $cabUrl = 'https://msedge.sf.dl.delivery.mp.microsoft.com/filestreamingservice/files/d480b710-fe1e-4e4d-ae99-5b62e6391fd3/Microsoft.WebView2.FixedVersionRuntime.151.0.4129.101.x64.cab'
-          $independentExpectedSha = 'c386640d35f7a4604d088925a9bb01938400297f6da6fe985b72614daba87cda'
-          $output = '.github/diagnostics/webview2-fixed-cab-verification.txt'
-          $work = Join-Path $env:RUNNER_TEMP 'pdf-tunner-webview2-fixed-verify'
-          $cab = Join-Path $work 'runtime.cab'
-          $expanded = Join-Path $work 'expanded'
-          Remove-Item -LiteralPath $work -Recurse -Force -ErrorAction SilentlyContinue
-          New-Item -ItemType Directory -Force -Path $expanded | Out-Null
-          New-Item -ItemType Directory -Force -Path (Split-Path $output) | Out-Null
+          $cabSha = 'c386640d35f7a4604d088925a9bb01938400297f6da6fe985b72614daba87cda'
 
-          $uri = [Uri]$cabUrl
-          if ($uri.Scheme -ne 'https' -or $uri.Host.ToLowerInvariant() -ne 'msedge.sf.dl.delivery.mp.microsoft.com') {
-            throw "CAB URL is not the expected official Microsoft Edge CDN URL: $uri"
-          }
-          $expectedFilename = "Microsoft.WebView2.FixedVersionRuntime.$version.$architecture.cab"
-          if ([Uri]::UnescapeDataString([IO.Path]::GetFileName($uri.AbsolutePath)) -ne $expectedFilename) {
-            throw "Unexpected CAB filename: $uri"
-          }
+          $prepareScript = @'
+          param(
+            [Parameter(Mandatory = $true)]
+            [string]$PortableRoot,
 
-          Invoke-WebRequest -Uri $cabUrl -OutFile $cab -UseBasicParsing -MaximumRedirection 10 -TimeoutSec 900
-          $size = (Get-Item -LiteralPath $cab).Length
-          if ($size -lt 100MB) {
-            throw "Downloaded CAB is unexpectedly small: $size bytes."
-          }
-          $sha = (Get-FileHash -LiteralPath $cab -Algorithm SHA256).Hash.ToLowerInvariant()
-          if ($sha -ne $independentExpectedSha) {
-            throw "SHA-256 mismatch. Calculated $sha; independently published $independentExpectedSha."
-          }
+            [Parameter(Mandatory = $true)]
+            [string]$Version,
 
-          & "$env:SystemRoot\System32\expand.exe" -F:* $cab $expanded | Out-Host
-          if ($LASTEXITCODE -ne 0) {
-            throw "expand.exe failed with exit code $LASTEXITCODE."
-          }
-          $executables = @(Get-ChildItem -LiteralPath $expanded -Filter 'msedgewebview2.exe' -File -Recurse)
-          if ($executables.Count -lt 1) {
-            throw 'The Fixed Version CAB does not contain msedgewebview2.exe.'
-          }
-          $versions = @($executables | ForEach-Object { $_.VersionInfo.ProductVersion } | Sort-Object -Unique)
-          $matching = @($versions | Where-Object { $_ -and $_.StartsWith($version, [StringComparison]::OrdinalIgnoreCase) })
-          if ($matching.Count -lt 1) {
-            throw "No msedgewebview2.exe reports target version $version. Found: $($versions -join ', ')"
-          }
+            [ValidateSet('x64', 'x86', 'arm64')]
+            [string]$Architecture = 'x64',
 
-          Set-Content -LiteralPath $output -Encoding utf8 -Value @(
-            "SOURCE_URL=$cabUrl",
-            "SOURCE_HOST=$($uri.Host)",
-            "VERSION=$version",
-            "ARCHITECTURE=$architecture",
-            "CAB_SIZE_BYTES=$size",
-            "SHA256=$sha",
-            "INDEPENDENT_EXPECTED_SHA256=$independentExpectedSha",
-            "MSEDGEWEBVIEW2_COUNT=$($executables.Count)",
-            "MSEDGEWEBVIEW2_PRODUCT_VERSIONS=$($versions -join ',')",
-            'RESULT=PASS'
+            [Parameter(Mandatory = $true)]
+            [string]$DownloadUrl,
+
+            [string]$ExpectedSha256 = ''
           )
-          Get-Content -LiteralPath $output
-          Remove-Item -LiteralPath $work -Recurse -Force -ErrorAction SilentlyContinue
 
-      - name: Persist CAB verification on diagnostic branch
-        if: always()
-        shell: pwsh
-        run: |
-          $output = '.github/diagnostics/webview2-fixed-cab-verification.txt'
-          if (-not (Test-Path -LiteralPath $output)) {
-            New-Item -ItemType Directory -Force -Path (Split-Path $output) | Out-Null
-            Set-Content -LiteralPath $output -Encoding utf8 -Value 'ERROR=Fixed CAB verification output file was not produced.'
+          $ErrorActionPreference = 'Stop'
+          Set-StrictMode -Version Latest
+
+          $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot '../..')).Path
+          $portable = [System.IO.Path]::GetFullPath((Join-Path $repoRoot $PortableRoot))
+          $webViewRoot = Join-Path $portable 'runtime\webview2'
+          $fixedRoot = Join-Path $webViewRoot 'fixed'
+          $tempRoot = Join-Path ([System.IO.Path]::GetTempPath()) ("pdf-tunner-webview2-{0}" -f [guid]::NewGuid().ToString('N'))
+          $cabName = "Microsoft.WebView2.FixedVersionRuntime.$Version.$Architecture.cab"
+          $cabPath = Join-Path $tempRoot $cabName
+          $expandedRoot = Join-Path $tempRoot 'expanded'
+          $allowedHosts = @(
+            'msedge.sf.dl.delivery.mp.microsoft.com',
+            'msedge.b.tlu.dl.delivery.mp.microsoft.com'
+          )
+
+          New-Item -ItemType Directory -Force -Path $tempRoot, $expandedRoot, $webViewRoot | Out-Null
+          Remove-Item -LiteralPath $fixedRoot -Recurse -Force -ErrorAction SilentlyContinue
+          New-Item -ItemType Directory -Force -Path $fixedRoot | Out-Null
+
+          try {
+            $downloadUrl = $DownloadUrl.Trim()
+            if ([string]::IsNullOrWhiteSpace($downloadUrl)) {
+              throw 'Pinned WebView2 Fixed Runtime download URL is empty.'
+            }
+
+            $uri = [Uri]$downloadUrl
+            $host = $uri.Host.ToLowerInvariant()
+            if ($uri.Scheme -ne 'https' -or $allowedHosts -notcontains $host) {
+              throw "Refusing WebView2 download URL outside the approved Microsoft Edge CDN hosts: $downloadUrl"
+            }
+            if ($uri.AbsoluteUri -match '(?i)(PA30|PA19)') {
+              throw "Resolved WebView2 payload appears to be a delta package rather than a complete Fixed Runtime: $downloadUrl"
+            }
+            $resolvedName = [Uri]::UnescapeDataString([System.IO.Path]::GetFileName($uri.AbsolutePath))
+            if ($resolvedName -ne $cabName) {
+              throw "Pinned WebView2 payload filename '$resolvedName' does not match expected '$cabName'."
+            }
+
+            Write-Host "Using pinned official Microsoft WebView2 Fixed Runtime URL for $Version / $Architecture from $host."
+            Invoke-WebRequest -Uri $downloadUrl -OutFile $cabPath -UseBasicParsing -MaximumRedirection 10 -TimeoutSec 900
+
+            $cabHash = (Get-FileHash -LiteralPath $cabPath -Algorithm SHA256).Hash.ToLowerInvariant()
+            Write-Host "Official WebView2 Fixed Runtime CAB SHA-256: $cabHash"
+
+            if (-not [string]::IsNullOrWhiteSpace($ExpectedSha256)) {
+              $expected = $ExpectedSha256.Trim().ToLowerInvariant()
+              if ($expected -notmatch '^[0-9a-f]{64}$') {
+                throw "Expected WebView2 CAB SHA-256 is not a valid 64-hex digest: $ExpectedSha256"
+              }
+              if ($cabHash -ne $expected) {
+                throw "WebView2 Fixed Runtime CAB SHA-256 mismatch. Expected $expected, got $cabHash."
+              }
+            }
+            else {
+              throw 'ExpectedSha256 must be pinned for a Fixed WebView2 staging build.'
+            }
+
+            & expand.exe $cabPath -F:* $expandedRoot | Out-Host
+            if ($LASTEXITCODE -ne 0) {
+              throw "expand.exe failed with exit code $LASTEXITCODE."
+            }
+
+            $deltaEntries = @(Get-ChildItem -LiteralPath $expandedRoot -Recurse -Force -ErrorAction SilentlyContinue | Where-Object { $_.Name -match '(?i)(PA30|PA19)' })
+            if ($deltaEntries.Count -gt 0) {
+              $deltaEntries | Select-Object -First 20 FullName | Format-Table -AutoSize
+              throw 'Expanded WebView2 archive contains delta-package markers (PA30/PA19); refusing incomplete runtime.'
+            }
+
+            $runtimeExe = Get-ChildItem -LiteralPath $expandedRoot -Recurse -File -Filter 'msedgewebview2.exe' | Select-Object -First 1
+            if (-not $runtimeExe) {
+              throw 'Expanded Microsoft Fixed WebView2 Runtime does not contain msedgewebview2.exe.'
+            }
+
+            $sourceRoot = $runtimeExe.Directory.FullName
+            Get-ChildItem -LiteralPath $sourceRoot -Force | Copy-Item -Destination $fixedRoot -Recurse -Force
+
+            $packagedExe = Join-Path $fixedRoot 'msedgewebview2.exe'
+            if (-not (Test-Path -LiteralPath $packagedExe -PathType Leaf)) {
+              throw "Normalized WebView2 runtime is missing $packagedExe."
+            }
+
+            $productVersion = (Get-Item -LiteralPath $packagedExe).VersionInfo.ProductVersion
+            if ([string]::IsNullOrWhiteSpace($productVersion) -or $productVersion -notlike "$Version*") {
+              throw "Packaged msedgewebview2.exe reports unexpected ProductVersion '$productVersion'; expected $Version."
+            }
+
+            Set-Content -LiteralPath (Join-Path $webViewRoot 'version.txt') -Encoding ascii -Value @(
+              "Version=$Version",
+              "Architecture=$Architecture"
+            )
+            Set-Content -LiteralPath (Join-Path $webViewRoot 'SHA256SUMS.txt') -Encoding ascii -Value "$cabHash  $cabName"
+            Set-Content -LiteralPath (Join-Path $webViewRoot 'PROVENANCE.txt') -Encoding ascii -Value @(
+              'Microsoft Edge WebView2 Fixed Runtime',
+              "Version=$Version",
+              "Architecture=$Architecture",
+              "CAB_SHA256=$cabHash",
+              "Source_URL=$downloadUrl",
+              "CDN_Host=$host",
+              'Verification=URL host + exact CAB filename + pinned SHA-256 + packaged msedgewebview2.exe ProductVersion'
+            )
+
+            $files = @(Get-ChildItem -LiteralPath $fixedRoot -Recurse -Force -File)
+            $bytes = ($files | Measure-Object -Property Length -Sum).Sum
+            Write-Host "Packaged Microsoft WebView2 Fixed Runtime: $productVersion"
+            Write-Host "Normalized runtime root: $fixedRoot"
+            Write-Host "Runtime tree: $($files.Count) files / $bytes bytes"
           }
-          git config user.name 'github-actions[bot]'
-          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add $output
-          git diff --cached --quiet
-          if ($LASTEXITCODE -eq 0) {
-            Write-Host 'Diagnostic content unchanged; nothing to persist.'
-            exit 0
+          finally {
+            Remove-Item -LiteralPath $tempRoot -Recurse -Force -ErrorAction SilentlyContinue
           }
-          git commit -m 'chore: capture Fixed WebView2 CAB verification [skip ci]'
-          git push origin "HEAD:${{ github.ref_name }}"
+          '@
+          $prepareScript = ($prepareScript -split "`r?`n" | ForEach-Object { $_ -replace '^          ', '' }) -join "`n"
+          Set-Content -LiteralPath '.github/scripts/prepare-webview2-fixed-runtime.ps1' -Value $prepareScript -Encoding utf8
+
+          $workflowPath = '.github/workflows/pdf-tunner-webview2-fixed-stage.yml'
+          $workflowLines = [System.Collections.Generic.List[string]]::new()
+          Get-Content -LiteralPath $workflowPath | ForEach-Object { [void]$workflowLines.Add($_) }
+
+          $shaIndex = -1
+          for ($i = 0; $i -lt $workflowLines.Count; $i++) {
+            if ($workflowLines[$i] -eq '  PDF_TUNNER_WEBVIEW2_FIXED_SHA256: ""') { $shaIndex = $i; break }
+          }
+          if ($shaIndex -lt 0) { throw 'Could not find unpinned WebView2 SHA environment line.' }
+          $workflowLines[$shaIndex] = "  PDF_TUNNER_WEBVIEW2_FIXED_URL: `"$cabUrl`""
+          $workflowLines.Insert($shaIndex + 1, "  PDF_TUNNER_WEBVIEW2_FIXED_SHA256: `"$cabSha`"")
+
+          $expectedArgIndex = -1
+          for ($i = 0; $i -lt $workflowLines.Count; $i++) {
+            if ($workflowLines[$i] -match '^\s+-ExpectedSha256 \$env:PDF_TUNNER_WEBVIEW2_FIXED_SHA256$') { $expectedArgIndex = $i; break }
+          }
+          if ($expectedArgIndex -lt 0) { throw 'Could not find ExpectedSha256 argument in staging workflow.' }
+          $workflowLines.Insert($expectedArgIndex, '            -DownloadUrl $env:PDF_TUNNER_WEBVIEW2_FIXED_URL `')
+          Set-Content -LiteralPath $workflowPath -Value $workflowLines -Encoding utf8
+
+          $resolverPath = 'frontend/scripts/pdf-tunner-resolve-webview2-fixed.mjs'
+          if (-not (Test-Path -LiteralPath $resolverPath -PathType Leaf)) {
+            throw "Expected obsolete DOM resolver is missing: $resolverPath"
+          }
+          Remove-Item -LiteralPath $resolverPath -Force
+
+          $readmePath = 'README.md'
+          $readme = Get-Content -LiteralPath $readmePath -Raw
+          $newStatus = '- Status: **AppData containment is CI-proven. Fixed WebView2 Runtime `151.0.4129.101` x64 is now pinned for staging to the verified Microsoft CDN CAB with SHA-256 `c386640d35f7a4604d088925a9bb01938400297f6da6fe985b72614daba87cda`; full assembled-package acceptance is the current gate.**'
+          $readme = [regex]::Replace($readme, '(?m)^- Status: .*$', $newStatus, 1)
+          $webviewSection = @'
+          ## Fixed WebView2 Runtime staging
+
+          The Fixed WebView2 layer is pinned to Microsoft WebView2 Fixed Version Runtime **151.0.4129.101 x64**. Microsoft subsequently advanced the live developer-page API to newer 151 builds, so PDF_Tunner no longer scrapes mutable page controls for this historical target. The staging workflow pins the exact official Microsoft CDN CAB URL and requires SHA-256 `c386640d35f7a4604d088925a9bb01938400297f6da6fe985b72614daba87cda` before extraction.
+
+          Diagnostic Run `32853225739` independently downloaded that CAB from `msedge.sf.dl.delivery.mp.microsoft.com`, measured **307,241,094 bytes**, recalculated the same SHA-256, expanded **257 files**, found exactly one `msedgewebview2.exe`, and verified ProductVersion **151.0.4129.101**. The staging preparation script additionally rejects non-HTTPS/non-approved CDN hosts, a filename that is not exactly `Microsoft.WebView2.FixedVersionRuntime.151.0.4129.101.x64.cab`, delta markers, hash mismatch, missing runtime executable, or an unexpected product version.
+
+          The normalized runtime is staged at `runtime/webview2/fixed/`; provenance is written to `runtime/webview2/PROVENANCE.txt`. `WEBVIEW2_BROWSER_EXECUTABLE_FOLDER` selects this package-local runtime while the already-proven `WEBVIEW2_USER_DATA_FOLDER` keeps browser state under `data/webview2`. Windows 10 AppContainer ACL and network-location checks remain part of the runtime/launch validation before this phase can be called accepted.
+
+          '@
+          $webviewSection = ($webviewSection -split "`r?`n" | ForEach-Object { $_ -replace '^          ', '' }) -join "`n"
+          if ($readme -notmatch '## Fixed WebView2 Runtime staging') {
+            $readme = $readme.Replace('## External dependency inventory', "$webviewSection`n## External dependency inventory")
+          }
+          $oldNext = 'After portable window-state/auth-store containment is proven, complete the native HTTP cookie localization and then integrate the already-staged bundled Fixed WebView2 Runtime. Microsoft currently lists x64 runtime 151.0.4129.101 (20 August 2026); the integration must use `WEBVIEW2_BROWSER_EXECUTABLE_FOLDER`, retain `WEBVIEW2_USER_DATA_FOLDER`, handle Windows 10 Fixed Version 120+ AppContainer read/execute ACL requirements, reject UNC/network execution, and verify the packaged runtime rather than any Evergreen runtime already installed on the CI host.'
+          $newNext = 'The native HTTP cookie localization and AppData-containment phase are proven. The current candidate now stages the independently verified Fixed WebView2 Runtime 151.0.4129.101 x64 using a pinned Microsoft CDN URL and SHA-256. Acceptance still requires the heavy staging workflow to prove runtime selection, Windows 10-compatible ACL handling, network-location rejection, backend health, portable state containment, two-launch window restore and clean shutdown on the assembled production tree.'
+          if (-not $readme.Contains($oldNext)) { throw 'README Fixed WebView2 next-step paragraph was not found.' }
+          $readme = $readme.Replace($oldNext, $newNext)
+          Set-Content -LiteralPath $readmePath -Value $readme -Encoding utf8
+
+          $agentsPath = 'AGENTS.md'
+          $agents = Get-Content -LiteralPath $agentsPath -Raw
+          $fixedSection = @'
+          ## Fixed WebView2 runtime staging
+
+          PDF_Tunner pins Microsoft WebView2 Fixed Version Runtime **151.0.4129.101 x64** for this phase. The exact official CDN source is `https://msedge.sf.dl.delivery.mp.microsoft.com/filestreamingservice/files/d480b710-fe1e-4e4d-ae99-5b62e6391fd3/Microsoft.WebView2.FixedVersionRuntime.151.0.4129.101.x64.cab`; required CAB SHA-256 is `c386640d35f7a4604d088925a9bb01938400297f6da6fe985b72614daba87cda`.
+
+          Do not reintroduce DOM scraping to resolve this historical runtime. Microsoft services the live developer-page API frequently and it no longer lists `.101`; reproducibility for this pinned phase comes from exact official URL + exact filename + pinned SHA-256 + post-extraction ProductVersion validation. Diagnostic Run `32853225739` independently downloaded the official CAB, measured 307,241,094 bytes, matched the pinned SHA-256, expanded 257 files, found one `msedgewebview2.exe`, and verified ProductVersion `151.0.4129.101`.
+
+          `.github/scripts/prepare-webview2-fixed-runtime.ps1` must reject URLs outside approved Microsoft Edge CDN hosts, non-HTTPS URLs, an unexpected CAB filename, PA30/PA19 delta markers, missing/unpinned SHA-256, hash mismatch, missing `msedgewebview2.exe`, or ProductVersion mismatch. The normalized runtime belongs at `runtime/webview2/fixed/`; `runtime/webview2/PROVENANCE.txt` records version, architecture, CAB hash, exact source URL/CDN host and the validation method. The downloaded CAB itself must not remain in the portable package.
+
+          Use `WEBVIEW2_BROWSER_EXECUTABLE_FOLDER` for the package-local Fixed Runtime and keep `WEBVIEW2_USER_DATA_FOLDER` for the package-local profile. Microsoft documents that unpackaged Win32 apps using Fixed Version 120+ on Windows 10 need read/execute ACLs for SIDs `S-1-15-2-1` (`ALL APPLICATION PACKAGES`) and `S-1-15-2-2` (`ALL RESTRICTED APPLICATION PACKAGES`). Fixed Version cannot run from a network/UNC location. CI must prove the bundled process actually launches from the package-local runtime rather than a runner-installed Evergreen runtime before this layer is accepted.
+
+          '@
+          $fixedSection = ($fixedSection -split "`r?`n" | ForEach-Object { $_ -replace '^          ', '' }) -join "`n"
+          $sectionPattern = '(?s)## Fixed WebView2 next layer\r?\n.*?(?=## Final validation target)'
+          if ($agents -notmatch $sectionPattern) { throw 'AGENTS Fixed WebView2 section was not found.' }
+          $agents = [regex]::Replace($agents, $sectionPattern, $fixedSection, 1)
+
+          $changelog = @'
+
+          ### 2026-08-25 — Fixed WebView2 source pin and resolver hardening
+
+          - Diagnosed staging Run #2: all build/test/portable-assembly steps passed until the Fixed WebView2 staging step; the failure was the mutable Microsoft developer-page DOM resolver, not the runtime/build itself.
+          - Confirmed Microsoft's current `/microsoft-edge/api/webview2` data source and that it had already advanced beyond pinned `.101`, so historical `.101` could not be resolved safely from the live selector.
+          - Rejected Microsoft Update Catalog as a substitute source because its `.101` entry provides the Evergreen standalone installer rather than the required Fixed Version CAB.
+          - Located the exact historical Fixed Version `.101` x64 URL on Microsoft's own Edge CDN and independently verified it in Run `32853225739`: 307,241,094-byte CAB, SHA-256 `c386640d35f7a4604d088925a9bb01938400297f6da6fe985b72614daba87cda`, 257 expanded files and `msedgewebview2.exe` ProductVersion `151.0.4129.101`.
+          - Replaced mutable DOM resolution with an exact official Microsoft CDN URL plus mandatory pinned SHA-256 and exact-filename validation; removed the now-unused PDF_Tunner Puppeteer resolver script.
+          - Full assembled-package staging validation remains the acceptance gate; do not promote this layer solely from the independent CAB verification.
+          '@
+          $changelog = ($changelog -split "`r?`n" | ForEach-Object { $_ -replace '^          ', '' }) -join "`n"
+          $agents = $agents.TrimEnd() + $changelog + "`n"
+          Set-Content -LiteralPath $agentsPath -Value $agents -Encoding utf8
+
+          $expectedFiles = @(
+            '.github/scripts/prepare-webview2-fixed-runtime.ps1',
+            '.github/workflows/pdf-tunner-webview2-fixed-stage.yml',
+            'AGENTS.md',
+            'README.md',
+            'frontend/scripts/pdf-tunner-resolve-webview2-fixed.mjs'
+          )
+          $changed = @(& git diff --name-only)
+          $unexpected = @($changed | Where-Object { $_ -notin $expectedFiles })
+          $missing = @($expectedFiles | Where-Object { $_ -notin $changed })
+          if ($unexpected.Count -gt 0 -or $missing.Count -gt 0) {
+            Write-Host 'Changed files:'
+            $changed | ForEach-Object { Write-Host " - $_" }
+            if ($unexpected.Count -gt 0) { Write-Host "Unexpected: $($unexpected -join ', ')" }
+            if ($missing.Count -gt 0) { Write-Host "Missing expected changes: $($missing -join ', ')" }
+            throw 'Atomic staging change set does not match the expected five files.'
+          }
+
+          & git diff --check
+          if ($LASTEXITCODE -ne 0) { throw 'git diff --check failed.' }
+
+          git config user.name 'Willsito'
+          git config user.email 'g.fernandez.garcia@outlook.es'
+          git add --all
+          git commit -m 'fix(portable): pin verified Fixed WebView2 runtime'
+          git push origin HEAD:pdf-tunner/webview2-fixed-v151-final-stage
