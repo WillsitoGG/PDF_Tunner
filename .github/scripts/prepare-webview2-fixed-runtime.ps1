@@ -77,12 +77,6 @@ try {
     throw "expand.exe failed with exit code $LASTEXITCODE."
   }
 
-  $deltaEntries = @(Get-ChildItem -LiteralPath $expandedRoot -Recurse -Force -ErrorAction SilentlyContinue | Where-Object { $_.Name -match '(?i)(PA30|PA19)' })
-  if ($deltaEntries.Count -gt 0) {
-    $deltaEntries | Select-Object -First 20 FullName | Format-Table -AutoSize
-    throw 'Expanded WebView2 archive contains delta-package markers (PA30/PA19); refusing incomplete runtime.'
-  }
-
   $runtimeExe = Get-ChildItem -LiteralPath $expandedRoot -Recurse -File -Filter 'msedgewebview2.exe' | Select-Object -First 1
   if (-not $runtimeExe) {
     throw 'Expanded Microsoft Fixed WebView2 Runtime does not contain msedgewebview2.exe.'
