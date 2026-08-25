@@ -16,42 +16,99 @@ jobs:
   apply-staging-fix:
     runs-on: windows-latest
     steps:
-      - name: Checkout diagnostic applier
+      - name: Checkout WebView2 staging branch
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
-          fetch-depth: 2
+          ref: pdf-tunner/webview2-fixed-v151-final-stage
+          fetch-depth: 0
 
-      - name: Reuse verified staging patch with exact document EOF
+      - name: Remove PA30 extracted-tree false positive and document Run 3
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
-          $workflowPath = '.github/workflows/pdf-tunner-webview2-resolver-diagnostic.yml'
-          $previous = (& git show "HEAD^:$workflowPath") -join "`n"
-          $marker = "        run: |`n"
-          $markerIndex = $previous.IndexOf($marker, [StringComparison]::Ordinal)
-          if ($markerIndex -lt 0) {
-            throw 'Could not recover the previous atomic staging patch body.'
+          $expectedHead = '363d2df9a83b023502f2490b5bf7bb4cb0e6aae5'
+          $actualHead = (& git rev-parse HEAD).Trim()
+          if ($actualHead -ne $expectedHead) {
+            throw "Staging branch moved unexpectedly. Expected $expectedHead, got $actualHead."
           }
 
-          $body = $previous.Substring($markerIndex + $marker.Length)
-          $script = (($body -split "`n") | ForEach-Object {
-            if ($_.StartsWith('          ')) { $_.Substring(10) } else { $_ }
-          }) -join "`n"
-
-          $oldReadmeWrite = 'Set-Content -LiteralPath $readmePath -Value $readme -Encoding utf8'
-          $newReadmeWrite = '[System.IO.File]::WriteAllText($readmePath, $readme.TrimEnd() + "`n", [System.Text.UTF8Encoding]::new($false))'
-          $oldAgentsWrite = 'Set-Content -LiteralPath $agentsPath -Value $agents -Encoding utf8'
-          $newAgentsWrite = '[System.IO.File]::WriteAllText($agentsPath, $agents.TrimEnd() + "`n", [System.Text.UTF8Encoding]::new($false))'
-
-          if (-not $script.Contains($oldReadmeWrite) -or -not $script.Contains($oldAgentsWrite)) {
-            throw 'Expected README/AGENTS write statements were not found in recovered patch.'
+          $scriptPath = '.github/scripts/prepare-webview2-fixed-runtime.ps1'
+          $script = Get-Content -LiteralPath $scriptPath -Raw
+          $oldDeltaBlock = @'
+          $deltaEntries = @(Get-ChildItem -LiteralPath $expandedRoot -Recurse -Force -ErrorAction SilentlyContinue | Where-Object { $_.Name -match '(?i)(PA30|PA19)' })
+          if ($deltaEntries.Count -gt 0) {
+            $deltaEntries | Select-Object -First 20 FullName | Format-Table -AutoSize
+            throw 'Expanded WebView2 archive contains delta-package markers (PA30/PA19); refusing incomplete runtime.'
           }
-          $script = $script.Replace($oldReadmeWrite, $newReadmeWrite)
-          $script = $script.Replace($oldAgentsWrite, $newAgentsWrite)
 
-          $scriptPath = Join-Path $env:RUNNER_TEMP 'apply-webview2-staging-fix.ps1'
-          [System.IO.File]::WriteAllText($scriptPath, $script.TrimEnd() + "`n", [System.Text.UTF8Encoding]::new($false))
+          '@
+          $oldDeltaBlock = ($oldDeltaBlock -split "`r?`n" | ForEach-Object { $_ -replace '^          ', '' }) -join "`n"
+          $normalizedScript = $script -replace "`r`n", "`n"
+          if (-not $normalizedScript.Contains($oldDeltaBlock)) {
+            throw 'Expected expanded-tree PA30/PA19 rejection block was not found.'
+          }
+          $normalizedScript = $normalizedScript.Replace($oldDeltaBlock, '')
+          [System.IO.File]::WriteAllText($scriptPath, $normalizedScript.TrimEnd() + "`n", [System.Text.UTF8Encoding]::new($false))
 
-          git fetch origin pdf-tunner/webview2-fixed-v151-final-stage
-          git checkout -B pdf-tunner/webview2-fixed-v151-final-stage origin/pdf-tunner/webview2-fixed-v151-final-stage
-          & $scriptPath
+          $readmePath = 'README.md'
+          $readme = (Get-Content -LiteralPath $readmePath -Raw) -replace "`r`n", "`n"
+          $oldReadmeParagraph = 'Diagnostic Run `32853225739` independently downloaded that CAB from `msedge.sf.dl.delivery.mp.microsoft.com`, measured **307,241,094 bytes**, recalculated the same SHA-256, expanded **257 files**, found exactly one `msedgewebview2.exe`, and verified ProductVersion **151.0.4129.101**. The staging preparation script additionally rejects non-HTTPS/non-approved CDN hosts, a filename that is not exactly `Microsoft.WebView2.FixedVersionRuntime.151.0.4129.101.x64.cab`, delta markers, hash mismatch, missing runtime executable, or an unexpected product version.'
+          $newReadmeParagraph = @'
+          Diagnostic Run `32853225739` independently downloaded that CAB from `msedge.sf.dl.delivery.mp.microsoft.com`, measured **307,241,094 bytes**, recalculated the same SHA-256, expanded **257 files**, found exactly one `msedgewebview2.exe`, and verified ProductVersion **151.0.4129.101**. The staging preparation script additionally rejects non-HTTPS/non-approved CDN hosts, a filename that is not exactly `Microsoft.WebView2.FixedVersionRuntime.151.0.4129.101.x64.cab`, hash mismatch, missing runtime executable, or an unexpected product version.
+
+          Heavy staging Run `32856599354` independently reconfirmed the same CAB hash and successful 257-file expansion after the full Stirling desktop preparation, Tauri/Cargo tests, production build and portable assembly had all passed. It then exposed a validator false positive: Microsoft's complete CAB legitimately contains `dual_engine_adapter_x64.dll.padata/PA30` and `dual_engine_adapter_x86.dll.padata/PA30`. PDF_Tunner therefore does not classify extracted `.padata/PA30` directory names as evidence of a delta package; completeness/integrity is enforced by the exact official URL/filename, mandatory pinned SHA-256 and post-extraction executable/ProductVersion checks.
+          '@
+          $newReadmeParagraph = ($newReadmeParagraph -split "`r?`n" | ForEach-Object { $_ -replace '^          ', '' }) -join "`n"
+          if (-not $readme.Contains($oldReadmeParagraph)) {
+            throw 'README Fixed WebView2 validation paragraph was not found.'
+          }
+          $readme = $readme.Replace($oldReadmeParagraph, $newReadmeParagraph)
+          [System.IO.File]::WriteAllText($readmePath, $readme.TrimEnd() + "`n", [System.Text.UTF8Encoding]::new($false))
+
+          $agentsPath = 'AGENTS.md'
+          $agents = (Get-Content -LiteralPath $agentsPath -Raw) -replace "`r`n", "`n"
+          $oldAgentsParagraph = '`.github/scripts/prepare-webview2-fixed-runtime.ps1` must reject URLs outside approved Microsoft Edge CDN hosts, non-HTTPS URLs, an unexpected CAB filename, PA30/PA19 delta markers, missing/unpinned SHA-256, hash mismatch, missing `msedgewebview2.exe`, or ProductVersion mismatch. The normalized runtime belongs at `runtime/webview2/fixed/`; `runtime/webview2/PROVENANCE.txt` records version, architecture, CAB hash, exact source URL/CDN host and the validation method. The downloaded CAB itself must not remain in the portable package.'
+          $newAgentsParagraph = @'
+          `.github/scripts/prepare-webview2-fixed-runtime.ps1` must reject URLs outside approved Microsoft Edge CDN hosts, non-HTTPS URLs, an unexpected CAB filename, missing/unpinned SHA-256, hash mismatch, missing `msedgewebview2.exe`, or ProductVersion mismatch. Keep the URL-level PA30/PA19 guard, but **do not reject an otherwise verified full CAB merely because extracted files contain `.padata/PA30` or `.padata/PA19` directories**: Run `32856599354` proved Microsoft's complete 151.0.4129.101 CAB legitimately contains `dual_engine_adapter_x64.dll.padata/PA30` and `dual_engine_adapter_x86.dll.padata/PA30`. For this pinned runtime, exact official URL/filename + mandatory SHA-256 + executable/ProductVersion validation is the authoritative completeness/integrity gate. The normalized runtime belongs at `runtime/webview2/fixed/`; `runtime/webview2/PROVENANCE.txt` records version, architecture, CAB hash, exact source URL/CDN host and the validation method. The downloaded CAB itself must not remain in the portable package.
+          '@
+          $newAgentsParagraph = ($newAgentsParagraph -split "`r?`n" | ForEach-Object { $_ -replace '^          ', '' }) -join "`n"
+          if (-not $agents.Contains($oldAgentsParagraph)) {
+            throw 'AGENTS Fixed WebView2 validation paragraph was not found.'
+          }
+          $agents = $agents.Replace($oldAgentsParagraph, $newAgentsParagraph)
+          $oldChangelogTail = '- Full assembled-package staging validation remains the acceptance gate; do not promote this layer solely from the independent CAB verification.'
+          $newChangelogTail = @'
+          - Full assembled-package staging validation remains the acceptance gate; do not promote this layer solely from the independent CAB verification.
+          - Heavy staging Run `32856599354` passed upstream-base verification, toolchain setup, `task desktop:prepare`, official Tauri/Cargo tests, production Tauri build and portable assembly. It downloaded the pinned official CAB, matched SHA-256 `c386640d35f7a4604d088925a9bb01938400297f6da6fe985b72614daba87cda` and expanded all 257 files, then failed only because the extracted-tree validator misclassified legitimate `.padata/PA30` directories as delta-package evidence.
+          - Removed that extracted-tree-name heuristic. Retain URL-level delta guarding plus exact official filename, mandatory pinned SHA-256, required `msedgewebview2.exe` and expected ProductVersion as the authoritative integrity/completeness checks.
+          '@
+          $newChangelogTail = ($newChangelogTail -split "`r?`n" | ForEach-Object { $_ -replace '^          ', '' }) -join "`n"
+          if (-not $agents.Contains($oldChangelogTail)) {
+            throw 'AGENTS WebView2 changelog tail was not found.'
+          }
+          $agents = $agents.Replace($oldChangelogTail, $newChangelogTail)
+          [System.IO.File]::WriteAllText($agentsPath, $agents.TrimEnd() + "`n", [System.Text.UTF8Encoding]::new($false))
+
+          $changed = @(& git diff --name-only)
+          $expectedFiles = @(
+            '.github/scripts/prepare-webview2-fixed-runtime.ps1',
+            'AGENTS.md',
+            'README.md'
+          )
+          $unexpected = @($changed | Where-Object { $_ -notin $expectedFiles })
+          $missing = @($expectedFiles | Where-Object { $_ -notin $changed })
+          if ($unexpected.Count -gt 0 -or $missing.Count -gt 0) {
+            Write-Host "Changed files: $($changed -join ', ')"
+            throw 'Run #3 fix did not produce exactly the expected three-file change set.'
+          }
+
+          & git diff --check
+          if ($LASTEXITCODE -ne 0) {
+            throw 'git diff --check failed.'
+          }
+
+          git config user.name 'Willsito'
+          git config user.email 'g.fernandez.garcia@outlook.es'
+          git add --all
+          git commit -m 'fix(portable): accept verified WebView2 PA30 metadata'
+          git push origin HEAD:pdf-tunner/webview2-fixed-v151-final-stage
