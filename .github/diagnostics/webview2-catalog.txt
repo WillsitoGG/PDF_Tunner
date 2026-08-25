@@ -1,0 +1,8 @@
+SEARCH=https://www.catalog.update.microsoft.com/Search.aspx?q=Edge-WebView2%20x64%20151.0.4129.101
+SEARCH_HTTP_STATUS=200
+TITLE=Microsoft Edge-WebView2 Runtime Version 151 Update for x64 based Editions (Build 151.0.4129.101)
+UPDATE_ID=07a66aaa-d467-474c-9fc3-eb21704713a5
+DIALOG_HTTP_STATUS=200
+URL_COUNT=1
+CAB_COUNT=0
+DOWNLOAD_URL=https://catalog.s.download.windowsupdate.com/c/msdownload/update/software/updt/2026/08/microsoftedgestandaloneinstallerx64_5584255f1d9620c123a597951d67149e5a076d18.exe
