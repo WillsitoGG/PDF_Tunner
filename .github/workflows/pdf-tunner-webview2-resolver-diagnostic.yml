@@ -33,7 +33,7 @@ jobs:
           $html = [System.Net.WebUtility]::HtmlDecode($response.Content)
           $filename = "Microsoft.WebView2.FixedVersionRuntime.$version.$arch.cab"
           $escapedFilename = [Regex]::Escape($filename)
-          $urlPattern = "https://[A-Za-z0-9._-]+/[^`\"'<>\s]*$escapedFilename(?:\?[^`\"'<>\s]*)?"
+          $urlPattern = 'https://[A-Za-z0-9._-]+/[^"''<>\s]*' + $escapedFilename + '(?:\?[^"''<>\s]*)?'
           $matches = @([Regex]::Matches($html, $urlPattern, [System.Text.RegularExpressions.RegexOptions]::IgnoreCase) | ForEach-Object { $_.Value } | Select-Object -Unique)
 
           $lines = @(
