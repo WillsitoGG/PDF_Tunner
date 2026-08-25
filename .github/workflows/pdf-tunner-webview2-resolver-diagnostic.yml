@@ -10,7 +10,7 @@ concurrency:
   cancel-in-progress: true
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   resolver-diagnostic:
@@ -53,3 +53,25 @@ jobs:
           path: .diagnostic/webview2-resolver-diagnostic.txt
           if-no-files-found: warn
           retention-days: 1
+
+      - name: Persist resolver diagnostic on diagnostic branch
+        if: always()
+        shell: pwsh
+        run: |
+          $source = '.diagnostic/webview2-resolver-diagnostic.txt'
+          if (-not (Test-Path -LiteralPath $source)) {
+            New-Item -ItemType Directory -Force -Path '.diagnostic' | Out-Null
+            Set-Content -LiteralPath $source -Encoding utf8 -Value 'ERROR=diagnostic output file was not produced.'
+          }
+          New-Item -ItemType Directory -Force -Path '.github/diagnostics' | Out-Null
+          Copy-Item -LiteralPath $source -Destination '.github/diagnostics/webview2-resolver.txt' -Force
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add '.github/diagnostics/webview2-resolver.txt'
+          git diff --cached --quiet
+          if ($LASTEXITCODE -eq 0) {
+            Write-Host 'Diagnostic content unchanged; nothing to persist.'
+            exit 0
+          }
+          git commit -m 'chore: capture WebView2 resolver diagnostic [skip ci]'
+          git push origin "HEAD:${{ github.ref_name }}"
