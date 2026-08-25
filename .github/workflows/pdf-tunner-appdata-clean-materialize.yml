@@ -1,4 +1,4 @@
-name: PDF_Tunner AppData Clean Materialize
+name: PDF_Tunner AppData Clean Promotion
 
 on:
   push:
@@ -8,80 +8,125 @@ on:
       - .github/workflows/pdf-tunner-appdata-clean-materialize.yml
 
 permissions:
-  actions: write
   contents: write
 
 jobs:
-  materialize-and-dispatch:
+  promote-ready:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout clean staging branch
+      - name: Checkout staging history
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           fetch-depth: 0
 
-      - name: Materialize AppData functional changes only
-        shell: pwsh
+      - name: Build clean promotion branch from primary
+        shell: bash
         run: |
-          git fetch origin pdf-tunner/appdata-final-stage
+          set -euo pipefail
+          PRIMARY='bfb96e0d5c0ec2cf937850ea69d79288da243b0c'
+          CANDIDATE='f088d0ad288a21d6419ff94b35c0f76b9667e7d5'
+          PROMOTION='pdf-tunner/appdata-promote-ready'
 
-          git checkout origin/pdf-tunner/appdata-final-stage -- `
-            .github/scripts/validate-portable-window-state.ps1 `
-            frontend/editor/src-tauri/Cargo.toml `
+          git fetch origin pdf-tunner/windows-portable-v1 pdf-tunner/appdata-final-clean
+          test "$(git rev-parse origin/pdf-tunner/windows-portable-v1)" = "$PRIMARY"
+          if git ls-remote --exit-code --heads origin "$PROMOTION" >/dev/null 2>&1; then
+            echo "Promotion branch already exists; refusing to overwrite it."
+            exit 1
+          fi
+
+          git switch --detach "$PRIMARY"
+          git checkout "$CANDIDATE" -- \
+            .github/scripts/validate-portable-window-state.ps1 \
+            frontend/editor/src-tauri/Cargo.toml \
+            frontend/editor/src-tauri/src/lib.rs \
+            frontend/editor/src-tauri/src/utils/portable_window_state.rs \
             frontend/editor/src-tauri/vendor/tauri-plugin-http
 
-          $windowState = 'frontend/editor/src-tauri/src/utils/portable_window_state.rs'
-          $windowText = Get-Content -LiteralPath $windowState -Raw
-          $windowText = $windowText.Replace('.or_insert(current_state(native_window)?);', '.or_insert(current_state(&native_window)?);')
-          $windowText = $windowText.Replace('update_state(native_window, state)', 'update_state(&native_window, state)')
-          Set-Content -LiteralPath $windowState -Value $windowText -NoNewline -Encoding utf8
+          python - <<'PY'
+          from pathlib import Path
 
-          $lib = 'frontend/editor/src-tauri/src/lib.rs'
-          $libText = Get-Content -LiteralPath $lib -Raw
-          $libText = $libText.Replace('portable_window_state::track_window(window)', 'portable_window_state::track_window(&window)')
-          Set-Content -LiteralPath $lib -Value $libText -NoNewline -Encoding utf8
+          def replace_once(text, old, new, label):
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f"{label}: expected one match, found {count}")
+              return text.replace(old, new, 1)
 
-          if ((Select-String -LiteralPath $windowState -SimpleMatch '.or_insert(current_state(&native_window)?);').Count -ne 1) {
-            throw 'Borrow fix for current_state was not applied exactly once.'
-          }
-          if ((Select-String -LiteralPath $windowState -SimpleMatch 'update_state(&native_window, state)').Count -ne 1) {
-            throw 'Borrow fix for update_state was not applied exactly once.'
-          }
-          if ((Select-String -LiteralPath $lib -SimpleMatch 'portable_window_state::track_window(&window)').Count -ne 1) {
-            throw 'Borrow fix for track_window was not applied exactly once.'
-          }
+          readme_path = Path('README.md')
+          readme = readme_path.read_text(encoding='utf-8')
+          readme = replace_once(
+              readme,
+              '- Status: **portable bootstrap/backend/WebView2-profile containment proven; run 32634578447 proved the connection-store and Tauri-log localizations at runtime, then isolated the remaining window restore defect to using `WebviewWindow` too early inside Tauri `on_window_ready`; the current candidate restores/listens directly on the native `Window` object and localizes auth fallback stores, pending CI proof; native HTTP `.cookies` remains a known LocalAppData leak to localize before final Release**',
+              '- Status: **AppData containment is CI-proven on the assembled Windows portable package; Run `32825188381` passed official Tauri/Cargo tests, production build, real backend startup, package-local Tauri HTTP/log/store/window state, two-launch window restore, host AppData/registry/process containment, ZIP creation and SHA-256. Next portability phase: bundled Fixed WebView2 Runtime.**',
+              'README status')
+          readme = replace_once(
+              readme,
+              'This correction remains unproven until the two-launch CI validator passes.',
+              'Run `32825188381` proved this correction on the assembled production EXE: the deliberate first-launch geometry was persisted package-locally and restored on the second launch within validator tolerance.',
+              'README window proof')
+          old_http = '''`tauri-plugin-http` 2.5.8 is still registered with its normal cookie feature because Stirling's desktop HTTP client genuinely uses it and supports credentialed requests. The official plugin hard-wires its persistent cookie jar to `app_cache_dir()/.cookies`, which on Windows creates `%LOCALAPPDATA%\\com.willsitogg.pdf-tunner\\.cookies`. This is a **known unresolved portable leak**: it must be localized without disabling cookies/authentication. The exact official source ref `tauri-apps/plugins-workspace` `http-v2.5.8` has been verified; a minimal source-compatible localization is being prepared separately and must be CI-tested before final Release.'''
+          new_http = '''`tauri-plugin-http` 2.5.8 remains enabled with its normal cookie/authentication behavior. PDF_Tunner vendors the verified official `http-v2.5.8` source locally and changes only the persistent cookie directory selection: portable mode resolves `.cookies` under `data/tauri/http/`, while non-portable mode keeps the official Tauri `app_cache_dir()` behavior. Run `32825188381` proved the package-local cookie jar together with the other Tauri state and found no non-empty PDF_Tunner identifier content in host Local or Roaming AppData. The Windows keyring/Credential Manager path used by authentication remains keyring-first and is not claimed to be package-contained; the Tauri Store fallback is package-local.'''
+          readme = replace_once(readme, old_http, new_http, 'README HTTP paragraph')
+          readme = replace_once(
+              readme,
+              '`data/` contains runtime state and must not be committed. The `data/tauri/http/.cookies` location shown above is the intended target for the still-pending native HTTP cookie localization; it is not yet CI-proven.',
+              '`data/` contains runtime state and must not be committed. Run `32825188381` CI-proved the `data/tauri/http/.cookies`, `data/logs/tauri/`, `data/tauri/store/` and `data/tauri/window-state/` locations on the assembled portable package.',
+              'README layout proof')
+          readme = replace_once(
+              readme,
+              '- no persisted files/subdirectories under `%APPDATA%\\com.willsitogg.pdf-tunner` in portable mode;',
+              '- no non-empty persisted PDF_Tunner identifier content under host `%LOCALAPPDATA%\\com.willsitogg.pdf-tunner` or `%APPDATA%\\com.willsitogg.pdf-tunner` in portable mode;',
+              'README AppData bullet')
+          readme = replace_once(
+              readme,
+              'The native HTTP `.cookies` file remains a separately tracked containment item until its source-compatible 2.5.8 localization is implemented; a bootstrap run must not be described as final portable proof while that leak remains.',
+              'Run `32825188381` closed the tracked native Tauri AppData containment set, including the HTTP `.cookies` jar. This closes the AppData phase, not the entire portable-v1 project: Fixed WebView2 Runtime and the external dependency toolchain still require their own proof.',
+              'README old blocker')
+          marker = '## External dependency inventory\n'
+          proof = '''### AppData containment proof — Run `32825188381`\n\nThe clean candidate `f088d0ad288a21d6419ff94b35c0f76b9667e7d5` passed the complete Windows portable workflow. The job proved official Tauri/Cargo tests, a production `PDF_Tunner.exe`, bundled JRE 25, real dynamic-port backend health, package-local HTTP cookie jar/log/store/window state, deliberate window-state persistence plus second-launch restoration, no non-empty PDF_Tunner identifier state in host Local/Roaming AppData, no new `pdf-tunner://` protocol registration, clean parent/child shutdown, runtime-data reset, ZIP creation, SHA-256 generation and artifact upload. The validated artifact was `PDF_Tunner-Windows-x64-Portable-bootstrap` (Actions artifact `9555320194`).\n\n'''
+          if proof not in readme:
+              readme = replace_once(readme, marker, proof + marker, 'README proof insertion')
+          readme_path.write_text(readme, encoding='utf-8', newline='\n')
 
-          if (Test-Path -LiteralPath '.github/workflows/pdf-tunner-appdata-final-dispatch.yml') {
-            throw 'Temporary appdata-final dispatcher leaked into clean staging branch.'
-          }
-          if (Test-Path -LiteralPath 'frontend/editor/src-tauri/vendor/pdf-tunner-tauri-store') {
-            throw 'Deprecated Store shim must not exist in clean staging branch.'
-          }
+          agents_path = Path('AGENTS.md')
+          agents = agents_path.read_text(encoding='utf-8')
+          agents = replace_once(
+              agents,
+              'The current candidate removes that conversion and operates directly on `Window<R>`. **Do not claim this fix works until the two-launch validator passes on the assembled production EXE.**',
+              'Run `32825188381` proved the native-`Window<R>` correction on the assembled production EXE: the two-launch validator persisted the deliberate first-launch geometry package-locally and restored it on relaunch within tolerance.',
+              'AGENTS window proof')
+          agents = replace_once(
+              agents,
+              'The current candidate implements this through `AsRef<Path>` store-path objects, leaving every login/OAuth/token command call site and semantic unchanged; CI proof is still required.',
+              'The implementation uses `AsRef<Path>` store-path objects, leaving every login/OAuth/token command call site and semantic unchanged. Run `32825188381` proved the package-local connection and token Store fallback files. Windows keyring/Credential Manager remains the first authentication path and is not claimed to be package-contained.',
+              'AGENTS store proof')
+          old_agents_http = '''`tauri-plugin-http` 2.5.8 is a separate unresolved containment item. Stirling imports `@tauri-apps/plugin-http` and can issue credentialed requests, so **do not disable its cookies feature merely to remove host state**. Official source ref `tauri-apps/plugins-workspace` `http-v2.5.8` has been verified and hard-wires the cookie jar to `app_cache_dir()/.cookies`, causing `%LOCALAPPDATA%\\com.willsitogg.pdf-tunner\\.cookies`. The current upstream `v2` source still uses the same path, so updating the plugin alone does not solve it. Localize this jar with a minimal source-compatible 2.5.8 adaptation, preserve auth/cookie semantics, document exact provenance, and test it before final Release.'''
+          new_agents_http = '''`tauri-plugin-http` 2.5.8 stays functionally enabled. PDF_Tunner vendors the verified official `http-v2.5.8` source and applies one localized portable-path adaptation: with `PDF_TUNNER_PORTABLE_ROOT`, its persistent cookie directory is `<portable root>/data/tauri/http`; without portable mode it still uses the official `app_cache_dir()`. Do not disable cookie/auth semantics. Run `32825188381` proved `data/tauri/http/.cookies` is created package-locally and the host Local/Roaming PDF_Tunner identifier roots contain no non-empty state.'''
+          agents = replace_once(agents, old_agents_http, new_agents_http, 'AGENTS HTTP paragraph')
+          agents = replace_once(
+              agents,
+              '`data/tauri/http/.cookies` is the intended target for the pending native HTTP localization and is not yet CI-proven. Never commit generated `data/` contents.',
+              '`data/tauri/http/.cookies` is CI-proven by Run `32825188381`. Never commit generated `data/` contents.',
+              'AGENTS layout proof')
+          exit_marker = 'Portable `ExitRequested` is terminal and synchronous:'
+          proof_agents = '''### AppData containment closed\n\nRun `32825188381` (job `97731512714`) on clean candidate `f088d0ad288a21d6419ff94b35c0f76b9667e7d5` is the acceptance proof for this phase. It passed official desktop preparation and Tauri/Cargo tests, production Tauri build, bundled JRE validation, real backend startup, the reinforced package-local Tauri-state/two-launch validator, runtime cleanup, ZIP/SHA generation and validated-artifact upload. Required portable locations are `data/tauri/http/.cookies`, `data/logs/tauri/PDF_Tunner.log`, `data/tauri/store/connection.json`, `data/tauri/store/tokens.json` and `data/tauri/window-state/.window-state.json`; host Local/Roaming identifier roots may exist only if empty. The protocol registry key and process tree must remain contained as enforced by the validator. The next portability phase is Fixed WebView2 Runtime; do not reinterpret this AppData proof as proof of the later external-tool bundle.\n\n'''
+          if proof_agents not in agents:
+              agents = replace_once(agents, exit_marker, proof_agents + exit_marker, 'AGENTS proof insertion')
+          agents_path.write_text(agents, encoding='utf-8', newline='\n')
+          PY
 
+          test ! -e .github/workflows/pdf-tunner-appdata-clean-materialize.yml
+          test ! -e .github/workflows/pdf-tunner-appdata-final-dispatch.yml
+          test ! -e frontend/editor/src-tauri/vendor/pdf-tunner-tauri-store
           git diff --check
           git status --short
 
-      - name: Commit clean functional candidate
-        shell: pwsh
-        run: |
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add -- `
-            .github/scripts/validate-portable-window-state.ps1 `
-            frontend/editor/src-tauri/Cargo.toml `
-            frontend/editor/src-tauri/vendor/tauri-plugin-http `
-            frontend/editor/src-tauri/src/utils/portable_window_state.rs `
-            frontend/editor/src-tauri/src/lib.rs
-          git commit -m 'fix(portable): finalize AppData containment candidate'
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          git push origin HEAD:pdf-tunner/appdata-final-clean
-
-      - name: Dispatch one complete portable validation
-        shell: bash
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          gh workflow run pdf-tunner-windows-portable.yml \
-            --repo "${{ github.repository }}" \
-            --ref pdf-tunner/appdata-final-clean
-          echo "Dispatched complete portable validation for pdf-tunner/appdata-final-clean"
+          git add README.md AGENTS.md \
+            .github/scripts/validate-portable-window-state.ps1 \
+            frontend/editor/src-tauri/Cargo.toml \
+            frontend/editor/src-tauri/src/lib.rs \
+            frontend/editor/src-tauri/src/utils/portable_window_state.rs \
+            frontend/editor/src-tauri/vendor/tauri-plugin-http
+          git commit -m 'fix(portable): close AppData containment'
+          git push origin HEAD:"$PROMOTION"
