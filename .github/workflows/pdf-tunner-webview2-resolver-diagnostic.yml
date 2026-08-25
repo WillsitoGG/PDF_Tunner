@@ -33,22 +33,14 @@ jobs:
           }
 
           $scriptPath = '.github/scripts/prepare-webview2-fixed-runtime.ps1'
-          $script = Get-Content -LiteralPath $scriptPath -Raw
-          $oldDeltaBlock = @'
-          $deltaEntries = @(Get-ChildItem -LiteralPath $expandedRoot -Recurse -Force -ErrorAction SilentlyContinue | Where-Object { $_.Name -match '(?i)(PA30|PA19)' })
-          if ($deltaEntries.Count -gt 0) {
-            $deltaEntries | Select-Object -First 20 FullName | Format-Table -AutoSize
-            throw 'Expanded WebView2 archive contains delta-package markers (PA30/PA19); refusing incomplete runtime.'
+          $script = (Get-Content -LiteralPath $scriptPath -Raw) -replace "`r`n", "`n"
+          $deltaPattern = '(?ms)^  \$deltaEntries = @\(.*?^  \$runtimeExe ='
+          $deltaMatches = [regex]::Matches($script, $deltaPattern)
+          if ($deltaMatches.Count -ne 1) {
+            throw "Expected exactly one expanded-tree PA30/PA19 block; found $($deltaMatches.Count)."
           }
-
-          '@
-          $oldDeltaBlock = ($oldDeltaBlock -split "`r?`n" | ForEach-Object { $_ -replace '^          ', '' }) -join "`n"
-          $normalizedScript = $script -replace "`r`n", "`n"
-          if (-not $normalizedScript.Contains($oldDeltaBlock)) {
-            throw 'Expected expanded-tree PA30/PA19 rejection block was not found.'
-          }
-          $normalizedScript = $normalizedScript.Replace($oldDeltaBlock, '')
-          [System.IO.File]::WriteAllText($scriptPath, $normalizedScript.TrimEnd() + "`n", [System.Text.UTF8Encoding]::new($false))
+          $script = [regex]::Replace($script, $deltaPattern, '  $runtimeExe =', 1)
+          [System.IO.File]::WriteAllText($scriptPath, $script.TrimEnd() + "`n", [System.Text.UTF8Encoding]::new($false))
 
           $readmePath = 'README.md'
           $readme = (Get-Content -LiteralPath $readmePath -Raw) -replace "`r`n", "`n"
@@ -76,6 +68,7 @@ jobs:
             throw 'AGENTS Fixed WebView2 validation paragraph was not found.'
           }
           $agents = $agents.Replace($oldAgentsParagraph, $newAgentsParagraph)
+
           $oldChangelogTail = '- Full assembled-package staging validation remains the acceptance gate; do not promote this layer solely from the independent CAB verification.'
           $newChangelogTail = @'
           - Full assembled-package staging validation remains the acceptance gate; do not promote this layer solely from the independent CAB verification.
