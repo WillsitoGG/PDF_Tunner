@@ -1,1 +1,6 @@
-ERROR=diagnostic output file was not produced.
+PAGE=https://developer.microsoft.com/en-us/microsoft-edge/webview2/?form=MA13LH#download-section
+HTTP_STATUS=200
+HTML_LENGTH=57914
+TARGET_FILENAME=Microsoft.WebView2.FixedVersionRuntime.151.0.4129.101.x64.cab
+MATCH_COUNT=0
+FILENAME_INDEX=-1
