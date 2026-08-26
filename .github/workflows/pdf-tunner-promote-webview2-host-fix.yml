@@ -12,55 +12,19 @@ jobs:
   promote-fix:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout staging branch
+      - name: Checkout helper branch
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          ref: pdf-tunner/webview2-host-fix-promoter
+          path: helper
+          fetch-depth: 1
+
+      - name: Checkout exact staging branch
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           ref: pdf-tunner/webview2-fixed-v151-final-stage
+          path: staging
           fetch-depth: 0
 
-      - name: Apply atomic validator and documentation fix
-        shell: pwsh
-        run: |
-          $ErrorActionPreference = 'Stop'
-          $expectedHead = 'b50e994430a457afb6f594513a3ae23ad78659dc'
-          $actualHead = (& git rev-parse HEAD).Trim()
-          if ($actualHead -ne $expectedHead) { throw "Staging HEAD moved unexpectedly. Expected $expectedHead, got $actualHead." }
-
-          $validator = '.github/scripts/validate-webview2-fixed-runtime.ps1'
-          $text = Get-Content -LiteralPath $validator -Raw
-          $old = @"
-if (`$provenanceText -notmatch '(?m)^Selector=https://developer\.microsoft\.com/en-us/microsoft-edge/webview2\s*`$') {
-  throw 'WebView2 provenance does not identify the official Microsoft selector page.'
-}
-"@
-          if (-not $text.Contains($old)) { throw 'Stale Selector provenance assertion was not found exactly once.' }
-          $text = $text.Replace($old, '')
-          [System.IO.File]::WriteAllText((Resolve-Path $validator), $text, [System.Text.UTF8Encoding]::new($false))
-
-          Add-Content -LiteralPath 'README.md' -Encoding utf8 -Value @(
-            '',
-            '### WebView2 provenance validator aligned with pinned CAB',
-            '',
-            'The Fixed Runtime preparation path no longer uses the mutable Microsoft developer-page selector; it pins the exact official Microsoft CDN CAB instead. The validator therefore no longer requires the obsolete `Selector=...` provenance line. It continues to require the exact version/architecture metadata, approved Microsoft CDN host, SHA-256 provenance/SHA agreement, expected CAB filename, complete runtime tree and live package-local runtime/profile evidence.'
-          )
-          Add-Content -LiteralPath 'AGENTS.md' -Encoding utf8 -Value @(
-            '',
-            '### Fixed WebView2 provenance invariant',
-            '',
-            '- Do not reintroduce a `Selector=https://developer.microsoft.com/...` requirement: the historical `151.0.4129.101` runtime is pinned by exact Microsoft CDN CAB URL and mandatory SHA-256, not resolved from the mutable live selector page.',
-            '- Static validation must retain version, architecture, approved CDN host, exact CAB filename via `SHA256SUMS.txt`, provenance/SHA agreement, pinned SHA, runtime completeness and no installer/archive payloads. Live validation additionally proves ACLs, package-local Fixed Runtime process selection and `data/webview2` use.'
-          )
-
-          & git diff --check
-          if ($LASTEXITCODE -ne 0) { throw 'git diff --check failed.' }
-          $changed = @(& git status --porcelain | ForEach-Object { $_.Substring(3) } | Sort-Object)
-          $expected = @($validator, 'AGENTS.md', 'README.md') | Sort-Object
-          if (($changed -join "`n") -ne ($expected -join "`n")) { throw "Unexpected staging diff: $($changed -join ', ')" }
-
-          & git config user.name 'WillsitoGG'
-          & git config user.email '179575519+WillsitoGG@users.noreply.github.com'
-          & git add -- $validator README.md AGENTS.md
-          & git commit -m 'fix(portable): align WebView2 provenance validation'
-          if ($LASTEXITCODE -ne 0) { throw 'git commit failed.' }
-          & git push origin HEAD:pdf-tunner/webview2-fixed-v151-final-stage
-          if ($LASTEXITCODE -ne 0) { throw 'git push to staging failed.' }
+      - name: Promote validated correction atomically
+        run: python helper/.github/scripts/promote-webview2-validator-fix.py staging
