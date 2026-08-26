@@ -41,8 +41,8 @@ try {
   }
 
   $uri = [Uri]$downloadUrl
-  $host = $uri.Host.ToLowerInvariant()
-  if ($uri.Scheme -ne 'https' -or $allowedHosts -notcontains $host) {
+  $cdnHost = $uri.Host.ToLowerInvariant()
+  if ($uri.Scheme -ne 'https' -or $allowedHosts -notcontains $cdnHost) {
     throw "Refusing WebView2 download URL outside the approved Microsoft Edge CDN hosts: $downloadUrl"
   }
   if ($uri.AbsoluteUri -match '(?i)(PA30|PA19)') {
@@ -53,7 +53,7 @@ try {
     throw "Pinned WebView2 payload filename '$resolvedName' does not match expected '$cabName'."
   }
 
-  Write-Host "Using pinned official Microsoft WebView2 Fixed Runtime URL for $Version / $Architecture from $host."
+  Write-Host "Using pinned official Microsoft WebView2 Fixed Runtime URL for $Version / $Architecture from $cdnHost."
   Invoke-WebRequest -Uri $downloadUrl -OutFile $cabPath -UseBasicParsing -MaximumRedirection 10 -TimeoutSec 900
 
   $cabHash = (Get-FileHash -LiteralPath $cabPath -Algorithm SHA256).Hash.ToLowerInvariant()
@@ -106,7 +106,7 @@ try {
     "Architecture=$Architecture",
     "CAB_SHA256=$cabHash",
     "Source_URL=$downloadUrl",
-    "CDN_Host=$host",
+    "CDN_Host=$cdnHost",
     'Verification=URL host + exact CAB filename + pinned SHA-256 + packaged msedgewebview2.exe ProductVersion'
   )
 
