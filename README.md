@@ -174,3 +174,10 @@ To keep future Stirling updates manageable:
 **Every PDF_Tunner-specific repository change must update both `README.md` and `AGENTS.md` in the same commit.** They are the permanent record of architecture, dependencies, build, packaging, portability, validation, releases and tuning history.
 
 For upstream build/development details, use the existing `DeveloperGuide.md`, `frontend/editor/DeveloperGuide.md`, `ADDING_TOOLS.md` and the source itself.
+
+
+### Fixed WebView2 accepted for the permanent Windows portable workflow
+
+Staging Run `32977842546` is the acceptance gate for the package-local Microsoft Edge WebView2 Fixed Runtime. The full heavy job passed official Stirling desktop preparation, Tauri/Cargo tests, the production `PDF_Tunner.exe` build, portable assembly, exact Microsoft Fixed Runtime CAB download, pinned SHA-256 verification, normalization, static validation, Java 25 validation, real backend HTTP health, live process selection from `runtime\webview2\fixed`, package-local `data\webview2` state, AppContainer ACL validation by SID, the two-launch/AppData/window-state containment proof, final SHA gate, and absence of any downloaded CAB in the portable tree. The permanent workflow now pins version `151.0.4129.101` x64 and CAB SHA-256 `c386640d35f7a4604d088925a9bb01938400297f6da6fe985b72614daba87cda`; no Evergreen/system fallback is accepted.
+
+The reproducible upstream snapshot remains commit `7fb29d002dbb8fa4b5945d1d1fe8dd164a9f7632`, whose own Gradle metadata reports `2.14.3`. This snapshot is intentionally recorded by commit SHA; it must not be conflated with the separate Git object currently referenced by the upstream `v2.14.3` tag.

@@ -410,3 +410,11 @@ Unless a PDF_Tunner rule above overrides them:
 - Its diagnostics identified the actual window-state defect: `on_window_ready` correctly supplied a native `Window`, but PDF_Tunner immediately tried `get_webview_window("main")`, which returned `None` at that lifecycle point. The candidate now restores/listens directly on the native `Window<R>` and mirrors upstream restore ordering/defaults.
 - The same diagnostics exposed `%APPDATA%\com.willsitogg.pdf-tunner\tokens.json` from the authentication Tauri Store fallback and a second relative `connection.json` path in auth user-info code. Both are localized to `data/tauri/store/` in portable mode without changing keyring/login/OAuth semantics; CI proof is pending.
 - Classified `%LOCALAPPDATA%\com.willsitogg.pdf-tunner\.cookies` as `tauri-plugin-http` 2.5.8's persistent cookie jar. Verified official ref `tauri-apps/plugins-workspace` `http-v2.5.8` and confirmed current `v2` still hard-wires `app_cache_dir()/.cookies`; cookies/auth must be preserved, so this leak remains explicitly pending a minimal source-compatible localization rather than disabling the feature.
+
+
+### Permanent Fixed WebView2 acceptance
+
+- Staging Run `32977842546` is the green acceptance evidence for Fixed WebView2 `151.0.4129.101` x64. Permanent Windows builds must retain the exact official Microsoft CDN CAB URL and SHA-256 `c386640d35f7a4604d088925a9bb01938400297f6da6fe985b72614daba87cda`.
+- A passing build must prove static runtime integrity and live selection of package-local `runtime\webview2\fixed\msedgewebview2.exe`, package-local `data\webview2`, both AppContainer SID ACLs with Allow + ReadAndExecute + ObjectInherit + ContainerInherit, backend HTTP 200, two-launch/AppData/window-state containment, no orphan package-local child processes, and no CAB archive in the final portable root.
+- Do not promote `.github/workflows/pdf-tunner-webview2-fixed-stage.yml` or diagnostic artifacts into the permanent product workflow/release. The primary `.github/workflows/pdf-tunner-windows-portable.yml` owns the accepted gates.
+- Upstream base identity is the exact snapshot commit `7fb29d002dbb8fa4b5945d1d1fe8dd164a9f7632`, which reports version `2.14.3` in its source metadata. Do not describe that SHA as identical to the separate upstream `v2.14.3` tag object.

@@ -18,6 +18,10 @@ permissions:
 env:
   PDF_TUNNER_UPSTREAM_VERSION: "2.14.3"
   PDF_TUNNER_UPSTREAM_COMMIT: "7fb29d002dbb8fa4b5945d1d1fe8dd164a9f7632"
+  PDF_TUNNER_WEBVIEW2_FIXED_VERSION: "151.0.4129.101"
+  PDF_TUNNER_WEBVIEW2_FIXED_ARCH: "x64"
+  PDF_TUNNER_WEBVIEW2_FIXED_URL: "https://msedge.sf.dl.delivery.mp.microsoft.com/filestreamingservice/files/d480b710-fe1e-4e4d-ae99-5b62e6391fd3/Microsoft.WebView2.FixedVersionRuntime.151.0.4129.101.x64.cab"
+  PDF_TUNNER_WEBVIEW2_FIXED_SHA256: "c386640d35f7a4604d088925a9bb01938400297f6da6fe985b72614daba87cda"
   CI: "true"
 
 jobs:
@@ -118,6 +122,25 @@ jobs:
           Write-Host "Executable source: $($exe.FullName)"
           Get-ChildItem -LiteralPath $portable -Force | Format-Table Name, Length, Mode
 
+      - name: Stage official Microsoft Fixed WebView2 Runtime
+        shell: pwsh
+        run: |
+          & './.github/scripts/prepare-webview2-fixed-runtime.ps1' `
+            -PortableRoot './dist/PDF_Tunner' `
+            -Version $env:PDF_TUNNER_WEBVIEW2_FIXED_VERSION `
+            -Architecture $env:PDF_TUNNER_WEBVIEW2_FIXED_ARCH `
+            -DownloadUrl $env:PDF_TUNNER_WEBVIEW2_FIXED_URL `
+            -ExpectedSha256 $env:PDF_TUNNER_WEBVIEW2_FIXED_SHA256
+
+      - name: Validate staged Fixed WebView2 metadata and tree
+        shell: pwsh
+        run: |
+          & './.github/scripts/validate-webview2-fixed-runtime.ps1' `
+            -PortableRoot './dist/PDF_Tunner' `
+            -Version $env:PDF_TUNNER_WEBVIEW2_FIXED_VERSION `
+            -Architecture $env:PDF_TUNNER_WEBVIEW2_FIXED_ARCH `
+            -ExpectedCabSha256 $env:PDF_TUNNER_WEBVIEW2_FIXED_SHA256
+
       - name: Validate bundled Java runtime
         shell: pwsh
         run: |
@@ -202,6 +225,14 @@ jobs:
             throw "Backend health endpoint returned HTTP $($response.StatusCode)."
           }
           Write-Host "Backend health check OK: $statusUri"
+
+          & './.github/scripts/validate-webview2-fixed-runtime.ps1' `
+            -PortableRoot './dist/PDF_Tunner' `
+            -Version $env:PDF_TUNNER_WEBVIEW2_FIXED_VERSION `
+            -Architecture $env:PDF_TUNNER_WEBVIEW2_FIXED_ARCH `
+            -ExpectedCabSha256 $env:PDF_TUNNER_WEBVIEW2_FIXED_SHA256 `
+            -RequireLiveProcess
+          if ($LASTEXITCODE -ne 0) { throw 'Fixed WebView2 live validation failed.' }
 
           Write-Host 'Containment check: Stirling AppData'
           if (-not $hostLeakExisted -and (Test-Path -LiteralPath $hostLeak)) {
@@ -312,6 +343,31 @@ jobs:
         run: |
           & './.github/scripts/validate-portable-window-state.ps1' -PortableRoot './dist/PDF_Tunner' -Tolerance 16
 
+      - name: Require pinned Fixed WebView2 CAB SHA
+        shell: pwsh
+        run: |
+          $provenance = Join-Path $PWD 'dist/PDF_Tunner/runtime/webview2/PROVENANCE.txt'
+          $text = Get-Content -LiteralPath $provenance -Raw
+          if ($text -notmatch '(?m)^CAB_SHA256=([0-9a-fA-F]{64})\s*$') {
+            throw 'Fixed WebView2 provenance does not contain CAB_SHA256.'
+          }
+          $actual = $Matches[1].ToLowerInvariant()
+          $expected = $env:PDF_TUNNER_WEBVIEW2_FIXED_SHA256.ToLowerInvariant()
+          if ($actual -ne $expected) {
+            throw "Fixed WebView2 CAB SHA mismatch at final acceptance: expected $expected, got $actual."
+          }
+
+      - name: Verify final portable layout contains no downloaded WebView2 CAB
+        shell: pwsh
+        run: |
+          $portable = Resolve-Path './dist/PDF_Tunner'
+          $cabs = @(Get-ChildItem -LiteralPath $portable -Recurse -Force -File -Filter '*.cab' -ErrorAction SilentlyContinue)
+          if ($cabs.Count -gt 0) {
+            $cabs | Select-Object FullName, Length | Format-Table -AutoSize
+            throw 'Downloaded WebView2 CAB leaked into the portable package.'
+          }
+          Write-Host 'PASS: portable package contains normalized Fixed WebView2 runtime only; no CAB archive remains.'
+
       - name: Collect portable startup diagnostics
         if: failure()
         shell: pwsh
@@ -376,7 +432,7 @@ jobs:
             Set-Content -LiteralPath (Join-Path $diagnostics 'registry-state.txt') -Encoding utf8
 
           Get-CimInstance Win32_Process |
-            Where-Object { $_.Name -match 'PDF_Tunner|java' -or ($_.CommandLine -and $_.CommandLine -match 'PDF_Tunner|Stirling') } |
+            Where-Object { $_.Name -match 'PDF_Tunner|java|msedgewebview2' -or ($_.CommandLine -and $_.CommandLine -match 'PDF_Tunner|Stirling|webview2') } |
             Select-Object ProcessId, ParentProcessId, Name, ExecutablePath, CommandLine |
             Format-List |
             Out-String -Width 4096 |
@@ -439,6 +495,10 @@ jobs:
             'UPSTREAM_BASE.txt',
             'libs',
             'runtime/jre/bin/java.exe',
+            'runtime/webview2/fixed/msedgewebview2.exe',
+            'runtime/webview2/PROVENANCE.txt',
+            'runtime/webview2/SHA256SUMS.txt',
+            'runtime/webview2/version.txt',
             'data'
           )
           foreach ($relative in $required) {
