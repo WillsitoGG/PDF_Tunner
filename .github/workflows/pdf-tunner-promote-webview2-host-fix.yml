@@ -1,4 +1,4 @@
-name: PDF_Tunner Promote WebView2 Validator Fix
+name: PDF_Tunner Materialize WebView2 Primary Promotion
 
 on:
   push:
@@ -19,12 +19,19 @@ jobs:
           path: helper
           fetch-depth: 1
 
-      - name: Checkout exact staging branch
+      - name: Checkout exact primary branch
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          ref: pdf-tunner/windows-portable-v1
+          path: primary
+          fetch-depth: 0
+
+      - name: Checkout accepted staging branch
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           ref: pdf-tunner/webview2-fixed-v151-final-stage
           path: staging
           fetch-depth: 0
 
-      - name: Materialize validated staging patch as ordinary blobs
-        run: python helper/.github/scripts/materialize-webview2-live-patch.py staging
+      - name: Materialize accepted permanent WebView2 promotion as ordinary blobs
+        run: python helper/.github/scripts/materialize-webview2-primary-promotion.py primary staging
