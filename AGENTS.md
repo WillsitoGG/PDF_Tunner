@@ -442,3 +442,10 @@ Unless a PDF_Tunner rule above overrides them:
 - Run `32965658540` proves the exact pinned CAB path, SHA-256, extraction/normalization, static runtime validator and bundled Java all pass in the full heavy staging job; do not regress those accepted gates while diagnosing live launch.
 - Its sole failure is the real packaged launch/runtime-selection gate. Until that failure is diagnosed, do not promote WebView2 to the primary workflow.
 - Staging failure diagnostics must persist the PowerShell exception and script stack trace, `portable-bootstrap-error.log` when present, runtime ACL/metadata, portable log tails and relevant PDF_Tunner/Java/WebView2 process paths/command lines into the short-lived `PDF_Tunner-webview2-live-diagnostics` artifact. Never publish that diagnostic artifact as a Release asset.
+
+
+### Fixed WebView2 ACL validator correction after Run `32969103123`
+
+- The Run `32969103123` diagnostic artifact is accepted evidence that the live package selected `runtime\webview2\fixed\msedgewebview2.exe` version `151.0.4129.101`, used `data\webview2\EBWebView`, and launched Java from the package-local JRE. Treat that run's step-15 failure as an ACL-validator false negative, not as WebView2 Evergreen/system fallback.
+- For AppContainer ACL validation, obtain rules directly with `GetAccessRules(..., [SecurityIdentifier])`; do not translate each `NTAccount` returned by `Get-Acl.Access` back to a SID, because the AppContainer identities can fail that reverse translation even when the ACE exists.
+- Continue requiring explicit semantic evidence for both `S-1-15-2-1` and `S-1-15-2-2`: Allow, ReadAndExecute, ObjectInherit and ContainerInherit. Do not weaken the Windows 10 Fixed Runtime ACL requirement merely to make staging green.

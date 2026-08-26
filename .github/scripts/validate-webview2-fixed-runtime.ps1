@@ -94,25 +94,23 @@ if ($forbiddenPayloads.Count -gt 0) {
 if ($RequireLiveProcess) {
   $expectedSids = @('S-1-15-2-1', 'S-1-15-2-2')
   $acl = Get-Acl -LiteralPath $fixedRoot
+  $sidRules = @($acl.GetAccessRules($true, $true, [System.Security.Principal.SecurityIdentifier]))
+  $requiredInheritance = [System.Security.AccessControl.InheritanceFlags]::ObjectInherit -bor [System.Security.AccessControl.InheritanceFlags]::ContainerInherit
   foreach ($sid in $expectedSids) {
     $matched = $false
-    foreach ($rule in $acl.Access) {
-      try {
-        $ruleSid = $rule.IdentityReference.Translate([System.Security.Principal.SecurityIdentifier]).Value
-      }
-      catch {
-        continue
-      }
+    foreach ($rule in $sidRules) {
+      $ruleSid = $rule.IdentityReference.Value
       $hasReadExecute = (($rule.FileSystemRights -band [System.Security.AccessControl.FileSystemRights]::ReadAndExecute) -eq [System.Security.AccessControl.FileSystemRights]::ReadAndExecute)
-      if ($ruleSid -eq $sid -and $rule.AccessControlType -eq [System.Security.AccessControl.AccessControlType]::Allow -and $hasReadExecute) {
+      $hasRequiredInheritance = (($rule.InheritanceFlags -band $requiredInheritance) -eq $requiredInheritance)
+      if ($ruleSid -eq $sid -and $rule.AccessControlType -eq [System.Security.AccessControl.AccessControlType]::Allow -and $hasReadExecute -and $hasRequiredInheritance) {
         $matched = $true
         break
       }
     }
     if (-not $matched) {
-      Write-Host 'Current Fixed Runtime ACL:'
-      $acl.Access | Format-Table IdentityReference, FileSystemRights, AccessControlType, IsInherited -AutoSize
-      throw "Fixed WebView2 Runtime is missing an Allow ReadAndExecute ACE for $sid."
+      Write-Host 'Current Fixed Runtime ACL (SID-native rules):'
+      $sidRules | Format-Table IdentityReference, FileSystemRights, AccessControlType, InheritanceFlags, IsInherited -AutoSize
+      throw "Fixed WebView2 Runtime is missing an inheritable Allow ReadAndExecute ACE for $sid."
     }
   }
 
