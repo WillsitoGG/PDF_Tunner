@@ -26,5 +26,5 @@ jobs:
           path: staging
           fetch-depth: 0
 
-      - name: Promote validated correction atomically
-        run: python helper/.github/scripts/promote-webview2-validator-fix.py staging
+      - name: Materialize validated staging patch as ordinary blobs
+        run: python helper/.github/scripts/materialize-webview2-live-patch.py staging
