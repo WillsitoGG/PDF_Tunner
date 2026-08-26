@@ -423,3 +423,9 @@ Unless a PDF_Tunner rule above overrides them:
 - Full assembled-package staging validation remains the acceptance gate; do not promote this layer solely from the independent CAB verification.
 - Heavy staging Run `32856599354` passed upstream-base verification, toolchain setup, `task desktop:prepare`, official Tauri/Cargo tests, production Tauri build and portable assembly. It downloaded the pinned official CAB, matched SHA-256 `c386640d35f7a4604d088925a9bb01938400297f6da6fe985b72614daba87cda` and expanded all 257 files, then failed only because the extracted-tree validator misclassified legitimate `.padata/PA30` directories as delta-package evidence.
 - Removed that extracted-tree-name heuristic. Retain URL-level delta guarding plus exact official filename, mandatory pinned SHA-256, required `msedgewebview2.exe` and expected ProductVersion as the authoritative integrity/completeness checks.
+
+### Fixed WebView2 Host-variable diagnostic
+
+- Heavy staging Run `32869759206` failed in `.github/scripts/prepare-webview2-fixed-runtime.ps1` because PowerShell variable names are case-insensitive and `$host` attempted to overwrite the read-only automatic `$Host` variable.
+- Isolated Run `32963542914` captured the exact exception at script line 44. The correct localized fix is `$host` -> `$cdnHost` in the URL-host validation/provenance path; do not weaken CDN, SHA-256, filename, version or PA30/PA19 URL guards.
+- Diagnostic Run `32963742853` passed the exact staging preparation step after that rename, including pinned Microsoft CAB URL, SHA-256, extraction, normalized runtime and ProductVersion checks. Artifact `9604883271` contains `RESULT=PASS`.

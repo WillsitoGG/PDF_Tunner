@@ -184,3 +184,7 @@ To keep future Stirling updates manageable:
 **Every PDF_Tunner-specific repository change must update both `README.md` and `AGENTS.md` in the same commit.** They are the permanent record of architecture, dependencies, build, packaging, portability, validation, releases and tuning history.
 
 For upstream build/development details, use the existing `DeveloperGuide.md`, `frontend/editor/DeveloperGuide.md`, `ADDING_TOOLS.md` and the source itself.
+
+### WebView2 staging blocker resolved — Run `32963742853`
+
+Heavy staging Run `32869759206` failed in `prepare-webview2-fixed-runtime.ps1` before the Microsoft CAB download because the local variable `$host` collided with PowerShell's case-insensitive, read-only automatic `$Host` variable. Isolated diagnostic Run `32963542914` reproduced the exact step and captured `SessionStateUnauthorizedAccessException: Cannot overwrite variable Host because it is read-only or constant` at line 44. The preparation script now uses `$cdnHost` for the validated Microsoft CDN hostname. Diagnostic Run `32963742853` then passed the same pinned URL, SHA-256, CAB extraction, normalization and ProductVersion checks; artifact `9604883271` records `RESULT=PASS`.
