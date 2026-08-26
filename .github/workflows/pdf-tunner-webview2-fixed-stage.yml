@@ -142,6 +142,30 @@ jobs:
           $process = Start-Process -FilePath $exe -WorkingDirectory $portable -PassThru
           Write-Host "Started PDF_Tunner PID $($process.Id)"
 
+          $diagnostics = Join-Path $PWD 'dist/webview2-live-diagnostics'
+          New-Item -ItemType Directory -Force -Path $diagnostics | Out-Null
+          $runtimeRoot = Join-Path $portable 'runtime/webview2/fixed'
+          $runtimeExe = Join-Path $runtimeRoot 'msedgewebview2.exe'
+          @(
+            "PortableRoot=$portable",
+            "PDF_Tunner_PID=$($process.Id)",
+            "RuntimeRoot=$runtimeRoot",
+            "RuntimeExe=$runtimeExe",
+            "RuntimeProductVersion=$((Get-Item -LiteralPath $runtimeExe).VersionInfo.ProductVersion)"
+          ) | Set-Content -LiteralPath (Join-Path $diagnostics 'launch-context.txt') -Encoding utf8
+          foreach ($metadata in @('PROVENANCE.txt', 'version.txt', 'SHA256SUMS.txt')) {
+            $source = Join-Path $portable "runtime/webview2/$metadata"
+            if (Test-Path -LiteralPath $source -PathType Leaf) {
+              Copy-Item -LiteralPath $source -Destination (Join-Path $diagnostics $metadata) -Force
+            }
+          }
+          (& icacls.exe $runtimeRoot 2>&1) | Out-String -Width 4096 |
+            Set-Content -LiteralPath (Join-Path $diagnostics 'runtime-icacls-before-launch.txt') -Encoding utf8
+          (Get-Acl -LiteralPath $runtimeRoot).Access |
+            Format-Table IdentityReference, FileSystemRights, AccessControlType, IsInherited -AutoSize |
+            Out-String -Width 4096 |
+            Set-Content -LiteralPath (Join-Path $diagnostics 'runtime-acl-before-launch.txt') -Encoding utf8
+
           try {
             $deadline = (Get-Date).AddSeconds(150)
             $port = $null
@@ -181,6 +205,44 @@ jobs:
               -RequireLiveProcess
 
             if ($LASTEXITCODE -ne 0) { throw 'Fixed WebView2 live validation failed.' }
+          }
+          catch {
+            $caught = $_
+            $caught | Format-List * -Force | Out-String -Width 4096 |
+              Set-Content -LiteralPath (Join-Path $diagnostics 'exception.txt') -Encoding utf8
+            $caught.ScriptStackTrace |
+              Set-Content -LiteralPath (Join-Path $diagnostics 'script-stack-trace.txt') -Encoding utf8
+            if ($Error.Count -gt 0) {
+              $Error[0] | Format-List * -Force | Out-String -Width 4096 |
+                Set-Content -LiteralPath (Join-Path $diagnostics 'error-zero.txt') -Encoding utf8
+            }
+            try {
+              $process.Refresh()
+              @(
+                "HasExited=$($process.HasExited)",
+                $(if ($process.HasExited) { "ExitCode=$($process.ExitCode)" } else { 'ExitCode=<running>' })
+              ) | Set-Content -LiteralPath (Join-Path $diagnostics 'pdf-tunner-process-state.txt') -Encoding utf8
+            }
+            catch {
+              $_ | Format-List * -Force | Out-String -Width 4096 |
+                Set-Content -LiteralPath (Join-Path $diagnostics 'process-state-capture-error.txt') -Encoding utf8
+            }
+            $bootstrapError = Join-Path $portable 'data/logs/portable-bootstrap-error.log'
+            if (Test-Path -LiteralPath $bootstrapError -PathType Leaf) {
+              Copy-Item -LiteralPath $bootstrapError -Destination (Join-Path $diagnostics 'portable-bootstrap-error.log') -Force
+            }
+            $logTails = Join-Path $diagnostics 'portable-log-tails.txt'
+            foreach ($log in @(Get-ChildItem -LiteralPath (Join-Path $portable 'data') -Recurse -File -Filter '*.log' -ErrorAction SilentlyContinue)) {
+              Add-Content -LiteralPath $logTails -Encoding utf8 -Value "=== $($log.FullName) ==="
+              Get-Content -LiteralPath $log.FullName -Tail 300 -ErrorAction SilentlyContinue |
+                Add-Content -LiteralPath $logTails -Encoding utf8
+            }
+            Get-CimInstance Win32_Process |
+              Where-Object { $_.Name -match 'PDF_Tunner|java|msedgewebview2' -or ($_.CommandLine -and $_.CommandLine -match 'PDF_Tunner|Stirling|webview2') } |
+              Select-Object ProcessId, ParentProcessId, Name, ExecutablePath, CommandLine |
+              Format-List | Out-String -Width 4096 |
+              Set-Content -LiteralPath (Join-Path $diagnostics 'processes-at-exception.txt') -Encoding utf8
+            throw
           }
           finally {
             $process.Refresh()
@@ -232,14 +294,67 @@ jobs:
         shell: pwsh
         run: |
           $portable = Join-Path $PWD 'dist/PDF_Tunner'
+          $diagnostics = Join-Path $PWD 'dist/webview2-live-diagnostics'
+          New-Item -ItemType Directory -Force -Path $diagnostics | Out-Null
+
           $provenance = Join-Path $portable 'runtime/webview2/PROVENANCE.txt'
-          if (Test-Path -LiteralPath $provenance) {
+          if (Test-Path -LiteralPath $provenance -PathType Leaf) {
             Write-Host '=== Fixed WebView2 provenance ==='
             Get-Content -LiteralPath $provenance
+            Copy-Item -LiteralPath $provenance -Destination (Join-Path $diagnostics 'PROVENANCE.txt') -Force
           }
+          foreach ($metadata in @('version.txt', 'SHA256SUMS.txt')) {
+            $source = Join-Path $portable "runtime/webview2/$metadata"
+            if (Test-Path -LiteralPath $source -PathType Leaf) {
+              Copy-Item -LiteralPath $source -Destination (Join-Path $diagnostics $metadata) -Force
+            }
+          }
+
+          $runtimeRoot = Join-Path $portable 'runtime/webview2/fixed'
+          if (Test-Path -LiteralPath $runtimeRoot -PathType Container) {
+            (& icacls.exe $runtimeRoot 2>&1) | Out-String -Width 4096 |
+              Set-Content -LiteralPath (Join-Path $diagnostics 'runtime-icacls-after-failure.txt') -Encoding utf8
+            (Get-Acl -LiteralPath $runtimeRoot).Access |
+              Format-Table IdentityReference, FileSystemRights, AccessControlType, IsInherited -AutoSize |
+              Out-String -Width 4096 |
+              Set-Content -LiteralPath (Join-Path $diagnostics 'runtime-acl-after-failure.txt') -Encoding utf8
+          }
+
+          $bootstrapError = Join-Path $portable 'data/logs/portable-bootstrap-error.log'
+          if (Test-Path -LiteralPath $bootstrapError -PathType Leaf) {
+            Copy-Item -LiteralPath $bootstrapError -Destination (Join-Path $diagnostics 'portable-bootstrap-error.log') -Force
+          }
+
+          $logTails = Join-Path $diagnostics 'portable-log-tails-after-failure.txt'
+          foreach ($log in @(Get-ChildItem -LiteralPath (Join-Path $portable 'data') -Recurse -File -Filter '*.log' -ErrorAction SilentlyContinue)) {
+            Add-Content -LiteralPath $logTails -Encoding utf8 -Value "=== $($log.FullName) ==="
+            Get-Content -LiteralPath $log.FullName -Tail 300 -ErrorAction SilentlyContinue |
+              Add-Content -LiteralPath $logTails -Encoding utf8
+          }
+
           if (Test-Path -LiteralPath (Join-Path $portable 'data')) {
             Write-Host '=== Portable data/log tree ==='
-            Get-ChildItem -LiteralPath (Join-Path $portable 'data') -Recurse -Force -ErrorAction SilentlyContinue | Select-Object FullName, Length, LastWriteTime | Format-Table -AutoSize
+            $dataTree = Get-ChildItem -LiteralPath (Join-Path $portable 'data') -Recurse -Force -ErrorAction SilentlyContinue |
+              Select-Object FullName, Length, LastWriteTime
+            $dataTree | Format-Table -AutoSize
+            $dataTree | Format-Table -AutoSize | Out-String -Width 4096 |
+              Set-Content -LiteralPath (Join-Path $diagnostics 'portable-data-tree.txt') -Encoding utf8
           }
+
           Write-Host '=== Relevant processes ==='
-          Get-CimInstance Win32_Process | Where-Object { $_.Name -match 'PDF_Tunner|java|msedgewebview2' -or ($_.CommandLine -and $_.CommandLine -match 'PDF_Tunner|Stirling|webview2') } | Select-Object ProcessId, ParentProcessId, Name, ExecutablePath, CommandLine | Format-List
+          $processes = Get-CimInstance Win32_Process |
+            Where-Object { $_.Name -match 'PDF_Tunner|java|msedgewebview2' -or ($_.CommandLine -and $_.CommandLine -match 'PDF_Tunner|Stirling|webview2') } |
+            Select-Object ProcessId, ParentProcessId, Name, ExecutablePath, CommandLine
+          $processes | Format-List
+          $processes | Format-List | Out-String -Width 4096 |
+            Set-Content -LiteralPath (Join-Path $diagnostics 'processes-after-failure.txt') -Encoding utf8
+
+      - name: Upload Fixed WebView2 live diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v7.0.1
+        with:
+          name: PDF_Tunner-webview2-live-diagnostics
+          path: dist/webview2-live-diagnostics
+          if-no-files-found: error
+          include-hidden-files: true
+          retention-days: 7

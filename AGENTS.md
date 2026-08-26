@@ -435,3 +435,10 @@ Unless a PDF_Tunner rule above overrides them:
 
 - Do not reintroduce a `Selector=https://developer.microsoft.com/...` requirement: historical Fixed Runtime `151.0.4129.101` is pinned by exact Microsoft CDN CAB URL and mandatory SHA-256, not resolved from the mutable live selector page.
 - Static validation must retain version, architecture, approved CDN host, exact CAB filename via `SHA256SUMS.txt`, provenance/SHA agreement, pinned SHA, runtime completeness and absence of installer/archive payloads. Live validation additionally proves ACLs, package-local Fixed Runtime process selection and `data/webview2` use.
+
+
+### Fixed WebView2 live-launch evidence after Run `32965658540`
+
+- Run `32965658540` proves the exact pinned CAB path, SHA-256, extraction/normalization, static runtime validator and bundled Java all pass in the full heavy staging job; do not regress those accepted gates while diagnosing live launch.
+- Its sole failure is the real packaged launch/runtime-selection gate. Until that failure is diagnosed, do not promote WebView2 to the primary workflow.
+- Staging failure diagnostics must persist the PowerShell exception and script stack trace, `portable-bootstrap-error.log` when present, runtime ACL/metadata, portable log tails and relevant PDF_Tunner/Java/WebView2 process paths/command lines into the short-lived `PDF_Tunner-webview2-live-diagnostics` artifact. Never publish that diagnostic artifact as a Release asset.

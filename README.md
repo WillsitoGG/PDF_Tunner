@@ -193,3 +193,8 @@ Heavy staging Run `32869759206` failed in `prepare-webview2-fixed-runtime.ps1` b
 ### WebView2 provenance validator aligned with pinned CAB
 
 The Fixed Runtime preparation path no longer uses the mutable Microsoft developer-page selector; it pins the exact official Microsoft CDN CAB instead. The validator therefore no longer requires the obsolete `Selector=...` provenance line. It continues to require exact version/architecture metadata, an approved Microsoft CDN host, SHA-256 provenance/SHA agreement, the expected CAB filename, runtime completeness and live package-local runtime/profile evidence.
+
+
+### WebView2 live-launch diagnostic — staging Run `32965658540`
+
+Staging Run `32965658540` passed the pinned upstream check, official desktop preparation, Tauri/Cargo tests, production executable build, portable assembly, exact Microsoft Fixed WebView2 CAB download/SHA-256/extraction/normalization, static Fixed Runtime validation and bundled Java 25 validation. Its only failure was the subsequent real-launch gate (`Validate real launch uses package-local Fixed WebView2 and backend`). Because that staging workflow only printed failure diagnostics to the Actions console, the next diagnostic revision persists the live-launch exception/stack trace, bootstrap-error log when present, runtime ACL/metadata, portable log tails and relevant process command lines into a short-lived `PDF_Tunner-webview2-live-diagnostics` Actions artifact. This diagnostic artifact is evidence only and must not become a Release asset.
