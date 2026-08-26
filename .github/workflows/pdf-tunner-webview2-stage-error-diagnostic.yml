@@ -1,0 +1,78 @@
+name: PDF_Tunner WebView2 Stage Error Diagnostic
+
+on:
+  push:
+    branches:
+      - pdf-tunner/webview2-fixed-v151-error-diagnostic
+
+permissions:
+  contents: read
+
+jobs:
+  diagnose-webview2-stage:
+    runs-on: windows-latest
+    env:
+      PDF_TUNNER_WEBVIEW2_FIXED_VERSION: "151.0.4129.101"
+      PDF_TUNNER_WEBVIEW2_FIXED_ARCH: "x64"
+      PDF_TUNNER_WEBVIEW2_FIXED_URL: "https://msedge.sf.dl.delivery.mp.microsoft.com/filestreamingservice/files/d480b710-fe1e-4e4d-ae99-5b62e6391fd3/Microsoft.WebView2.FixedVersionRuntime.151.0.4129.101.x64.cab"
+      PDF_TUNNER_WEBVIEW2_FIXED_SHA256: "c386640d35f7a4604d088925a9bb01938400297f6da6fe985b72614daba87cda"
+
+    steps:
+      - name: Checkout exact diagnostic candidate
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Reproduce staging step and capture full PowerShell error
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $portable = Join-Path $PWD 'dist/PDF_Tunner'
+          New-Item -ItemType Directory -Force -Path $portable | Out-Null
+          $diag = Join-Path $env:RUNNER_TEMP 'webview2-stage-error.txt'
+          Remove-Item -LiteralPath $diag -Force -ErrorAction SilentlyContinue
+
+          try {
+            & './.github/scripts/prepare-webview2-fixed-runtime.ps1' `
+              -PortableRoot $portable `
+              -Version $env:PDF_TUNNER_WEBVIEW2_FIXED_VERSION `
+              -Architecture $env:PDF_TUNNER_WEBVIEW2_FIXED_ARCH `
+              -DownloadUrl $env:PDF_TUNNER_WEBVIEW2_FIXED_URL `
+              -ExpectedSha256 $env:PDF_TUNNER_WEBVIEW2_FIXED_SHA256
+
+            @(
+              'RESULT=PASS',
+              "LASTEXITCODE=$LASTEXITCODE"
+            ) | Set-Content -LiteralPath $diag -Encoding utf8
+          }
+          catch {
+            @(
+              'RESULT=FAIL',
+              "MESSAGE=$($_.Exception.Message)",
+              "EXCEPTION_TYPE=$($_.Exception.GetType().FullName)",
+              "SCRIPT_STACK_TRACE=$($_.ScriptStackTrace)",
+              "POSITION_MESSAGE=$($_.InvocationInfo.PositionMessage)",
+              "LINE=$($_.InvocationInfo.ScriptLineNumber)",
+              "OFFSET=$($_.InvocationInfo.OffsetInLine)"
+            ) | Set-Content -LiteralPath $diag -Encoding utf8
+
+            '=== ERROR RECORD ===' | Add-Content -LiteralPath $diag
+            ($_ | Format-List * -Force | Out-String -Width 4096) | Add-Content -LiteralPath $diag
+            '=== EXCEPTION ===' | Add-Content -LiteralPath $diag
+            ($_.Exception | Format-List * -Force | Out-String -Width 4096) | Add-Content -LiteralPath $diag
+            '=== INVOCATION INFO ===' | Add-Content -LiteralPath $diag
+            ($_.InvocationInfo | Format-List * -Force | Out-String -Width 4096) | Add-Content -LiteralPath $diag
+            '=== STAGED TREE ===' | Add-Content -LiteralPath $diag
+            (Get-ChildItem -LiteralPath $portable -Recurse -Force -ErrorAction SilentlyContinue | Select-Object FullName, Length, Attributes | Format-Table -AutoSize | Out-String -Width 4096) | Add-Content -LiteralPath $diag
+
+            Write-Host '=== CAPTURED DIAGNOSTIC ==='
+            Get-Content -LiteralPath $diag
+            exit 1
+          }
+
+      - name: Upload WebView2 staging diagnostic
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: webview2-stage-error-diagnostic
+          path: ${{ runner.temp }}/webview2-stage-error.txt
+          if-no-files-found: error
+          retention-days: 7
