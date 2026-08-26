@@ -42,26 +42,28 @@ jobs:
           if ($readme.Contains($readmeMarker)) {
             throw 'README diagnostic-resolution note already exists unexpectedly.'
           }
-          Add-Content -LiteralPath 'README.md' -Encoding utf8 -Value @'
-
-### WebView2 staging blocker resolved — Run `32963742853`
-
-Heavy staging Run `32869759206` failed in `prepare-webview2-fixed-runtime.ps1` before the Microsoft CAB download because the local variable `$host` collided with PowerShell's case-insensitive, read-only automatic `$Host` variable. Isolated diagnostic Run `32963542914` reproduced the exact step and captured `SessionStateUnauthorizedAccessException: Cannot overwrite variable Host because it is read-only or constant` at line 44. The preparation script now uses `$cdnHost` for the validated Microsoft CDN hostname. Diagnostic Run `32963742853` then passed the same pinned URL, SHA-256, CAB extraction, normalization and ProductVersion checks; artifact `9604883271` records `RESULT=PASS`.
-'@
+          $readmeNote = @(
+            ''
+            '### WebView2 staging blocker resolved — Run `32963742853`'
+            ''
+            'Heavy staging Run `32869759206` failed in `prepare-webview2-fixed-runtime.ps1` before the Microsoft CAB download because the local variable `$host` collided with PowerShell''s case-insensitive, read-only automatic `$Host` variable. Isolated diagnostic Run `32963542914` reproduced the exact step and captured `SessionStateUnauthorizedAccessException: Cannot overwrite variable Host because it is read-only or constant` at line 44. The preparation script now uses `$cdnHost` for the validated Microsoft CDN hostname. Diagnostic Run `32963742853` then passed the same pinned URL, SHA-256, CAB extraction, normalization and ProductVersion checks; artifact `9604883271` records `RESULT=PASS`.'
+          )
+          Add-Content -LiteralPath 'README.md' -Encoding utf8 -Value $readmeNote
 
           $agentsMarker = '### Fixed WebView2 Host-variable diagnostic'
           $agents = Get-Content -LiteralPath 'AGENTS.md' -Raw
           if ($agents.Contains($agentsMarker)) {
             throw 'AGENTS diagnostic-resolution note already exists unexpectedly.'
           }
-          Add-Content -LiteralPath 'AGENTS.md' -Encoding utf8 -Value @'
-
-### Fixed WebView2 Host-variable diagnostic
-
-- Heavy staging Run `32869759206` failed in `.github/scripts/prepare-webview2-fixed-runtime.ps1` because PowerShell variable names are case-insensitive and `$host` attempted to overwrite the read-only automatic `$Host` variable.
-- Isolated Run `32963542914` captured the exact exception at script line 44. The correct localized fix is `$host` -> `$cdnHost` in the URL-host validation/provenance path; do not weaken CDN, SHA-256, filename, version or PA30/PA19 URL guards.
-- Diagnostic Run `32963742853` passed the exact staging preparation step after that rename, including pinned Microsoft CAB URL, SHA-256, extraction, normalized runtime and ProductVersion checks. Artifact `9604883271` contains `RESULT=PASS`.
-'@
+          $agentsNote = @(
+            ''
+            '### Fixed WebView2 Host-variable diagnostic'
+            ''
+            '- Heavy staging Run `32869759206` failed in `.github/scripts/prepare-webview2-fixed-runtime.ps1` because PowerShell variable names are case-insensitive and `$host` attempted to overwrite the read-only automatic `$Host` variable.'
+            '- Isolated Run `32963542914` captured the exact exception at script line 44. The correct localized fix is `$host` -> `$cdnHost` in the URL-host validation/provenance path; do not weaken CDN, SHA-256, filename, version or PA30/PA19 URL guards.'
+            '- Diagnostic Run `32963742853` passed the exact staging preparation step after that rename, including pinned Microsoft CAB URL, SHA-256, extraction, normalized runtime and ProductVersion checks. Artifact `9604883271` contains `RESULT=PASS`.'
+          )
+          Add-Content -LiteralPath 'AGENTS.md' -Encoding utf8 -Value $agentsNote
 
           & git diff --check
           if ($LASTEXITCODE -ne 0) { throw 'git diff --check failed.' }
