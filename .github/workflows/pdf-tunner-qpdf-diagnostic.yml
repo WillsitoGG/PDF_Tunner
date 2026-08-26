@@ -23,67 +23,70 @@ jobs:
       - name: Checkout fork
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
-      - name: Download and verify official qpdf MSVC64 ZIP
+      - name: Prepare normalized package-local qpdf tree
         shell: pwsh
         run: |
-          $ErrorActionPreference = 'Stop'
-          $zip = Join-Path $env:RUNNER_TEMP 'qpdf.zip'
-          $root = Join-Path $env:RUNNER_TEMP 'qpdf-expanded'
-          Remove-Item -LiteralPath $root -Recurse -Force -ErrorAction SilentlyContinue
-          Invoke-WebRequest -Uri $env:QPDF_URL -OutFile $zip -UseBasicParsing -MaximumRedirection 10 -TimeoutSec 600
-          $hash = (Get-FileHash -LiteralPath $zip -Algorithm SHA256).Hash.ToLowerInvariant()
-          if ($hash -ne $env:QPDF_SHA256) { throw "qpdf ZIP SHA mismatch: $hash" }
-          Expand-Archive -LiteralPath $zip -DestinationPath $root -Force
-          $exe = Get-ChildItem -LiteralPath $root -Recurse -File -Filter 'qpdf.exe' | Select-Object -First 1
-          if (-not $exe) { throw 'qpdf.exe not found in official MSVC64 ZIP.' }
-          $versionOutput = (& $exe.FullName --version 2>&1 | Out-String).Trim()
-          if ($LASTEXITCODE -ne 0) { throw "qpdf --version failed: $versionOutput" }
-          if ($versionOutput -notmatch '12\.4\.0') { throw "Unexpected qpdf version output: $versionOutput" }
+          New-Item -ItemType Directory -Force -Path './dist/PDF_Tunner' | Out-Null
+          & './.github/scripts/prepare-qpdf-portable.ps1' `
+            -PortableRoot './dist/PDF_Tunner' `
+            -Version $env:QPDF_VERSION `
+            -DownloadUrl $env:QPDF_URL `
+            -ExpectedSha256 $env:QPDF_SHA256
 
-          $bin = $exe.Directory.FullName
-          $files = @(Get-ChildItem -LiteralPath $root -Recurse -File)
-          $dlls = @(Get-ChildItem -LiteralPath $bin -File -Filter '*.dll' -ErrorAction SilentlyContinue)
-          $diag = Join-Path $PWD 'qpdf-diagnostic.txt'
+      - name: Validate normalized qpdf tree and Stirling-style PATH discovery
+        shell: pwsh
+        run: |
+          & './.github/scripts/validate-qpdf-portable.ps1' `
+            -PortableRoot './dist/PDF_Tunner' `
+            -Version $env:QPDF_VERSION `
+            -ExpectedZipSha256 $env:QPDF_SHA256 `
+            -RequirePathDiscovery
+
+      - name: Run package-local qpdf representative PDF operation
+        shell: pwsh
+        run: |
+          $qpdf = Resolve-Path './dist/PDF_Tunner/tools/qpdf/bin/qpdf.exe'
+          $work = Join-Path $PWD 'dist/qpdf-operation'
+          New-Item -ItemType Directory -Force -Path $work | Out-Null
+          $input = Join-Path $work 'empty-input.pdf'
+          $output = Join-Path $work 'rewritten-output.pdf'
+
+          & $qpdf --empty $input
+          if ($LASTEXITCODE -ne 0 -or -not (Test-Path -LiteralPath $input -PathType Leaf)) {
+            throw 'Package-local qpdf failed to create a valid empty PDF.'
+          }
+          & $qpdf --check $input
+          if ($LASTEXITCODE -ne 0) { throw 'Package-local qpdf --check failed for generated input.' }
+          & $qpdf $input $output
+          if ($LASTEXITCODE -ne 0 -or -not (Test-Path -LiteralPath $output -PathType Leaf)) {
+            throw 'Package-local qpdf failed representative PDF rewrite.'
+          }
+          & $qpdf --check $output
+          if ($LASTEXITCODE -ne 0) { throw 'Package-local qpdf --check failed for rewritten output.' }
+
+          $provenance = Get-Content './dist/PDF_Tunner/tools/qpdf/PROVENANCE.txt' -Raw
           @(
             'RESULT=PASS',
             "VERSION=$env:QPDF_VERSION",
             "SOURCE_URL=$env:QPDF_URL",
-            "SHA256=$hash",
-            "QPDF_EXE=$($exe.FullName)",
-            "QPDF_BIN=$bin",
-            "VERSION_OUTPUT=$versionOutput",
-            "EXPANDED_FILES=$($files.Count)",
-            "BIN_DLLS=$($dlls.Count)"
-          ) | Set-Content -LiteralPath $diag -Encoding utf8
-          Write-Host (Get-Content -LiteralPath $diag -Raw)
-          Write-Host 'qpdf bin contents:'
-          Get-ChildItem -LiteralPath $bin -Force | Select-Object Name, Length | Format-Table -AutoSize
-
-      - name: Prove PATH-based discovery matches Stirling dependency check
-        shell: pwsh
-        run: |
-          $root = Join-Path $env:RUNNER_TEMP 'qpdf-expanded'
-          $exe = Get-ChildItem -LiteralPath $root -Recurse -File -Filter 'qpdf.exe' | Select-Object -First 1
-          $env:PATH = "$($exe.Directory.FullName);$env:PATH"
-          $resolved = (& where.exe qpdf 2>&1 | Out-String).Trim()
-          if ($LASTEXITCODE -ne 0) { throw "where qpdf failed: $resolved" }
-          $first = ($resolved -split "`r?`n")[0].Trim()
-          if (-not $first.StartsWith($exe.Directory.FullName, [System.StringComparison]::OrdinalIgnoreCase)) {
-            throw "PATH resolved qpdf outside package candidate: $first"
-          }
-          $version = (& qpdf --version 2>&1 | Out-String).Trim()
-          if ($LASTEXITCODE -ne 0 -or $version -notmatch '12\.4\.0') { throw "PATH qpdf validation failed: $version" }
-          Add-Content -LiteralPath './qpdf-diagnostic.txt' -Encoding utf8 -Value @(
-            "WHERE_QPDF=$first",
-            "PATH_VERSION_OUTPUT=$version",
-            'PATH_DISCOVERY=PASS'
-          )
+            "SHA256=$env:QPDF_SHA256",
+            "QPDF_EXE=$qpdf",
+            "INPUT_BYTES=$((Get-Item -LiteralPath $input).Length)",
+            "OUTPUT_BYTES=$((Get-Item -LiteralPath $output).Length)",
+            'PATH_DISCOVERY=PASS',
+            'REPRESENTATIVE_REWRITE=PASS',
+            '',
+            '=== PROVENANCE ===',
+            $provenance.Trim()
+          ) | Set-Content -LiteralPath './qpdf-diagnostic.txt' -Encoding utf8
 
       - name: Upload qpdf diagnostic evidence
         if: always()
         uses: actions/upload-artifact@v7.0.1
         with:
           name: PDF_Tunner-qpdf-12.4.0-diagnostic
-          path: qpdf-diagnostic.txt
+          path: |
+            qpdf-diagnostic.txt
+            dist/qpdf-operation/*.pdf
           if-no-files-found: error
           retention-days: 7
