@@ -1,0 +1,89 @@
+name: PDF_Tunner qpdf 12.4.0 Diagnostic
+
+on:
+  push:
+    branches:
+      - pdf-tunner/qpdf-12.4.0-diagnostic
+
+concurrency:
+  group: pdf-tunner-qpdf-diagnostic
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  verify-qpdf:
+    runs-on: windows-latest
+    env:
+      QPDF_VERSION: "12.4.0"
+      QPDF_URL: "https://github.com/qpdf/qpdf/releases/download/v12.4.0/qpdf-12.4.0-msvc64.zip"
+      QPDF_SHA256: "5bcb25353f7e6df92b5625dbcfe52a5c34a2a5fba2d1a8b98b8a6a0972c3ff72"
+    steps:
+      - name: Checkout fork
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Download and verify official qpdf MSVC64 ZIP
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $zip = Join-Path $env:RUNNER_TEMP 'qpdf.zip'
+          $root = Join-Path $env:RUNNER_TEMP 'qpdf-expanded'
+          Remove-Item -LiteralPath $root -Recurse -Force -ErrorAction SilentlyContinue
+          Invoke-WebRequest -Uri $env:QPDF_URL -OutFile $zip -UseBasicParsing -MaximumRedirection 10 -TimeoutSec 600
+          $hash = (Get-FileHash -LiteralPath $zip -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($hash -ne $env:QPDF_SHA256) { throw "qpdf ZIP SHA mismatch: $hash" }
+          Expand-Archive -LiteralPath $zip -DestinationPath $root -Force
+          $exe = Get-ChildItem -LiteralPath $root -Recurse -File -Filter 'qpdf.exe' | Select-Object -First 1
+          if (-not $exe) { throw 'qpdf.exe not found in official MSVC64 ZIP.' }
+          $versionOutput = (& $exe.FullName --version 2>&1 | Out-String).Trim()
+          if ($LASTEXITCODE -ne 0) { throw "qpdf --version failed: $versionOutput" }
+          if ($versionOutput -notmatch '12\.4\.0') { throw "Unexpected qpdf version output: $versionOutput" }
+
+          $bin = $exe.Directory.FullName
+          $files = @(Get-ChildItem -LiteralPath $root -Recurse -File)
+          $dlls = @(Get-ChildItem -LiteralPath $bin -File -Filter '*.dll' -ErrorAction SilentlyContinue)
+          $diag = Join-Path $PWD 'qpdf-diagnostic.txt'
+          @(
+            'RESULT=PASS',
+            "VERSION=$env:QPDF_VERSION",
+            "SOURCE_URL=$env:QPDF_URL",
+            "SHA256=$hash",
+            "QPDF_EXE=$($exe.FullName)",
+            "QPDF_BIN=$bin",
+            "VERSION_OUTPUT=$versionOutput",
+            "EXPANDED_FILES=$($files.Count)",
+            "BIN_DLLS=$($dlls.Count)"
+          ) | Set-Content -LiteralPath $diag -Encoding utf8
+          Write-Host (Get-Content -LiteralPath $diag -Raw)
+          Write-Host 'qpdf bin contents:'
+          Get-ChildItem -LiteralPath $bin -Force | Select-Object Name, Length | Format-Table -AutoSize
+
+      - name: Prove PATH-based discovery matches Stirling dependency check
+        shell: pwsh
+        run: |
+          $root = Join-Path $env:RUNNER_TEMP 'qpdf-expanded'
+          $exe = Get-ChildItem -LiteralPath $root -Recurse -File -Filter 'qpdf.exe' | Select-Object -First 1
+          $env:PATH = "$($exe.Directory.FullName);$env:PATH"
+          $resolved = (& where.exe qpdf 2>&1 | Out-String).Trim()
+          if ($LASTEXITCODE -ne 0) { throw "where qpdf failed: $resolved" }
+          $first = ($resolved -split "`r?`n")[0].Trim()
+          if (-not $first.StartsWith($exe.Directory.FullName, [System.StringComparison]::OrdinalIgnoreCase)) {
+            throw "PATH resolved qpdf outside package candidate: $first"
+          }
+          $version = (& qpdf --version 2>&1 | Out-String).Trim()
+          if ($LASTEXITCODE -ne 0 -or $version -notmatch '12\.4\.0') { throw "PATH qpdf validation failed: $version" }
+          Add-Content -LiteralPath './qpdf-diagnostic.txt' -Encoding utf8 -Value @(
+            "WHERE_QPDF=$first",
+            "PATH_VERSION_OUTPUT=$version",
+            'PATH_DISCOVERY=PASS'
+          )
+
+      - name: Upload qpdf diagnostic evidence
+        if: always()
+        uses: actions/upload-artifact@v7.0.1
+        with:
+          name: PDF_Tunner-qpdf-12.4.0-diagnostic
+          path: qpdf-diagnostic.txt
+          if-no-files-found: error
+          retention-days: 7
