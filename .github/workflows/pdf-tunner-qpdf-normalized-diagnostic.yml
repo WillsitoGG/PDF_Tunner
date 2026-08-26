@@ -1,0 +1,84 @@
+name: PDF_Tunner qpdf Normalized Portable Diagnostic
+
+on:
+  push:
+    branches:
+      - pdf-tunner/qpdf-12.4.0-diagnostic
+
+concurrency:
+  group: pdf-tunner-qpdf-normalized-diagnostic
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  verify-normalized-qpdf:
+    runs-on: windows-latest
+    env:
+      QPDF_VERSION: "12.4.0"
+      QPDF_URL: "https://github.com/qpdf/qpdf/releases/download/v12.4.0/qpdf-12.4.0-msvc64.zip"
+      QPDF_SHA256: "5bcb25353f7e6df92b5625dbcfe52a5c34a2a5fba2d1a8b98b8a6a0972c3ff72"
+    steps:
+      - name: Checkout fork
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Prepare normalized package-local qpdf tree
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path './dist/PDF_Tunner' | Out-Null
+          & './.github/scripts/prepare-qpdf-portable.ps1' `
+            -PortableRoot './dist/PDF_Tunner' `
+            -Version $env:QPDF_VERSION `
+            -DownloadUrl $env:QPDF_URL `
+            -ExpectedSha256 $env:QPDF_SHA256
+
+      - name: Validate normalized qpdf tree and PATH discovery
+        shell: pwsh
+        run: |
+          & './.github/scripts/validate-qpdf-portable.ps1' `
+            -PortableRoot './dist/PDF_Tunner' `
+            -Version $env:QPDF_VERSION `
+            -ExpectedZipSha256 $env:QPDF_SHA256 `
+            -RequirePathDiscovery
+
+      - name: Run representative package-local qpdf rewrite
+        shell: pwsh
+        run: |
+          $qpdf = Resolve-Path './dist/PDF_Tunner/tools/qpdf/bin/qpdf.exe'
+          $work = Join-Path $PWD 'dist/qpdf-operation'
+          New-Item -ItemType Directory -Force -Path $work | Out-Null
+          $input = Join-Path $work 'empty-input.pdf'
+          $output = Join-Path $work 'rewritten-output.pdf'
+          & $qpdf --empty $input
+          if ($LASTEXITCODE -ne 0) { throw 'qpdf --empty failed.' }
+          & $qpdf --check $input
+          if ($LASTEXITCODE -ne 0) { throw 'qpdf --check input failed.' }
+          & $qpdf $input $output
+          if ($LASTEXITCODE -ne 0) { throw 'qpdf rewrite failed.' }
+          & $qpdf --check $output
+          if ($LASTEXITCODE -ne 0) { throw 'qpdf --check output failed.' }
+          @(
+            'RESULT=PASS',
+            "QPDF_EXE=$qpdf",
+            "VERSION=$env:QPDF_VERSION",
+            "SHA256=$env:QPDF_SHA256",
+            "INPUT_BYTES=$((Get-Item $input).Length)",
+            "OUTPUT_BYTES=$((Get-Item $output).Length)",
+            'PATH_DISCOVERY=PASS',
+            'REPRESENTATIVE_REWRITE=PASS'
+          ) | Set-Content './qpdf-normalized-diagnostic.txt' -Encoding utf8
+
+      - name: Upload normalized qpdf evidence
+        if: always()
+        uses: actions/upload-artifact@v7.0.1
+        with:
+          name: PDF_Tunner-qpdf-12.4.0-normalized-diagnostic
+          path: |
+            qpdf-normalized-diagnostic.txt
+            dist/PDF_Tunner/tools/qpdf/PROVENANCE.txt
+            dist/PDF_Tunner/tools/qpdf/SHA256SUMS.txt
+            dist/PDF_Tunner/tools/qpdf/version.txt
+            dist/qpdf-operation/*.pdf
+          if-no-files-found: error
+          retention-days: 7
