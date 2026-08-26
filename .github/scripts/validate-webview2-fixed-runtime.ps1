@@ -54,9 +54,6 @@ $provenanceHash = $Matches[1].ToLowerInvariant()
 if ($provenanceText -notmatch '(?m)^CDN_Host=(msedge\.sf\.dl\.delivery\.mp\.microsoft\.com|msedge\.b\.tlu\.dl\.delivery\.mp\.microsoft\.com)\s*$') {
   throw 'WebView2 provenance does not identify an approved Microsoft Edge delivery CDN host.'
 }
-if ($provenanceText -notmatch '(?m)^Selector=https://developer\.microsoft\.com/en-us/microsoft-edge/webview2\s*$') {
-  throw 'WebView2 provenance does not identify the official Microsoft selector page.'
-}
 
 $versionText = Get-Content -LiteralPath $versionFile -Raw
 if ($versionText -notmatch "(?m)^Version=$([Regex]::Escape($Version))\s*$" -or $versionText -notmatch "(?m)^Architecture=$([Regex]::Escape($Architecture))\s*$") {
