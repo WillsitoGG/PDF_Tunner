@@ -188,3 +188,8 @@ For upstream build/development details, use the existing `DeveloperGuide.md`, `f
 ### WebView2 staging blocker resolved — Run `32963742853`
 
 Heavy staging Run `32869759206` failed in `prepare-webview2-fixed-runtime.ps1` before the Microsoft CAB download because the local variable `$host` collided with PowerShell's case-insensitive, read-only automatic `$Host` variable. Isolated diagnostic Run `32963542914` reproduced the exact step and captured `SessionStateUnauthorizedAccessException: Cannot overwrite variable Host because it is read-only or constant` at line 44. The preparation script now uses `$cdnHost` for the validated Microsoft CDN hostname. Diagnostic Run `32963742853` then passed the same pinned URL, SHA-256, CAB extraction, normalization and ProductVersion checks; artifact `9604883271` records `RESULT=PASS`.
+
+
+### WebView2 provenance validator aligned with pinned CAB
+
+The Fixed Runtime preparation path no longer uses the mutable Microsoft developer-page selector; it pins the exact official Microsoft CDN CAB instead. The validator therefore no longer requires the obsolete `Selector=...` provenance line. It continues to require exact version/architecture metadata, an approved Microsoft CDN host, SHA-256 provenance/SHA agreement, the expected CAB filename, runtime completeness and live package-local runtime/profile evidence.

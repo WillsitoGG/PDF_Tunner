@@ -429,3 +429,9 @@ Unless a PDF_Tunner rule above overrides them:
 - Heavy staging Run `32869759206` failed in `.github/scripts/prepare-webview2-fixed-runtime.ps1` because PowerShell variable names are case-insensitive and `$host` attempted to overwrite the read-only automatic `$Host` variable.
 - Isolated Run `32963542914` captured the exact exception at script line 44. The correct localized fix is `$host` -> `$cdnHost` in the URL-host validation/provenance path; do not weaken CDN, SHA-256, filename, version or PA30/PA19 URL guards.
 - Diagnostic Run `32963742853` passed the exact staging preparation step after that rename, including pinned Microsoft CAB URL, SHA-256, extraction, normalized runtime and ProductVersion checks. Artifact `9604883271` contains `RESULT=PASS`.
+
+
+### Fixed WebView2 provenance invariant
+
+- Do not reintroduce a `Selector=https://developer.microsoft.com/...` requirement: historical Fixed Runtime `151.0.4129.101` is pinned by exact Microsoft CDN CAB URL and mandatory SHA-256, not resolved from the mutable live selector page.
+- Static validation must retain version, architecture, approved CDN host, exact CAB filename via `SHA256SUMS.txt`, provenance/SHA agreement, pinned SHA, runtime completeness and absence of installer/archive payloads. Live validation additionally proves ACLs, package-local Fixed Runtime process selection and `data/webview2` use.
