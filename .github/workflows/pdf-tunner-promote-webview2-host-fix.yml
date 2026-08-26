@@ -1,0 +1,83 @@
+name: PDF_Tunner Promote WebView2 Host Fix
+
+on:
+  push:
+    branches:
+      - pdf-tunner/webview2-host-fix-promoter
+
+permissions:
+  contents: write
+
+jobs:
+  promote-fix:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout staging branch
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          ref: pdf-tunner/webview2-fixed-v151-final-stage
+          fetch-depth: 0
+
+      - name: Apply atomic script and documentation fix
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $expectedHead = 'c907e3c01387d8b981cad8145dd63e22f3b04813'
+          $actualHead = (& git rev-parse HEAD).Trim()
+          if ($actualHead -ne $expectedHead) {
+            throw "Staging HEAD moved unexpectedly. Expected $expectedHead, got $actualHead."
+          }
+
+          $scriptPath = '.github/scripts/prepare-webview2-fixed-runtime.ps1'
+          $script = Get-Content -LiteralPath $scriptPath -Raw
+          $occurrences = ([regex]::Matches($script, [regex]::Escape('$host'))).Count
+          if ($occurrences -ne 4) {
+            throw "Expected exactly 4 literal `$host references before correction, found $occurrences."
+          }
+          $script = $script.Replace('$host', '$cdnHost')
+          [System.IO.File]::WriteAllText((Resolve-Path $scriptPath), $script, [System.Text.UTF8Encoding]::new($false))
+
+          $readmeMarker = '### WebView2 staging blocker resolved — Run `32963742853`'
+          $readme = Get-Content -LiteralPath 'README.md' -Raw
+          if ($readme.Contains($readmeMarker)) {
+            throw 'README diagnostic-resolution note already exists unexpectedly.'
+          }
+          Add-Content -LiteralPath 'README.md' -Encoding utf8 -Value @'
+
+### WebView2 staging blocker resolved — Run `32963742853`
+
+Heavy staging Run `32869759206` failed in `prepare-webview2-fixed-runtime.ps1` before the Microsoft CAB download because the local variable `$host` collided with PowerShell's case-insensitive, read-only automatic `$Host` variable. Isolated diagnostic Run `32963542914` reproduced the exact step and captured `SessionStateUnauthorizedAccessException: Cannot overwrite variable Host because it is read-only or constant` at line 44. The preparation script now uses `$cdnHost` for the validated Microsoft CDN hostname. Diagnostic Run `32963742853` then passed the same pinned URL, SHA-256, CAB extraction, normalization and ProductVersion checks; artifact `9604883271` records `RESULT=PASS`.
+'@
+
+          $agentsMarker = '### Fixed WebView2 Host-variable diagnostic'
+          $agents = Get-Content -LiteralPath 'AGENTS.md' -Raw
+          if ($agents.Contains($agentsMarker)) {
+            throw 'AGENTS diagnostic-resolution note already exists unexpectedly.'
+          }
+          Add-Content -LiteralPath 'AGENTS.md' -Encoding utf8 -Value @'
+
+### Fixed WebView2 Host-variable diagnostic
+
+- Heavy staging Run `32869759206` failed in `.github/scripts/prepare-webview2-fixed-runtime.ps1` because PowerShell variable names are case-insensitive and `$host` attempted to overwrite the read-only automatic `$Host` variable.
+- Isolated Run `32963542914` captured the exact exception at script line 44. The correct localized fix is `$host` -> `$cdnHost` in the URL-host validation/provenance path; do not weaken CDN, SHA-256, filename, version or PA30/PA19 URL guards.
+- Diagnostic Run `32963742853` passed the exact staging preparation step after that rename, including pinned Microsoft CAB URL, SHA-256, extraction, normalized runtime and ProductVersion checks. Artifact `9604883271` contains `RESULT=PASS`.
+'@
+
+          & git diff --check
+          if ($LASTEXITCODE -ne 0) { throw 'git diff --check failed.' }
+
+          $changed = @(& git status --porcelain | ForEach-Object { $_.Substring(3) } | Sort-Object)
+          $expected = @('.github/scripts/prepare-webview2-fixed-runtime.ps1', 'AGENTS.md', 'README.md') | Sort-Object
+          if (($changed -join "`n") -ne ($expected -join "`n")) {
+            Write-Host 'Changed files:'
+            $changed | ForEach-Object { Write-Host " - $_" }
+            throw 'Unexpected staging diff; refusing to commit.'
+          }
+
+          & git config user.name 'WillsitoGG'
+          & git config user.email '179575519+WillsitoGG@users.noreply.github.com'
+          & git add -- $scriptPath README.md AGENTS.md
+          & git commit -m 'fix(portable): avoid PowerShell Host collision'
+          if ($LASTEXITCODE -ne 0) { throw 'git commit failed.' }
+          & git push origin HEAD:pdf-tunner/webview2-fixed-v151-final-stage
+          if ($LASTEXITCODE -ne 0) { throw 'git push to staging failed.' }
