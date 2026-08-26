@@ -1,0 +1,360 @@
+name: PDF_Tunner WebView2 Fixed Runtime Stage
+
+on:
+  push:
+    branches:
+      - pdf-tunner/webview2-fixed-v151-final-stage
+
+concurrency:
+  group: pdf-tunner-webview2-fixed-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  PDF_TUNNER_UPSTREAM_VERSION: "2.14.3"
+  PDF_TUNNER_UPSTREAM_COMMIT: "7fb29d002dbb8fa4b5945d1d1fe8dd164a9f7632"
+  PDF_TUNNER_WEBVIEW2_FIXED_VERSION: "151.0.4129.101"
+  PDF_TUNNER_WEBVIEW2_FIXED_ARCH: "x64"
+  PDF_TUNNER_WEBVIEW2_FIXED_URL: "https://msedge.sf.dl.delivery.mp.microsoft.com/filestreamingservice/files/d480b710-fe1e-4e4d-ae99-5b62e6391fd3/Microsoft.WebView2.FixedVersionRuntime.151.0.4129.101.x64.cab"
+  PDF_TUNNER_WEBVIEW2_FIXED_SHA256: "c386640d35f7a4604d088925a9bb01938400297f6da6fe985b72614daba87cda"
+  CI: "true"
+
+jobs:
+  windows-webview2-stage:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout fork
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 0
+
+      - name: Verify documented upstream base
+        shell: pwsh
+        run: |
+          & git merge-base --is-ancestor $env:PDF_TUNNER_UPSTREAM_COMMIT HEAD
+          if ($LASTEXITCODE -ne 0) {
+            throw "Documented upstream base $env:PDF_TUNNER_UPSTREAM_COMMIT is not an ancestor of HEAD."
+          }
+          Write-Host "Stage HEAD: $(& git rev-parse HEAD)"
+          Write-Host "Pinned upstream: $env:PDF_TUNNER_UPSTREAM_VERSION / $env:PDF_TUNNER_UPSTREAM_COMMIT"
+
+      - name: Setup Node.js 22
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@4be9e76fd7c4901c61fb841f559994984270fce7 # stable
+        with:
+          toolchain: stable
+
+      - name: Setup JDK 25
+        uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5.7.0
+        with:
+          distribution: temurin
+          java-version: "25"
+          cache: gradle
+
+      - name: Setup Task
+        uses: go-task/setup-task@01a4adf9db2d14c1de7a560f09170b6e0df736aa # v2.1.0
+
+      - name: Prepare official Stirling desktop build
+        shell: pwsh
+        env:
+          DISABLE_ADDITIONAL_FEATURES: "true"
+          JPDFIUM_PLATFORMS: "windows-x64"
+        run: task desktop:prepare
+
+      - name: Run official Tauri/Cargo tests
+        shell: pwsh
+        run: task desktop:test
+
+      - name: Build PDF_Tunner Tauri executable without installer
+        shell: pwsh
+        working-directory: frontend/editor
+        run: npx tauri build --no-bundle --config src-tauri/tauri.pdf-tunner.conf.json
+
+      - name: Assemble portable staging root
+        shell: pwsh
+        run: |
+          $target = Resolve-Path './frontend/editor/src-tauri/target/release'
+          $exe = Get-ChildItem -LiteralPath $target -Recurse -File -Filter 'PDF_Tunner.exe' | Select-Object -First 1
+          if (-not $exe) {
+            $exe = Get-ChildItem -LiteralPath $target -Recurse -File -Filter 'stirling-pdf.exe' | Select-Object -First 1
+          }
+          if (-not $exe) {
+            throw 'Tauri executable was not produced.'
+          }
+
+          $portable = Join-Path $PWD 'dist/PDF_Tunner'
+          Remove-Item -LiteralPath $portable -Recurse -Force -ErrorAction SilentlyContinue
+          New-Item -ItemType Directory -Force -Path $portable | Out-Null
+          New-Item -ItemType Directory -Force -Path (Join-Path $portable 'data') | Out-Null
+          Copy-Item -LiteralPath $exe.FullName -Destination (Join-Path $portable 'PDF_Tunner.exe') -Force
+          Copy-Item -LiteralPath './frontend/editor/src-tauri/libs' -Destination (Join-Path $portable 'libs') -Recurse -Force
+          Copy-Item -LiteralPath './frontend/editor/src-tauri/runtime' -Destination (Join-Path $portable 'runtime') -Recurse -Force
+          New-Item -ItemType File -Force -Path (Join-Path $portable 'PDF_TUNNER_PORTABLE') | Out-Null
+          Set-Content -LiteralPath (Join-Path $portable 'UPSTREAM_BASE.txt') -Encoding ascii -Value @(
+            "Stirling-PDF $env:PDF_TUNNER_UPSTREAM_VERSION",
+            $env:PDF_TUNNER_UPSTREAM_COMMIT
+          )
+
+      - name: Stage official Microsoft Fixed WebView2 Runtime
+        shell: pwsh
+        run: |
+          & './.github/scripts/prepare-webview2-fixed-runtime.ps1' `
+            -PortableRoot './dist/PDF_Tunner' `
+            -Version $env:PDF_TUNNER_WEBVIEW2_FIXED_VERSION `
+            -Architecture $env:PDF_TUNNER_WEBVIEW2_FIXED_ARCH `
+            -DownloadUrl $env:PDF_TUNNER_WEBVIEW2_FIXED_URL `
+            -ExpectedSha256 $env:PDF_TUNNER_WEBVIEW2_FIXED_SHA256
+
+      - name: Validate staged Fixed WebView2 metadata and tree
+        shell: pwsh
+        run: |
+          & './.github/scripts/validate-webview2-fixed-runtime.ps1' `
+            -PortableRoot './dist/PDF_Tunner' `
+            -Version $env:PDF_TUNNER_WEBVIEW2_FIXED_VERSION `
+            -Architecture $env:PDF_TUNNER_WEBVIEW2_FIXED_ARCH `
+            -ExpectedCabSha256 $env:PDF_TUNNER_WEBVIEW2_FIXED_SHA256
+
+      - name: Validate bundled Java runtime
+        shell: pwsh
+        run: |
+          $java = Resolve-Path './dist/PDF_Tunner/runtime/jre/bin/java.exe'
+          & $java -version
+          if ($LASTEXITCODE -ne 0) { throw 'Bundled JRE failed java -version.' }
+          $release = Get-Content './dist/PDF_Tunner/runtime/jre/release' -Raw
+          if ($release -notmatch 'JAVA_VERSION="25') {
+            throw 'Bundled JRE release metadata does not report Java 25.'
+          }
+
+      - name: Validate real launch uses package-local Fixed WebView2 and backend
+        shell: pwsh
+        run: |
+          $portable = (Resolve-Path './dist/PDF_Tunner').Path
+          $exe = Join-Path $portable 'PDF_Tunner.exe'
+          $process = Start-Process -FilePath $exe -WorkingDirectory $portable -PassThru
+          Write-Host "Started PDF_Tunner PID $($process.Id)"
+
+          $diagnostics = Join-Path $PWD 'dist/webview2-live-diagnostics'
+          New-Item -ItemType Directory -Force -Path $diagnostics | Out-Null
+          $runtimeRoot = Join-Path $portable 'runtime/webview2/fixed'
+          $runtimeExe = Join-Path $runtimeRoot 'msedgewebview2.exe'
+          @(
+            "PortableRoot=$portable",
+            "PDF_Tunner_PID=$($process.Id)",
+            "RuntimeRoot=$runtimeRoot",
+            "RuntimeExe=$runtimeExe",
+            "RuntimeProductVersion=$((Get-Item -LiteralPath $runtimeExe).VersionInfo.ProductVersion)"
+          ) | Set-Content -LiteralPath (Join-Path $diagnostics 'launch-context.txt') -Encoding utf8
+          foreach ($metadata in @('PROVENANCE.txt', 'version.txt', 'SHA256SUMS.txt')) {
+            $source = Join-Path $portable "runtime/webview2/$metadata"
+            if (Test-Path -LiteralPath $source -PathType Leaf) {
+              Copy-Item -LiteralPath $source -Destination (Join-Path $diagnostics $metadata) -Force
+            }
+          }
+          (& icacls.exe $runtimeRoot 2>&1) | Out-String -Width 4096 |
+            Set-Content -LiteralPath (Join-Path $diagnostics 'runtime-icacls-before-launch.txt') -Encoding utf8
+          (Get-Acl -LiteralPath $runtimeRoot).Access |
+            Format-Table IdentityReference, FileSystemRights, AccessControlType, IsInherited -AutoSize |
+            Out-String -Width 4096 |
+            Set-Content -LiteralPath (Join-Path $diagnostics 'runtime-acl-before-launch.txt') -Encoding utf8
+
+          try {
+            $deadline = (Get-Date).AddSeconds(150)
+            $port = $null
+            $matchedLog = $null
+            while ((Get-Date) -lt $deadline -and -not $port) {
+              Start-Sleep -Seconds 2
+              $logs = Get-ChildItem -LiteralPath (Join-Path $portable 'data') -Recurse -File -Filter '*.log' -ErrorAction SilentlyContinue
+              foreach ($log in $logs) {
+                $match = Select-String -LiteralPath $log.FullName -Pattern 'running on port:\s*(\d+)' -AllMatches -ErrorAction SilentlyContinue | Select-Object -Last 1
+                if ($match -and $match.Matches.Count -gt 0) {
+                  $port = [int]$match.Matches[0].Groups[1].Value
+                  $matchedLog = $log.FullName
+                  break
+                }
+              }
+              if ($process.HasExited) { break }
+            }
+
+            if (-not $port) {
+              if ($process.HasExited) { Write-Host "PDF_Tunner exited with code $($process.ExitCode)." }
+              Get-ChildItem -LiteralPath (Join-Path $portable 'data') -Recurse -Force -ErrorAction SilentlyContinue | Select-Object FullName, Length | Format-Table -AutoSize
+              throw 'Backend startup port was not detected from package-local logs.'
+            }
+
+            Write-Host "Backend detected on port $port via $matchedLog"
+            $statusUri = "http://127.0.0.1:$port/api/v1/info/status"
+            $response = Invoke-WebRequest -Uri $statusUri -UseBasicParsing -TimeoutSec 30
+            if ($response.StatusCode -ne 200) {
+              throw "Backend health endpoint returned HTTP $($response.StatusCode)."
+            }
+
+            & './.github/scripts/validate-webview2-fixed-runtime.ps1' `
+              -PortableRoot './dist/PDF_Tunner' `
+              -Version $env:PDF_TUNNER_WEBVIEW2_FIXED_VERSION `
+              -Architecture $env:PDF_TUNNER_WEBVIEW2_FIXED_ARCH `
+              -ExpectedCabSha256 $env:PDF_TUNNER_WEBVIEW2_FIXED_SHA256 `
+              -RequireLiveProcess
+
+            if ($LASTEXITCODE -ne 0) { throw 'Fixed WebView2 live validation failed.' }
+          }
+          catch {
+            $caught = $_
+            $caught | Format-List * -Force | Out-String -Width 4096 |
+              Set-Content -LiteralPath (Join-Path $diagnostics 'exception.txt') -Encoding utf8
+            $caught.ScriptStackTrace |
+              Set-Content -LiteralPath (Join-Path $diagnostics 'script-stack-trace.txt') -Encoding utf8
+            if ($Error.Count -gt 0) {
+              $Error[0] | Format-List * -Force | Out-String -Width 4096 |
+                Set-Content -LiteralPath (Join-Path $diagnostics 'error-zero.txt') -Encoding utf8
+            }
+            try {
+              $process.Refresh()
+              @(
+                "HasExited=$($process.HasExited)",
+                $(if ($process.HasExited) { "ExitCode=$($process.ExitCode)" } else { 'ExitCode=<running>' })
+              ) | Set-Content -LiteralPath (Join-Path $diagnostics 'pdf-tunner-process-state.txt') -Encoding utf8
+            }
+            catch {
+              $_ | Format-List * -Force | Out-String -Width 4096 |
+                Set-Content -LiteralPath (Join-Path $diagnostics 'process-state-capture-error.txt') -Encoding utf8
+            }
+            $bootstrapError = Join-Path $portable 'data/logs/portable-bootstrap-error.log'
+            if (Test-Path -LiteralPath $bootstrapError -PathType Leaf) {
+              Copy-Item -LiteralPath $bootstrapError -Destination (Join-Path $diagnostics 'portable-bootstrap-error.log') -Force
+            }
+            $logTails = Join-Path $diagnostics 'portable-log-tails.txt'
+            foreach ($log in @(Get-ChildItem -LiteralPath (Join-Path $portable 'data') -Recurse -File -Filter '*.log' -ErrorAction SilentlyContinue)) {
+              Add-Content -LiteralPath $logTails -Encoding utf8 -Value "=== $($log.FullName) ==="
+              Get-Content -LiteralPath $log.FullName -Tail 300 -ErrorAction SilentlyContinue |
+                Add-Content -LiteralPath $logTails -Encoding utf8
+            }
+            Get-CimInstance Win32_Process |
+              Where-Object { $_.Name -match 'PDF_Tunner|java|msedgewebview2' -or ($_.CommandLine -and $_.CommandLine -match 'PDF_Tunner|Stirling|webview2') } |
+              Select-Object ProcessId, ParentProcessId, Name, ExecutablePath, CommandLine |
+              Format-List | Out-String -Width 4096 |
+              Set-Content -LiteralPath (Join-Path $diagnostics 'processes-at-exception.txt') -Encoding utf8
+            throw
+          }
+          finally {
+            $process.Refresh()
+            if (-not $process.HasExited) {
+              $closed = $process.CloseMainWindow()
+              Write-Host "CloseMainWindow returned: $closed"
+              if (-not $process.WaitForExit(20000)) {
+                Stop-Process -Id $process.Id -Force -ErrorAction SilentlyContinue
+              }
+            }
+            Start-Sleep -Seconds 3
+            $escapedRoot = [Regex]::Escape($portable)
+            $leftovers = @(Get-CimInstance Win32_Process | Where-Object { $_.CommandLine -and $_.CommandLine -match $escapedRoot })
+            if ($leftovers.Count -gt 0) {
+              $leftovers | Select-Object ProcessId, Name, ExecutablePath, CommandLine | Format-List
+              $leftovers | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }
+              throw 'Portable child processes remained after PDF_Tunner exit.'
+            }
+          }
+
+      - name: Re-run full AppData and two-launch window-state containment proof
+        shell: pwsh
+        run: |
+          & './.github/scripts/validate-portable-window-state.ps1' -PortableRoot './dist/PDF_Tunner' -Tolerance 16
+
+      - name: Require pinned Fixed WebView2 CAB SHA before accepting stage
+        shell: pwsh
+        run: |
+          $provenance = Join-Path $PWD 'dist/PDF_Tunner/runtime/webview2/PROVENANCE.txt'
+          Write-Host 'Fixed WebView2 provenance:'
+          Get-Content -LiteralPath $provenance
+          if ([string]::IsNullOrWhiteSpace($env:PDF_TUNNER_WEBVIEW2_FIXED_SHA256)) {
+            throw 'Discovery run completed, but Fixed WebView2 CAB SHA-256 is not pinned. Record CAB_SHA256 from provenance, pin it in this staging workflow, and rerun.'
+          }
+
+      - name: Verify final staging layout contains no downloaded CAB
+        shell: pwsh
+        run: |
+          $portable = Resolve-Path './dist/PDF_Tunner'
+          $cabs = @(Get-ChildItem -LiteralPath $portable -Recurse -Force -File -Filter '*.cab' -ErrorAction SilentlyContinue)
+          if ($cabs.Count -gt 0) {
+            $cabs | Select-Object FullName, Length | Format-Table -AutoSize
+            throw 'Downloaded WebView2 CAB leaked into the portable package.'
+          }
+          Write-Host 'PASS: staging package contains normalized Fixed WebView2 runtime only; no CAB archive remains.'
+
+      - name: Print diagnostics on failure
+        if: failure()
+        shell: pwsh
+        run: |
+          $portable = Join-Path $PWD 'dist/PDF_Tunner'
+          $diagnostics = Join-Path $PWD 'dist/webview2-live-diagnostics'
+          New-Item -ItemType Directory -Force -Path $diagnostics | Out-Null
+
+          $provenance = Join-Path $portable 'runtime/webview2/PROVENANCE.txt'
+          if (Test-Path -LiteralPath $provenance -PathType Leaf) {
+            Write-Host '=== Fixed WebView2 provenance ==='
+            Get-Content -LiteralPath $provenance
+            Copy-Item -LiteralPath $provenance -Destination (Join-Path $diagnostics 'PROVENANCE.txt') -Force
+          }
+          foreach ($metadata in @('version.txt', 'SHA256SUMS.txt')) {
+            $source = Join-Path $portable "runtime/webview2/$metadata"
+            if (Test-Path -LiteralPath $source -PathType Leaf) {
+              Copy-Item -LiteralPath $source -Destination (Join-Path $diagnostics $metadata) -Force
+            }
+          }
+
+          $runtimeRoot = Join-Path $portable 'runtime/webview2/fixed'
+          if (Test-Path -LiteralPath $runtimeRoot -PathType Container) {
+            (& icacls.exe $runtimeRoot 2>&1) | Out-String -Width 4096 |
+              Set-Content -LiteralPath (Join-Path $diagnostics 'runtime-icacls-after-failure.txt') -Encoding utf8
+            (Get-Acl -LiteralPath $runtimeRoot).Access |
+              Format-Table IdentityReference, FileSystemRights, AccessControlType, IsInherited -AutoSize |
+              Out-String -Width 4096 |
+              Set-Content -LiteralPath (Join-Path $diagnostics 'runtime-acl-after-failure.txt') -Encoding utf8
+          }
+
+          $bootstrapError = Join-Path $portable 'data/logs/portable-bootstrap-error.log'
+          if (Test-Path -LiteralPath $bootstrapError -PathType Leaf) {
+            Copy-Item -LiteralPath $bootstrapError -Destination (Join-Path $diagnostics 'portable-bootstrap-error.log') -Force
+          }
+
+          $logTails = Join-Path $diagnostics 'portable-log-tails-after-failure.txt'
+          foreach ($log in @(Get-ChildItem -LiteralPath (Join-Path $portable 'data') -Recurse -File -Filter '*.log' -ErrorAction SilentlyContinue)) {
+            Add-Content -LiteralPath $logTails -Encoding utf8 -Value "=== $($log.FullName) ==="
+            Get-Content -LiteralPath $log.FullName -Tail 300 -ErrorAction SilentlyContinue |
+              Add-Content -LiteralPath $logTails -Encoding utf8
+          }
+
+          if (Test-Path -LiteralPath (Join-Path $portable 'data')) {
+            Write-Host '=== Portable data/log tree ==='
+            $dataTree = Get-ChildItem -LiteralPath (Join-Path $portable 'data') -Recurse -Force -ErrorAction SilentlyContinue |
+              Select-Object FullName, Length, LastWriteTime
+            $dataTree | Format-Table -AutoSize
+            $dataTree | Format-Table -AutoSize | Out-String -Width 4096 |
+              Set-Content -LiteralPath (Join-Path $diagnostics 'portable-data-tree.txt') -Encoding utf8
+          }
+
+          Write-Host '=== Relevant processes ==='
+          $processes = Get-CimInstance Win32_Process |
+            Where-Object { $_.Name -match 'PDF_Tunner|java|msedgewebview2' -or ($_.CommandLine -and $_.CommandLine -match 'PDF_Tunner|Stirling|webview2') } |
+            Select-Object ProcessId, ParentProcessId, Name, ExecutablePath, CommandLine
+          $processes | Format-List
+          $processes | Format-List | Out-String -Width 4096 |
+            Set-Content -LiteralPath (Join-Path $diagnostics 'processes-after-failure.txt') -Encoding utf8
+
+      - name: Upload Fixed WebView2 live diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v7.0.1
+        with:
+          name: PDF_Tunner-webview2-live-diagnostics
+          path: dist/webview2-live-diagnostics
+          if-no-files-found: error
+          include-hidden-files: true
+          retention-days: 7
