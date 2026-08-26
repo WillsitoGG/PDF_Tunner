@@ -5,6 +5,10 @@ on:
     branches:
       - pdf-tunner/webview2-fixed-v151-error-diagnostic
 
+concurrency:
+  group: pdf-tunner-webview2-stage-error-diagnostic
+  cancel-in-progress: true
+
 permissions:
   contents: read
 
@@ -32,7 +36,7 @@ jobs:
 
           try {
             & './.github/scripts/prepare-webview2-fixed-runtime.ps1' `
-              -PortableRoot $portable `
+              -PortableRoot './dist/PDF_Tunner' `
               -Version $env:PDF_TUNNER_WEBVIEW2_FIXED_VERSION `
               -Architecture $env:PDF_TUNNER_WEBVIEW2_FIXED_ARCH `
               -DownloadUrl $env:PDF_TUNNER_WEBVIEW2_FIXED_URL `
