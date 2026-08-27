@@ -64,7 +64,7 @@ if ($recordedExeSha -ne $actualExeSha) {
 
 $versionOutput = (& $qpdfExe --version 2>&1 | Out-String).Trim()
 if ($LASTEXITCODE -ne 0) {
-    throw "Packaged qpdf --version failed with exit code $LASTEXITCODE: $versionOutput"
+    throw "Packaged qpdf --version failed with exit code ${LASTEXITCODE}: $versionOutput"
 }
 if ($versionOutput -notmatch ('(?i)qpdf\s+version\s+' + [Regex]::Escape($Version) + '(?:\D|$)')) {
     throw "Packaged qpdf did not report expected version $Version. Output: $versionOutput"

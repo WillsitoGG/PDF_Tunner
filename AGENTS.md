@@ -454,3 +454,10 @@ Unless a PDF_Tunner rule above overrides them:
 - Pinned official `qpdf-12.4.0-mingw64.zip` SHA-256 `dcec940ce825b3b654d4936918190f52e7bfca85b7fb1c49bc24b3035185b4f5` and added reproducible staging into `tools/qpdf/` without committing/downstreaming the ZIP itself.
 - Added isolated package-first PATH/version/hash/provenance/sample-PDF validation plus Stirling-backend dependency-log proof. This qpdf integration remains a candidate until the resulting complete primary run is green.
 - Run `33066989038` (#64) passed qpdf archive staging and reached the mandatory functional read gate, where it failed because `test_globalsign.pdf` is actually a GlobalSign HTML 404 page (`<!DOCTYPE html>`), not PDF data. The validator now generates an independent minimal valid one-page PDF with calculated xref offsets, requires packaged qpdf `--check` and exact page count `1`, and keeps all package-first/path/hash/version/backend gates intact. qpdf remains pending until the corrected full run is green.
+
+### 2026-08-27 — qpdf Run #65 PowerShell parser correction
+
+- Run `33071025776` (#65), job `98512996138`, passed qpdf 12.4.0 MinGW64 download, pinned archive SHA-256 verification and staging into `tools/qpdf/`, then failed when PowerShell parsed `.github/scripts/validate-qpdf.ps1` before any qpdf command executed.
+- Exact cause: the error-message interpolation `"... $LASTEXITCODE: ..."` is invalid because PowerShell treats the colon as part of the variable reference unless the variable name is braced. The validator now uses `${LASTEXITCODE}:`.
+- The rest of the qpdf validator was audited for the same interpolation pattern. No qpdf gate is relaxed: package-first PATH resolution, executable/archive hashes, provenance/version, generated-PDF `--check` and exact page count, Stirling backend minimum-version proof and final-tree validation remain mandatory.
+- qpdf is still a candidate pending a complete green primary Windows portable run.
