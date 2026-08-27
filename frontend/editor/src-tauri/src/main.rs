@@ -86,6 +86,9 @@ fn configure_pdf_tunner_portable_environment() {
   let java_temp = data.join("tmp");
   let webview2_data = data.join("webview2");
   let fixed_webview2 = root.join("runtime").join("webview2").join("fixed");
+  let tools = root.join("tools");
+  let imagemagick_root = tools.join("imagemagick");
+  let imagemagick_temp = data.join("tmp").join("imagemagick");
   let _ = fs::create_dir_all(&data);
   let _ = fs::create_dir_all(&calibre_config);
   let _ = fs::create_dir_all(&java_temp);
@@ -135,7 +138,16 @@ fn configure_pdf_tunner_portable_environment() {
     format!("-Djava.io.tmpdir=\"{}\"", java_temp.display()),
   );
 
-  let tools = root.join("tools");
+  // ImageMagick has component-specific environment variables, so keep both its
+  // configuration lookup and scratch files package-local without changing the
+  // native Windows TEMP/TMP inherited by Tauri/WebView2.
+  if imagemagick_root.join("magick.exe").is_file() {
+    let _ = fs::create_dir_all(&imagemagick_temp);
+    env::set_var("MAGICK_HOME", &imagemagick_root);
+    env::set_var("MAGICK_CONFIGURE_PATH", &imagemagick_root);
+    env::set_var("MAGICK_TEMPORARY_PATH", &imagemagick_temp);
+  }
+
   let tool_paths = [
     tools.join("bin"),
     tools.join("python"),

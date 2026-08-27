@@ -9,7 +9,7 @@
 - Initial upstream commit: `7fb29d002dbb8fa4b5945d1d1fe8dd164a9f7632`
 - Development branch: `pdf-tunner/windows-portable-v1`
 - Target: **Windows 10/11 x64 portable ZIP**
-- Status: **Primary Run `33058462619` (#62) passed the complete permanent portable workflow and closes the bundled Fixed WebView2 phase. The current phase is the external Windows toolchain; qpdf 12.4.0 x64 remains the first pinned package candidate. Run #64 isolated a broken non-PDF repository fixture in the qpdf functional gate; the validator now generates its own deterministic valid PDF and qpdf still requires a complete green assembled-package run before acceptance.**
+- Status: **Primary Run `33086404875` (#66), job `98567113737`, passed the complete permanent Windows portable workflow on commit `413994c9ea368b5144a26686afef6011eba8de59` and accepts bundled qpdf 12.4.0 MinGW64. Fixed WebView2 and qpdf are closed. The active external-tool phase is ImageMagick 7.1.2-30 portable Q16 x64, pinned to its immutable official GitHub release asset and validated independently from the ImageMagick already installed on the GitHub-hosted Windows runner.**
 
 The full original Stirling documentation and developer guide remain in this fork. Upstream project information is available at [Stirling-Tools/Stirling-PDF](https://github.com/Stirling-Tools/Stirling-PDF).
 
@@ -44,7 +44,7 @@ Run #50 and subsequent diagnostics proved that Stirling desktop state uses sever
 
 `tauri-plugin-http` 2.5.8 remains enabled with its normal cookie/authentication behavior. PDF_Tunner vendors the verified official `http-v2.5.8` source locally and changes only the persistent cookie directory selection: portable mode resolves `.cookies` under `data/tauri/http/`, while non-portable mode keeps the official Tauri `app_cache_dir()` behavior. Run `32825188381` proved the package-local cookie jar together with the other Tauri state and found no non-empty PDF_Tunner identifier content in host Local or Roaming AppData. The Windows keyring/Credential Manager path used by authentication remains keyring-first and is not claimed to be package-contained; the Tauri Store fallback is package-local.
 
-Bundled tool directories are prepended to `PATH` only when present, packaged Tesseract data is exposed through `TESSDATA_PREFIX` when available, and Calibre configuration is pointed at `data/calibre/`. Runtime deep-link protocol registration is skipped in portable mode to avoid writing the `pdf-tunner://` handler into the host OS registry.
+Bundled tool directories are prepended to `PATH` only when present, packaged Tesseract data is exposed through `TESSDATA_PREFIX` when available, and Calibre configuration is pointed at `data/calibre/`. ImageMagick receives component-specific `MAGICK_HOME` and `MAGICK_CONFIGURE_PATH` pointing at `tools/imagemagick/` plus `MAGICK_TEMPORARY_PATH` pointing at `data/tmp/imagemagick/`, so its configuration and scratch space stay package-local without globally replacing native Windows `TEMP/TMP`. Runtime deep-link protocol registration is skipped in portable mode to avoid writing the `pdf-tunner://` handler into the host OS registry.
 
 Portable shutdown handles `ExitRequested` synchronously: it saves portable window state, terminates the bundled Java backend, calls Tauri's `cleanup_before_exit()`, and finally exits the process immediately with the requested exit code. This follows Tauri's contract for manual cleanup: after `cleanup_before_exit()` returns, the process must terminate immediately and no further Tauri APIs may be used. Run #11 proved that merely waiting for a later `RunEvent::Exit` after backend cleanup can leave the Windows portable parent alive. Non-portable upstream behavior remains unchanged.
 
@@ -63,7 +63,14 @@ PDF_Tunner/
       PROVENANCE.txt
       SHA256SUMS.txt
       version.txt
+    imagemagick/
+      magick.exe
+      PROVENANCE.txt
+      SHA256SUMS.txt
+      version.txt
   data/
+    tmp/
+      imagemagick/
     webview2/
     logs/
       tauri/
@@ -107,15 +114,25 @@ Stirling directly probes and can disable feature groups for missing:
 
 The upstream fat toolchain also confirms use of `unpaper`, `pngquant`, LibreOffice/UNO infrastructure, Tesseract OSD/languages, `pdf2image`, OpenCV, OCRmyPDF and conversion fonts. These are being integrated into `tools/` incrementally and will not be marked supported until the assembled Windows package passes real tests.
 
-### qpdf Windows toolchain candidate — 2026-08-27
+### qpdf Windows toolchain — accepted 2026-08-27
 
 The first external-tool layer pins official **qpdf 12.4.0** for Windows x64, which satisfies Stirling 2.14.3's explicit `qpdf >= 12.0.0` dependency gate. The package source is the upstream qpdf release asset `qpdf-12.4.0-mingw64.zip` from release `v12.4.0`; the pinned archive SHA-256 is `dcec940ce825b3b654d4936918190f52e7bfca85b7fb1c49bc24b3035185b4f5`. The MinGW64 package is deliberately preferred over MSVC64 for PDF_Tunner portability: qpdf documents that MinGW64 does not require a Visual C++ runtime DLL on the host, avoiding an unnecessary machine-level prerequisite.
 
 PDF_Tunner does not commit or ship that ZIP. `.github/scripts/prepare-qpdf.ps1` downloads it during the Windows portable build, verifies the pinned SHA-256 before extraction, normalizes the extracted distribution into `tools/qpdf/`, records fixed provenance/version/executable-hash metadata and removes the temporary archive. `.github/scripts/validate-qpdf.ps1` then proves the packaged `tools/qpdf/bin/qpdf.exe` directly, resolves `qpdf` from an isolated package-first `PATH`, generates a deterministic minimal one-page PDF with a calculated cross-reference table and requires package-local qpdf to pass both `--check` and `--show-npages`, verifies Stirling's own runtime dependency log reports qpdf 12.4.0 meeting the 12.0.0 minimum, and rejects any ZIP left in the product tree.
 
-Run #64 (`33066989038`) proved qpdf download/staging itself succeeded but exposed that the former repository fixture `test_globalsign.pdf` was actually HTML for a GlobalSign “Page Not Found” response, not a PDF. The validator therefore no longer relies on that mislabeled external fixture for its mandatory functional proof. The generated PDF gate is mandatory; the legacy `SamplePdf` argument is treated only as an optional additional test when its bytes start with `%PDF-`.
+Run #64 (`33066989038`) proved qpdf download/staging itself succeeded but exposed that the former repository fixture `test_globalsign.pdf` was actually HTML for a GlobalSign “Page Not Found” response, not a PDF. The validator therefore no longer relies on that mislabeled external fixture for its mandatory functional proof. The generated PDF gate is mandatory; the legacy `SamplePdf` argument is treated only as an optional additional test when its bytes start with `%PDF-`. Run #65 (`33071025776`) then isolated a PowerShell parser defect in one diagnostic interpolation before qpdf execution; that was corrected without changing any qpdf requirement.
 
-This remains the **qpdf candidate**, not its acceptance proof. qpdf becomes a supported PDF_Tunner tool only after the corrected complete primary portable workflow is green on the assembled package.
+**Acceptance:** Primary Run `33086404875` (#66), job `98567113737`, on commit `413994c9ea368b5144a26686afef6011eba8de59` passed every permanent Windows portable step, including qpdf staging, archive/executable hash and provenance gates, isolated package-first resolution, mandatory generated-PDF functional checks, Stirling's own runtime dependency acceptance, final-tree revalidation, ZIP/SHA-256 and artifact upload. qpdf 12.4.0 MinGW64 is therefore a supported PDF_Tunner bundled dependency.
+
+### ImageMagick Windows toolchain candidate — 2026-08-27
+
+The next layer pins official **ImageMagick 7.1.2-30 portable Q16 x64** from the immutable upstream `ImageMagick/ImageMagick` release `7.1.2-30`. The asset is `ImageMagick-7.1.2-30-portable-Q16-x64.7z`; its official GitHub asset digest is SHA-256 `47a4ffd20f9360fc85817286df29019fad781df15002dcffdd260c9b27a9e4d8`. This is the upstream Windows portable/static distribution rather than an installer. Stirling 2.14.3 probes the command `magick` for the ImageMagick feature group and does not impose a minimum ImageMagick version.
+
+`.github/scripts/prepare-imagemagick.ps1` downloads only that pinned asset into CI temporary storage, verifies its official SHA-256 before extraction with the runner's 7-Zip, normalizes the executable/support files under `tools/imagemagick/`, writes provenance/version/executable-hash metadata and prevents the `.7z` archive from leaking into the product. `.github/scripts/validate-imagemagick.ps1` independently verifies those records, parses the PE header to require AMD64 (`0x8664`), requires the exact `7.1.2-30`/Q16 build, isolates `PATH` to the package plus Windows system directories, requires `where magick` to resolve `tools/imagemagick/magick.exe`, and performs a real 32x32 PNG create/identify operation.
+
+This isolation is mandatory because the GitHub-hosted Windows image currently includes host ImageMagick 7.1.2-25. A green PDF_Tunner gate must prove the packaged 7.1.2-30 executable rather than accidentally inheriting that runner dependency. During real PDF_Tunner startup, Stirling logs must not report `Missing dependency: magick`. Portable bootstrap also sets `MAGICK_HOME`/`MAGICK_CONFIGURE_PATH` to the package-local ImageMagick directory and `MAGICK_TEMPORARY_PATH` to `data/tmp/imagemagick/`.
+
+ImageMagick remains a **candidate** until the complete primary Windows portable workflow is green on the assembled package with these gates enabled.
 
 ## Build and validation
 
@@ -133,7 +150,8 @@ Bootstrap validation currently targets:
 - bundled Java 25 runtime;
 - package-local portable marker/data paths;
 - exact pinned Fixed WebView2 runtime plus live process selection from the package;
-- pinned qpdf archive SHA-256, package-local qpdf executable hash/version/provenance, isolated package-first `PATH`, a deterministic generated-PDF structural/page-count proof and Stirling's own qpdf dependency probe;
+- accepted qpdf archive SHA-256, package-local qpdf executable hash/version/provenance, isolated package-first `PATH`, deterministic generated-PDF structural/page-count proof and Stirling's own qpdf dependency probe;
+- pinned ImageMagick archive SHA-256, package-local executable hash/provenance, PE x64 and exact Q16/version proof, isolated package-first `PATH`, functional PNG create/identify operation and Stirling dependency-log probe;
 - real Java backend startup and dynamic port detection;
 - `/api/v1/info/status` health response;
 - Java temporary paths under `data/tmp/`, with no new `stirling-pdf` or `stirling-mobile-scanner` directories created in host `%TEMP%`;
@@ -146,9 +164,9 @@ Bootstrap validation currently targets:
 - clean ZIP generation;
 - SHA-256 generation.
 
-Run `32825188381` closed the tracked native Tauri AppData containment set, including the HTTP `.cookies` jar. Run `33058462619` then closed the package-local Fixed WebView2 phase in the permanent primary workflow. The external dependency toolchain remains the active portability phase.
+Run `32825188381` closed the tracked native Tauri AppData containment set, including the HTTP `.cookies` jar. Run `33058462619` closed the package-local Fixed WebView2 phase in the permanent primary workflow. Run `33086404875` then accepted qpdf 12.4.0 MinGW64. ImageMagick is the active external dependency candidate.
 
-Window-state proof is part of the primary portable workflow. After the first real startup/backend/containment smoke test, `.github/scripts/validate-portable-window-state.ps1` establishes a clean `%APPDATA%\com.willsitogg.pdf-tunner` baseline, launches the same assembled production executable, deliberately moves/resizes its real Win32 top-level window, closes normally, checks `data/tauri/window-state/.window-state.json` against the measured outer position/client size, relaunches the same portable tree, verifies restoration within tolerance, checks child-process cleanup and fails if any actual Roaming-AppData content is persisted. Only after that proof does CI clear generated `data/`, create the final portable ZIP and generate its SHA-256.
+Window-state proof is part of the primary portable workflow. After the first real startup/backend/containment smoke test, `.github/scripts/validate-portable-window-state.ps1` establishes a clean `%APPDATA%\com.willsitogg.pdf-tunner` baseline, launches the same assembled production executable, deliberately moves/resizes its real Win32 top-level window, closes normally, checks `data/tauri/window-state/.window-state.json` against the measured outer position/client size, relaunches the same portable tree, verifies restoration within tolerance, checks child-process cleanup and fails if any actual Roaming-AppData content is persisted. Only after that proof does CI clear generated `data/`, revalidate accepted/candidate external tools, create the final portable ZIP and generate its SHA-256.
 
 If the real packaged-startup smoke test fails, CI writes host-temp/profile/registry/process evidence **before** touching potentially locked browser files. It records a recursive host application-tree inventory, a file-count/size/sample summary for the live package-local WebView2 profile and copies logs/configs/temp/pipeline/Tauri state best-effort, but deliberately does not recursively copy `data/webview2` while Chromium may still own locked files. Diagnostic artifact upload explicitly includes hidden files so `.window-state.json` is preserved when present. The resulting `PDF_Tunner-startup-diagnostics` artifact is short-lived diagnostic evidence only, not a Release asset.
 
@@ -172,7 +190,7 @@ The earlier push run `32598488359` failed in startup containment even though its
 
 The general upstream `Build and Test Workflow` on the run #13 baseline passed frontend validation/a11y, stubbed and live Playwright, database migration, Docker Compose/images and the official Windows Tauri build. Its sole failure is GitHub `dependency-review`, which reports that Dependency Graph is disabled on this fork; that is a repository security-setting prerequisite rather than a demonstrated PDF_Tunner code regression. Each subsequent downstream commit is checked again for additional failures before it is accepted.
 
-The bootstrap/AppData/window-state/Fixed-WebView2 layers are now proven. The following validation layers integrate every external dependency and representative end-to-end Stirling operation before any final Release is published.
+The bootstrap/AppData/window-state/Fixed-WebView2/qpdf layers are now proven. The following validation layers integrate the remaining external dependencies and representative end-to-end Stirling operations before any final Release is published.
 
 ## Upstream synchronization
 
@@ -203,12 +221,16 @@ Primary Run `32982806130` on commit `ac0833d4c9aee3276918934048d5c74e55c61e21` p
 
 ### Primary Fixed WebView2 acceptance — Run `33058462619`
 
-Run `33058462619` (#62), job `98471041328`, on commit `72924f81d1b54afe06563c9636b26f1cf1e4aca4` is the permanent primary-workflow acceptance proof that resolves the false-negative above. Every step passed: official Stirling desktop preparation, Tauri/Cargo tests, production `PDF_Tunner.exe`, portable assembly, pinned Fixed WebView2 staging/static/live validation, bundled Java 25, real backend HTTP health, package-local browser data, AppData/TEMP/registry/process containment, two-launch window-state restoration, final Fixed Runtime SHA/no-CAB gates, runtime-data reset, ZIP/SHA-256 and artifact upload. The resulting short-lived CI artifact is `PDF_Tunner-Windows-x64-Portable-bootstrap` (Actions artifact `9641278175`). Fixed WebView2 is therefore closed; the active phase is the external toolchain.
+Run `33058462619` (#62), job `98471041328`, on commit `72924f81d1b54afe06563c9636b26f1cf1e4aca4` is the permanent primary-workflow acceptance proof that resolves the false-negative above. Every step passed: official Stirling desktop preparation, Tauri/Cargo tests, production `PDF_Tunner.exe`, portable assembly, pinned Fixed WebView2 staging/static/live validation, bundled Java 25, real backend HTTP health, package-local browser data, AppData/TEMP/registry/process containment, two-launch window-state restoration, final Fixed Runtime SHA/no-CAB gates, runtime-data reset, ZIP/SHA-256 and artifact upload. The resulting short-lived CI artifact is `PDF_Tunner-Windows-x64-Portable-bootstrap` (Actions artifact `9641278175`). Fixed WebView2 is therefore closed.
 
 ### qpdf Run #64 fixture correction — 2026-08-27
 
-Run `33066989038` (#64) passed qpdf staging after the official MinGW64 archive SHA gate but failed the first functional PDF inspection. Direct inspection of `test_globalsign.pdf` proved the file begins with `<!DOCTYPE html>` and is a GlobalSign “Page Not Found” HTML document, so the failure did not demonstrate a qpdf packaging defect. The qpdf validator now creates its own standards-shaped one-page PDF with byte-accurate xref offsets, requires packaged qpdf `--check` to return success, and requires `--show-npages` to return exactly `1`. The package-first PATH/hash/version/provenance and Stirling backend minimum-version gates remain unchanged. qpdf remains pending until the corrected complete primary run passes.
+Run `33066989038` (#64) passed qpdf staging after the official MinGW64 archive SHA gate but failed the first functional PDF inspection. Direct inspection of `test_globalsign.pdf` proved the file begins with `<!DOCTYPE html>` and is a GlobalSign “Page Not Found” HTML document, so the failure did not demonstrate a qpdf packaging defect. The qpdf validator now creates its own standards-shaped one-page PDF with byte-accurate xref offsets, requires packaged qpdf `--check` to return success, and requires `--show-npages` to return exactly `1`. The package-first PATH/hash/version/provenance and Stirling backend minimum-version gates remain unchanged.
 
 ### qpdf Run #65 PowerShell parser correction — 2026-08-27
 
-Run `33071025776` (#65), job `98512996138`, again passed the official qpdf 12.4.0 MinGW64 download, pinned archive SHA-256 check and staging into `tools/qpdf/`. The following validator step failed before executing qpdf because PowerShell could not parse the diagnostic string `"... $LASTEXITCODE: ..."`: a colon immediately after an unbraced variable name is parsed as part of the variable reference. The validator now uses `${LASTEXITCODE}:` in that message. No qpdf functional requirement was relaxed or bypassed; the package-first PATH, version/hash/provenance, generated-PDF `--check`/`--show-npages`, backend minimum-version and final-tree gates remain mandatory. qpdf is still pending until a complete primary portable run is green.
+Run `33071025776` (#65), job `98512996138`, again passed the official qpdf 12.4.0 MinGW64 download, pinned archive SHA-256 check and staging into `tools/qpdf/`. The following validator step failed before executing qpdf because PowerShell could not parse the diagnostic string `"... $LASTEXITCODE: ..."`: a colon immediately after an unbraced variable name is parsed as part of the variable reference. The validator now uses `${LASTEXITCODE}:` in that message. No qpdf functional requirement was relaxed or bypassed.
+
+### qpdf acceptance / ImageMagick phase begins — 2026-08-27
+
+Run `33086404875` (#66), job `98567113737`, on commit `413994c9ea368b5144a26686afef6011eba8de59` passed the complete permanent portable workflow. qpdf 12.4.0 MinGW64 therefore moves from candidate to accepted dependency. The next candidate is ImageMagick `7.1.2-30` portable Q16 x64 from the immutable official GitHub release, asset SHA-256 `47a4ffd20f9360fc85817286df29019fad781df15002dcffdd260c9b27a9e4d8`. Its permanent gate must prove package-local exact version/Q16/x64, package-first resolution despite runner ImageMagick 7.1.2-25, a real image operation, Stirling dependency availability, package-local ImageMagick config/temp paths and final-tree provenance before ImageMagick can be accepted.

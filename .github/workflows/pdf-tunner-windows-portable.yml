@@ -26,6 +26,10 @@ env:
   PDF_TUNNER_QPDF_VARIANT: "mingw64"
   PDF_TUNNER_QPDF_URL: "https://github.com/qpdf/qpdf/releases/download/v12.4.0/qpdf-12.4.0-mingw64.zip"
   PDF_TUNNER_QPDF_SHA256: "dcec940ce825b3b654d4936918190f52e7bfca85b7fb1c49bc24b3035185b4f5"
+  PDF_TUNNER_IMAGEMAGICK_VERSION: "7.1.2-30"
+  PDF_TUNNER_IMAGEMAGICK_VARIANT: "portable-Q16-x64"
+  PDF_TUNNER_IMAGEMAGICK_URL: "https://github.com/ImageMagick/ImageMagick/releases/download/7.1.2-30/ImageMagick-7.1.2-30-portable-Q16-x64.7z"
+  PDF_TUNNER_IMAGEMAGICK_SHA256: "47a4ffd20f9360fc85817286df29019fad781df15002dcffdd260c9b27a9e4d8"
   CI: "true"
 
 jobs:
@@ -164,6 +168,24 @@ jobs:
             -ExpectedArchiveSha256 $env:PDF_TUNNER_QPDF_SHA256 `
             -SamplePdf './test_globalsign.pdf'
 
+      - name: Stage official ImageMagick Windows runtime
+        shell: pwsh
+        run: |
+          & './.github/scripts/prepare-imagemagick.ps1' `
+            -PortableRoot './dist/PDF_Tunner' `
+            -Version $env:PDF_TUNNER_IMAGEMAGICK_VERSION `
+            -PackageVariant $env:PDF_TUNNER_IMAGEMAGICK_VARIANT `
+            -DownloadUrl $env:PDF_TUNNER_IMAGEMAGICK_URL `
+            -ExpectedSha256 $env:PDF_TUNNER_IMAGEMAGICK_SHA256
+
+      - name: Validate packaged ImageMagick independently of runner PATH
+        shell: pwsh
+        run: |
+          & './.github/scripts/validate-imagemagick.ps1' `
+            -PortableRoot './dist/PDF_Tunner' `
+            -Version $env:PDF_TUNNER_IMAGEMAGICK_VERSION `
+            -ExpectedArchiveSha256 $env:PDF_TUNNER_IMAGEMAGICK_SHA256
+
       - name: Validate bundled Java runtime
         shell: pwsh
         run: |
@@ -265,6 +287,14 @@ jobs:
             -BackendLogRoot (Join-Path $portable 'data') `
             -RequireBackendProbe
           Write-Host 'Packaged qpdf runtime and Stirling dependency probe validated successfully.'
+
+          & './.github/scripts/validate-imagemagick.ps1' `
+            -PortableRoot './dist/PDF_Tunner' `
+            -Version $env:PDF_TUNNER_IMAGEMAGICK_VERSION `
+            -ExpectedArchiveSha256 $env:PDF_TUNNER_IMAGEMAGICK_SHA256 `
+            -BackendLogRoot (Join-Path $portable 'data') `
+            -RequireBackendProbe
+          Write-Host 'Packaged ImageMagick runtime and Stirling dependency probe validated successfully.'
 
           Write-Host 'Containment check: Stirling AppData'
           if (-not $hostLeakExisted -and (Test-Path -LiteralPath $hostLeak)) {
@@ -535,6 +565,10 @@ jobs:
             'tools/qpdf/PROVENANCE.txt',
             'tools/qpdf/SHA256SUMS.txt',
             'tools/qpdf/version.txt',
+            'tools/imagemagick/magick.exe',
+            'tools/imagemagick/PROVENANCE.txt',
+            'tools/imagemagick/SHA256SUMS.txt',
+            'tools/imagemagick/version.txt',
             'data'
           )
           foreach ($relative in $required) {
@@ -547,6 +581,11 @@ jobs:
             -Version $env:PDF_TUNNER_QPDF_VERSION `
             -ExpectedArchiveSha256 $env:PDF_TUNNER_QPDF_SHA256 `
             -SamplePdf './test_globalsign.pdf'
+
+          & './.github/scripts/validate-imagemagick.ps1' `
+            -PortableRoot './dist/PDF_Tunner' `
+            -Version $env:PDF_TUNNER_IMAGEMAGICK_VERSION `
+            -ExpectedArchiveSha256 $env:PDF_TUNNER_IMAGEMAGICK_SHA256
 
       - name: Create portable ZIP and SHA-256
         id: package
