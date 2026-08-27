@@ -9,7 +9,7 @@
 - Initial upstream commit: `7fb29d002dbb8fa4b5945d1d1fe8dd164a9f7632`
 - Development branch: `pdf-tunner/windows-portable-v1`
 - Target: **Windows 10/11 x64 portable ZIP**
-- Status: **AppData containment is CI-proven on the assembled Windows portable package; Run `32825188381` passed official Tauri/Cargo tests, production build, real backend startup, package-local Tauri HTTP/log/store/window state, two-launch window restore, host AppData/registry/process containment, ZIP creation and SHA-256. Next portability phase: bundled Fixed WebView2 Runtime.**
+- Status: **Primary Run `33058462619` (#62) passed the complete permanent portable workflow and closes the bundled Fixed WebView2 phase. The current phase is the external Windows toolchain; qpdf 12.4.0 x64 is the first pinned package candidate and must pass the same assembled-package gate before being accepted.**
 
 The full original Stirling documentation and developer guide remain in this fork. Upstream project information is available at [Stirling-Tools/Stirling-PDF](https://github.com/Stirling-Tools/Stirling-PDF).
 
@@ -56,7 +56,13 @@ PDF_Tunner/
   PDF_TUNNER_PORTABLE
   libs/
   runtime/jre/
+  runtime/webview2/
   tools/
+    qpdf/
+      bin/qpdf.exe
+      PROVENANCE.txt
+      SHA256SUMS.txt
+      version.txt
   data/
     webview2/
     logs/
@@ -101,6 +107,14 @@ Stirling directly probes and can disable feature groups for missing:
 
 The upstream fat toolchain also confirms use of `unpaper`, `pngquant`, LibreOffice/UNO infrastructure, Tesseract OSD/languages, `pdf2image`, OpenCV, OCRmyPDF and conversion fonts. These are being integrated into `tools/` incrementally and will not be marked supported until the assembled Windows package passes real tests.
 
+### qpdf Windows toolchain candidate — 2026-08-27
+
+The first external-tool layer pins official **qpdf 12.4.0** for Windows x64, which satisfies Stirling 2.14.3's explicit `qpdf >= 12.0.0` dependency gate. The package source is the upstream qpdf release asset `qpdf-12.4.0-msvc64.zip` from release `v12.4.0`; the pinned archive SHA-256 is `5bcb25353f7e6df92b5625dbcfe52a5c34a2a5fba2d1a8b98b8a6a0972c3ff72`.
+
+PDF_Tunner does not commit or ship that ZIP. `.github/scripts/prepare-qpdf.ps1` downloads it during the Windows portable build, verifies the pinned SHA-256 before extraction, normalizes the extracted distribution into `tools/qpdf/`, records fixed provenance/version/executable-hash metadata and removes the temporary archive. `.github/scripts/validate-qpdf.ps1` then proves the packaged `tools/qpdf/bin/qpdf.exe` directly, resolves `qpdf` from an isolated package-first `PATH`, exercises it against a real repository PDF, verifies Stirling's own runtime dependency log reports qpdf 12.4.0 meeting the 12.0.0 minimum, and rejects any ZIP left in the product tree.
+
+This commit is the **qpdf candidate**, not its acceptance proof. qpdf becomes a supported PDF_Tunner tool only after the new complete primary portable workflow is green on the assembled package.
+
 ## Build and validation
 
 Primary build workflow: `.github/workflows/pdf-tunner-windows-portable.yml`.
@@ -116,6 +130,8 @@ Bootstrap validation currently targets:
 - production Tauri executable;
 - bundled Java 25 runtime;
 - package-local portable marker/data paths;
+- exact pinned Fixed WebView2 runtime plus live process selection from the package;
+- pinned qpdf archive SHA-256, package-local qpdf executable hash/version/provenance, isolated package-first `PATH`, a real PDF inspection and Stirling's own qpdf dependency probe;
 - real Java backend startup and dynamic port detection;
 - `/api/v1/info/status` health response;
 - Java temporary paths under `data/tmp/`, with no new `stirling-pdf` or `stirling-mobile-scanner` directories created in host `%TEMP%`;
@@ -128,7 +144,7 @@ Bootstrap validation currently targets:
 - clean ZIP generation;
 - SHA-256 generation.
 
-Run `32825188381` closed the tracked native Tauri AppData containment set, including the HTTP `.cookies` jar. This closes the AppData phase, not the entire portable-v1 project: Fixed WebView2 Runtime and the external dependency toolchain still require their own proof.
+Run `32825188381` closed the tracked native Tauri AppData containment set, including the HTTP `.cookies` jar. Run `33058462619` then closed the package-local Fixed WebView2 phase in the permanent primary workflow. The external dependency toolchain remains the active portability phase.
 
 Window-state proof is part of the primary portable workflow. After the first real startup/backend/containment smoke test, `.github/scripts/validate-portable-window-state.ps1` establishes a clean `%APPDATA%\com.willsitogg.pdf-tunner` baseline, launches the same assembled production executable, deliberately moves/resizes its real Win32 top-level window, closes normally, checks `data/tauri/window-state/.window-state.json` against the measured outer position/client size, relaunches the same portable tree, verifies restoration within tolerance, checks child-process cleanup and fails if any actual Roaming-AppData content is persisted. Only after that proof does CI clear generated `data/`, create the final portable ZIP and generate its SHA-256.
 
@@ -148,15 +164,13 @@ Run #49 was the first execution of the deliberate two-launch geometry validator.
 
 Run #50 (`run_id 32582638502`) then reached the genuine second-launch proof. The first launch measured client 824x581 at x=111/y=87 and saved exactly those values package-locally. On relaunch the main window appeared around 1028x749 at x=0/y=0, so restore failed. Inspection confirmed neither the base nor PDF_Tunner Tauri config imposes a main-window minimum that would invalidate 824x581.
 
-Push run `32634578447` on commit `eb010bc84e09b57964053530614ff66828a9b3c7` passed official desktop preparation/tests, production Tauri build, portable assembly, bundled Java 25 and the complete real backend/containment smoke step, proving the package-local connection store and Tauri log target at runtime. Its two-launch validator still failed, and the uploaded diagnostics finally exposed the exact lifecycle bug: both launches logged that the `on_window_ready` hook could not resolve `WebviewWindow 'main'`. The package-local state file still held the requested first-launch geometry 824x581 at x=111/y=87. The same diagnostics exposed a two-byte Roaming `tokens.json` auth fallback store. The current candidate therefore restores/listens directly on the native `Window<R>` supplied by `on_window_ready`—as upstream 2.2.1 does—and localizes both auth fallback stores. **Neither correction is accepted until the next production CI run proves it.**
+Push run `32634578447` on commit `eb010bc84e09b57964053530614ff66828a9b3c7` passed official desktop preparation/tests, production Tauri build, portable assembly, bundled Java 25 and the complete real backend/containment smoke step, proving the package-local connection store and Tauri log target at runtime. Its two-launch validator still failed, and the uploaded diagnostics finally exposed the exact lifecycle bug: both launches logged that the `on_window_ready` hook could not resolve `WebviewWindow 'main'`. The package-local state file still held the requested first-launch geometry 824x581 at x=111/y=87. The same diagnostics exposed a two-byte Roaming `tokens.json` auth fallback store. Those corrections were subsequently accepted by Run `32825188381` together with the native HTTP cookie localization.
 
-The earlier push run `32598488359` failed in startup containment even though its diagnostics proved the Java backend started correctly on port 53150 and shut down cleanly. Its actual failure was `%APPDATA%\com.willsitogg.pdf-tunner\connection.json`; the artifact also classified `%LOCALAPPDATA%\com.willsitogg.pdf-tunner\logs\PDF_Tunner.log` as the default `tauri-plugin-log` target and `%LOCALAPPDATA%\com.willsitogg.pdf-tunner\.cookies` as `tauri-plugin-http`'s native cookie jar. The connection/log host writes have since been proven fixed by run `32634578447`; the HTTP cookie jar remains pending.
+The earlier push run `32598488359` failed in startup containment even though its diagnostics proved the Java backend started correctly on port 53150 and shut down cleanly. Its actual failure was `%APPDATA%\com.willsitogg.pdf-tunner\connection.json`; the artifact also classified `%LOCALAPPDATA%\com.willsitogg.pdf-tunner\logs\PDF_Tunner.log` as the default `tauri-plugin-log` target and `%LOCALAPPDATA%\com.willsitogg.pdf-tunner\.cookies` as `tauri-plugin-http`'s native cookie jar. These tracked native Tauri AppData writes are now closed by Run `32825188381`.
 
 The general upstream `Build and Test Workflow` on the run #13 baseline passed frontend validation/a11y, stubbed and live Playwright, database migration, Docker Compose/images and the official Windows Tauri build. Its sole failure is GitHub `dependency-review`, which reports that Dependency Graph is disabled on this fork; that is a repository security-setting prerequisite rather than a demonstrated PDF_Tunner code regression. Each subsequent downstream commit is checked again for additional failures before it is accepted.
 
-After portable window-state/auth-store containment is proven, complete the native HTTP cookie localization and then integrate the already-staged bundled Fixed WebView2 Runtime. Microsoft currently lists x64 runtime 151.0.4129.101 (20 August 2026); the integration must use `WEBVIEW2_BROWSER_EXECUTABLE_FOLDER`, retain `WEBVIEW2_USER_DATA_FOLDER`, handle Windows 10 Fixed Version 120+ AppContainer read/execute ACL requirements, reject UNC/network execution, and verify the packaged runtime rather than any Evergreen runtime already installed on the CI host.
-
-The following validation layers will then integrate every external dependency and representative end-to-end Stirling operation before any final Release is published.
+The bootstrap/AppData/window-state/Fixed-WebView2 layers are now proven. The following validation layers integrate every external dependency and representative end-to-end Stirling operation before any final Release is published.
 
 ## Upstream synchronization
 
@@ -175,7 +189,6 @@ To keep future Stirling updates manageable:
 
 For upstream build/development details, use the existing `DeveloperGuide.md`, `frontend/editor/DeveloperGuide.md`, `ADDING_TOOLS.md` and the source itself.
 
-
 ### Fixed WebView2 accepted for the permanent Windows portable workflow
 
 Staging Run `32977842546` is the acceptance gate for the package-local Microsoft Edge WebView2 Fixed Runtime. The full heavy job passed official Stirling desktop preparation, Tauri/Cargo tests, the production `PDF_Tunner.exe` build, portable assembly, exact Microsoft Fixed Runtime CAB download, pinned SHA-256 verification, normalization, static validation, Java 25 validation, real backend HTTP health, live process selection from `runtime\webview2\fixed`, package-local `data\webview2` state, AppContainer ACL validation by SID, the two-launch/AppData/window-state containment proof, final SHA gate, and absence of any downloaded CAB in the portable tree. The permanent workflow now pins version `151.0.4129.101` x64 and CAB SHA-256 `c386640d35f7a4604d088925a9bb01938400297f6da6fe985b72614daba87cda`; no Evergreen/system fallback is accepted.
@@ -184,4 +197,8 @@ The reproducible upstream snapshot remains commit `7fb29d002dbb8fa4b5945d1d1fe8d
 
 ### Primary Fixed WebView2 gate correction — 2026-08-27
 
-Primary Run `32982806130` on commit `ac0833d4c9aee3276918934048d5c74e55c61e21` passed permanent Fixed WebView2 staging, static runtime/tree validation and bundled Java 25 validation, then launched the real packaged application successfully. Its diagnostics prove backend HTTP 200, package-local WebView2 `151.0.4129.101` from `runtime\webview2\fixed`, profile state under `data\webview2\EBWebView`, package-local Java temp, and no default host `EBWebView`, Stirling Roaming AppData, host TEMP or protocol-registry leak. The smoke step nevertheless failed immediately after the PowerShell live-runtime validator because the workflow incorrectly inspected `$LASTEXITCODE`: that variable represents native executable exit codes and is not a valid success signal for a `.ps1` invocation, so null/stale state can create a false negative. The gate now relies on the validator's terminating PowerShell errors and records success only after the script returns. This correction is not itself acceptance evidence; the next complete primary run must be green before further promotion.
+Primary Run `32982806130` on commit `ac0833d4c9aee3276918934048d5c74e55c61e21` passed permanent Fixed WebView2 staging, static runtime/tree validation and bundled Java 25 validation, then launched the real packaged application successfully. Its diagnostics prove backend HTTP 200, package-local WebView2 `151.0.4129.101` from `runtime\webview2\fixed`, profile state under `data\webview2\EBWebView`, package-local Java temp, and no default host `EBWebView`, Stirling Roaming AppData, host TEMP or protocol-registry leak. The smoke step nevertheless failed immediately after the PowerShell live-runtime validator because the workflow incorrectly inspected `$LASTEXITCODE`: that variable represents native executable exit codes and is not a valid success signal for a `.ps1` invocation, so null/stale state can create a false negative. The gate now relies on the validator's terminating PowerShell errors and records success only after the script returns.
+
+### Primary Fixed WebView2 acceptance — Run `33058462619`
+
+Run `33058462619` (#62), job `98471041328`, on commit `72924f81d1b54afe06563c9636b26f1cf1e4aca4` is the permanent primary-workflow acceptance proof that resolves the false-negative above. Every step passed: official Stirling desktop preparation, Tauri/Cargo tests, production `PDF_Tunner.exe`, portable assembly, pinned Fixed WebView2 staging/static/live validation, bundled Java 25, real backend HTTP health, package-local browser data, AppData/TEMP/registry/process containment, two-launch window-state restoration, final Fixed Runtime SHA/no-CAB gates, runtime-data reset, ZIP/SHA-256 and artifact upload. The resulting short-lived CI artifact is `PDF_Tunner-Windows-x64-Portable-bootstrap` (Actions artifact `9641278175`). Fixed WebView2 is therefore closed; the active phase is the external toolchain.

@@ -146,7 +146,7 @@ The failure artifact from run `32634578447` exposed a second Roaming store: `%AP
 
 ### AppData containment closed
 
-Run `32825188381` (job `97731512714`) on clean candidate `f088d0ad288a21d6419ff94b35c0f76b9667e7d5` is the acceptance proof for this phase. It passed official desktop preparation and Tauri/Cargo tests, production Tauri build, bundled JRE validation, real backend startup, the reinforced package-local Tauri-state/two-launch validator, runtime cleanup, ZIP/SHA generation and validated-artifact upload. Required portable locations are `data/tauri/http/.cookies`, `data/logs/tauri/PDF_Tunner.log`, `data/tauri/store/connection.json`, `data/tauri/store/tokens.json` and `data/tauri/window-state/.window-state.json`; host Local/Roaming identifier roots may exist only if empty. The protocol registry key and process tree must remain contained as enforced by the validator. The next portability phase is Fixed WebView2 Runtime; do not reinterpret this AppData proof as proof of the later external-tool bundle.
+Run `32825188381` (job `97731512714`) on clean candidate `f088d0ad288a21d6419ff94b35c0f76b9667e7d5` is the acceptance proof for this phase. It passed official desktop preparation and Tauri/Cargo tests, production Tauri build, bundled JRE validation, real backend startup, the reinforced package-local Tauri-state/two-launch validator, runtime cleanup, ZIP/SHA generation and validated-artifact upload. Required portable locations are `data/tauri/http/.cookies`, `data/logs/tauri/PDF_Tunner.log`, `data/tauri/store/connection.json`, `data/tauri/store/tokens.json` and `data/tauri/window-state/.window-state.json`; host Local/Roaming identifier roots may exist only if empty. The protocol registry key and process tree must remain contained as enforced by the validator. Fixed WebView2 was subsequently closed by primary Run `33058462619`; the active portability phase is now the external Windows toolchain.
 
 Portable `ExitRequested` is terminal and synchronous: save portable window state, terminate the bundled backend, record final logs, call `AppHandle::cleanup_before_exit()`, then immediately call `std::process::exit()` with the requested code. Tauri explicitly documents that no Tauri API may be used after manual cleanup. Run #11 proved that relying on a later `RunEvent::Exit` can leave the Windows portable parent alive even after Java and other child processes are gone. Keep non-portable upstream behavior unchanged unless upstream itself changes.
 
@@ -158,7 +158,13 @@ PDF_Tunner/
   PDF_TUNNER_PORTABLE
   libs/
   runtime/jre/
+  runtime/webview2/
   tools/
+    qpdf/
+      bin/qpdf.exe
+      PROVENANCE.txt
+      SHA256SUMS.txt
+      version.txt
   data/
     webview2/
     logs/
@@ -238,6 +244,18 @@ If a Windows executable name differs from what Stirling probes (e.g. Ghostscript
 
 CI must prove the assembled package resolves its own binaries. Do not count software already installed on the GitHub-hosted runner.
 
+### qpdf first external-tool candidate
+
+- Version: `12.4.0`.
+- Upstream release: `qpdf/qpdf` `v12.4.0`.
+- Windows package: `qpdf-12.4.0-msvc64.zip`.
+- Archive SHA-256: `5bcb25353f7e6df92b5625dbcfe52a5c34a2a5fba2d1a8b98b8a6a0972c3ff72`.
+- Portable layout: `tools/qpdf/`, with executable `tools/qpdf/bin/qpdf.exe`.
+- Stirling requirement: its source checks command `qpdf` and enforces minimum `12.0.0`.
+- `.github/scripts/prepare-qpdf.ps1` owns download, pinned archive-hash verification, extraction/normalization and fixed provenance files. The downloaded archive must never enter the product tree.
+- `.github/scripts/validate-qpdf.ps1` must verify packaged executable hash/provenance/version, resolve `qpdf` from an isolated package-first PATH, exercise a real PDF, and—during the real PDF_Tunner launch—find Stirling's own `qpdf 12.4.0 meets minimum 12.0.0` dependency evidence in package-local logs.
+- Do not mark qpdf supported merely because these scripts exist; acceptance requires a complete green primary Windows portable run on the assembled tree.
+
 ## Build workflow
 
 Permanent workflow path:
@@ -268,31 +286,33 @@ Baseline sequence:
 6. run `task desktop:test`;
 7. build Tauri with `tauri.pdf-tunner.conf.json` and no installer;
 8. assemble `PDF_Tunner.exe`, `libs/`, `runtime/jre/`, marker and empty `data/`;
-9. launch the assembled executable;
-10. find the actual backend port from package-local logs;
-11. request `/api/v1/info/status`;
-12. assert Stirling Java temp directories live under package `data/tmp` and were not newly created in host `%TEMP%`;
-13. assert WebView2 populated package `data/webview2` and did not newly create `%LOCALAPPDATA%\com.willsitogg.pdf-tunner\EBWebView`;
-14. assert portable startup/shutdown did not persist files/subdirectories under `%APPDATA%\com.willsitogg.pdf-tunner`, including connection/user-info/token-store state;
-15. assert native Tauri log output is package-local and inventory Local/Roaming application roots separately; keep the known HTTP `.cookies` leak explicitly classified until its dedicated fix lands;
-16. assert portable startup/shutdown did not newly register `HKCU\Software\Classes\pdf-tunner`;
-17. request normal app shutdown and check for portable child-process leftovers;
-18. run the real two-launch Win32 window-state persistence/restore validator on the assembled production tree;
-19. on failure, write host/profile/registry/process evidence first, recursively inventory the PDF_Tunner/Stirling host application roots, summarize live WebView2 without recursively copying it, and copy safe package-local state including `data/tauri` best-effort;
-20. upload diagnostics with hidden files enabled so `.window-state.json` is retained when present;
-21. clean generated runtime data from the distribution;
-22. create ZIP + SHA-256;
-23. upload only a short-lived CI artifact while the build remains bootstrap/non-release.
+9. stage and validate pinned Fixed WebView2 into `runtime/webview2/`;
+10. stage official qpdf into `tools/qpdf/`, verify archive SHA/provenance/executable hash/version, then prove it from an isolated package-first PATH and real PDF input;
+11. launch the assembled executable;
+12. find the actual backend port from package-local logs and request `/api/v1/info/status`;
+13. prove Stirling's own runtime dependency check accepted package-first qpdf 12.4.0 against its 12.0.0 minimum;
+14. assert Stirling Java temp directories live under package `data/tmp` and were not newly created in host `%TEMP%`;
+15. assert WebView2 populated package `data/webview2` and did not newly create `%LOCALAPPDATA%\com.willsitogg.pdf-tunner\EBWebView`;
+16. assert portable startup/shutdown did not persist files/subdirectories under `%APPDATA%\com.willsitogg.pdf-tunner`, including connection/user-info/token-store state;
+17. assert native Tauri log output and HTTP cookie state are package-local and inventory Local/Roaming application roots separately;
+18. assert portable startup/shutdown did not newly register `HKCU\Software\Classes\pdf-tunner`;
+19. request normal app shutdown and check for portable child-process leftovers;
+20. run the real two-launch Win32 window-state persistence/restore validator on the assembled production tree;
+21. on failure, write host/profile/registry/process evidence first, recursively inventory the PDF_Tunner/Stirling host application roots, summarize live WebView2 without recursively copying it, and copy safe package-local state including `data/tauri` best-effort;
+22. upload diagnostics with hidden files enabled so `.window-state.json` is retained when present;
+23. clean generated runtime data from the distribution and revalidate qpdf in the final tree;
+24. create ZIP + SHA-256;
+25. upload only a short-lived CI artifact while the build remains bootstrap/non-release.
 
 Startup diagnostics are implementation-branch evidence only. They must not become Release assets or permanent repository build output.
 
 A failure diagnostics step must itself be resilient. In particular, do not recursively `Copy-Item` a live `data/webview2` tree: Chromium/WebView2 may hold files open and abort the diagnostic before host-state evidence is written. Record host state first, then summarize WebView2 by path/count/bytes/sample and copy only safe subtrees with best-effort error handling.
 
-## Fixed WebView2 next layer
+## Fixed WebView2 accepted
 
-After portable window-state/auth-store containment passes, localize the native HTTP 2.5.8 cookie jar without disabling authentication, then bundle a Microsoft Fixed WebView2 Runtime. As of 2026-08-22 the current x64 catalog build verified during this work is `151.0.4129.101` (published 2026-08-20). Reverify before committing because this runtime is serviced frequently.
+Primary Run `33058462619` (#62), job `98471041328`, on commit `72924f81d1b54afe06563c9636b26f1cf1e4aca4` is the permanent-workflow proof for bundled Microsoft Fixed WebView2 `151.0.4129.101` x64. It passed official Stirling desktop preparation, Tauri/Cargo tests, production assembly, pinned runtime staging/static/live selection, bundled Java 25, backend HTTP 200, package-local browser profile, AppContainer ACLs, AppData/TEMP/registry/process containment, two-launch window-state restoration, final CAB SHA/no-CAB checks, package cleanup, ZIP/SHA and artifact upload. No Evergreen/system WebView2 fallback is accepted.
 
-Use `WEBVIEW2_BROWSER_EXECUTABLE_FOLDER` for the package-local Fixed Runtime and keep `WEBVIEW2_USER_DATA_FOLDER` for the package-local profile. Microsoft documents that unpackaged Win32 apps using Fixed Version 120+ on Windows 10 need read/execute ACLs for SIDs `S-1-15-2-1` (`ALL APPLICATION PACKAGES`) and `S-1-15-2-2` (`ALL RESTRICTED APPLICATION PACKAGES`). Fixed Version cannot run from a network/UNC location. CI/manual validation must prove the bundled runtime is selected rather than a runner-installed Evergreen runtime.
+Keep `WEBVIEW2_BROWSER_EXECUTABLE_FOLDER` pointed at package-local `runtime/webview2/fixed`, keep `WEBVIEW2_USER_DATA_FOLDER` package-local, retain the Windows 10 Fixed Version 120+ AppContainer SID grants, and continue rejecting UNC/network execution. The next active portability phase is the external toolchain, not additional WebView2 bootstrap work.
 
 ## Final validation target
 
@@ -411,7 +431,6 @@ Unless a PDF_Tunner rule above overrides them:
 - The same diagnostics exposed `%APPDATA%\com.willsitogg.pdf-tunner\tokens.json` from the authentication Tauri Store fallback and a second relative `connection.json` path in auth user-info code. Both are localized to `data/tauri/store/` in portable mode without changing keyring/login/OAuth semantics; CI proof is pending.
 - Classified `%LOCALAPPDATA%\com.willsitogg.pdf-tunner\.cookies` as `tauri-plugin-http` 2.5.8's persistent cookie jar. Verified official ref `tauri-apps/plugins-workspace` `http-v2.5.8` and confirmed current `v2` still hard-wires `app_cache_dir()/.cookies`; cookies/auth must be preserved, so this leak remains explicitly pending a minimal source-compatible localization rather than disabling the feature.
 
-
 ### Permanent Fixed WebView2 acceptance
 
 - Staging Run `32977842546` is the green acceptance evidence for Fixed WebView2 `151.0.4129.101` x64. Permanent Windows builds must retain the exact official Microsoft CDN CAB URL and SHA-256 `c386640d35f7a4604d088925a9bb01938400297f6da6fe985b72614daba87cda`.
@@ -423,4 +442,12 @@ Unless a PDF_Tunner rule above overrides them:
 
 - Primary Run `32982806130` / job `98339314033` on commit `ac0833d4c9aee3276918934048d5c74e55c61e21` passed steps 1–15 and failed step 16 only after the real packaged application was already running. Its failure artifact proves backend HTTP 200, bundled Java 25, Fixed WebView2 `151.0.4129.101` processes from `runtime\webview2\fixed`, package-local `data\webview2\EBWebView`, package-local Java temp, no host `EBWebView`, no Stirling Roaming AppData, no host TEMP leak and no `pdf-tunner` protocol key.
 - The step-16 wrapper incorrectly tested `$LASTEXITCODE` after calling `.github/scripts/validate-webview2-fixed-runtime.ps1`. `$LASTEXITCODE` belongs to the most recently invoked native executable and is not a reliable result code for a PowerShell script; null/stale state can therefore fail a successful validator. Never use `$LASTEXITCODE` to infer `.ps1` success. Let terminating errors propagate, or use PowerShell-native status handling where genuinely needed.
-- The permanent workflow now emits its live-WebView2 success line only after the validator returns without a terminating error. Do not describe the primary workflow as green until the next complete run actually passes all smoke, two-launch, hash, no-CAB, cleanup, ZIP and artifact gates.
+- The permanent workflow now emits its live-WebView2 success line only after the validator returns without a terminating error.
+
+### 2026-08-27 — primary Fixed WebView2 accepted; qpdf toolchain begins
+
+- Primary Run `33058462619` (#62), job `98471041328`, on commit `72924f81d1b54afe06563c9636b26f1cf1e4aca4` passed every permanent portable gate, resolving the prior false negative. Fixed WebView2 `151.0.4129.101` is now accepted in the primary workflow; the resulting CI artifact was `9641278175`.
+- Closed the Fixed WebView2 phase and moved the active implementation layer to external Windows dependencies.
+- Selected upstream qpdf `12.4.0` `msvc64` as the first candidate because Stirling's exact source probes `qpdf` and requires at least `12.0.0`.
+- Pinned official `qpdf-12.4.0-msvc64.zip` SHA-256 `5bcb25353f7e6df92b5625dbcfe52a5c34a2a5fba2d1a8b98b8a6a0972c3ff72` and added reproducible staging into `tools/qpdf/` without committing/downstreaming the ZIP itself.
+- Added isolated package-first PATH/version/hash/provenance/sample-PDF validation plus Stirling-backend dependency-log proof. This qpdf integration remains a candidate until the resulting complete primary run is green.
