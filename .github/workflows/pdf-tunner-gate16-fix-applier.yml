@@ -1,0 +1,75 @@
+name: PDF_Tunner Gate16 Fix Applier
+
+on:
+  push:
+    branches:
+      - pdf-tunner/gate16-fix-applier
+
+permissions:
+  contents: write
+
+jobs:
+  apply-fix:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout primary portable branch
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          ref: pdf-tunner/windows-portable-v1
+          fetch-depth: 0
+
+      - name: Apply atomic gate 16 correction
+        shell: bash
+        run: |
+          set -euo pipefail
+          expected='ac0833d4c9aee3276918934048d5c74e55c61e21'
+          current="$(git rev-parse HEAD)"
+          remote="$(git ls-remote origin 'refs/heads/pdf-tunner/windows-portable-v1' | awk '{print $1}')"
+          if [[ "$current" != "$expected" || "$remote" != "$expected" ]]; then
+            echo "Primary branch moved unexpectedly: checkout=$current remote=$remote expected=$expected" >&2
+            exit 1
+          fi
+
+          python - <<'PY'
+          from pathlib import Path
+
+          workflow = Path('.github/workflows/pdf-tunner-windows-portable.yml')
+          text = workflow.read_text(encoding='utf-8')
+          old = "          if ($LASTEXITCODE -ne 0) { throw 'Fixed WebView2 live validation failed.' }\n"
+          new = "          Write-Host 'Fixed WebView2 live validation completed successfully.'\n"
+          if text.count(old) != 1:
+              raise SystemExit(f'Expected exactly one stale LASTEXITCODE gate, found {text.count(old)}')
+          workflow.write_text(text.replace(old, new), encoding='utf-8')
+
+          readme = Path('README.md')
+          readme_text = readme.read_text(encoding='utf-8')
+          readme_marker = '### Primary Fixed WebView2 gate correction — 2026-08-27'
+          if readme_marker in readme_text:
+              raise SystemExit('README correction note already exists; refusing duplicate application.')
+          readme_note = '''\n\n### Primary Fixed WebView2 gate correction — 2026-08-27\n\nPrimary Run `32982806130` on commit `ac0833d4c9aee3276918934048d5c74e55c61e21` passed the permanent Fixed WebView2 staging, static runtime/tree validation, bundled Java 25 validation and then launched the real packaged application successfully: diagnostics prove the Java backend reached HTTP 200 on its dynamic loopback port, `msedgewebview2.exe` ran from package-local `runtime\\webview2\\fixed` at version `151.0.4129.101`, its live profile was under `data\\webview2\\EBWebView`, Java temporary state remained under `data\\tmp`, and no default host `EBWebView`, Stirling Roaming AppData, host TEMP or protocol-registry state was created. The smoke step nevertheless failed immediately after the PowerShell live-runtime validator because the workflow incorrectly inspected `$LASTEXITCODE`; that variable represents native executable exit codes and is not a valid success signal for a `.ps1` invocation, so a null/stale value can create a false negative. The permanent gate now relies on the validator's terminating PowerShell errors and records success only after the script returns. This correction is not itself acceptance evidence: the next complete primary run must be green before the portable package is promoted further.\n'''
+          readme.write_text(readme_text.rstrip() + readme_note, encoding='utf-8')
+
+          agents = Path('AGENTS.md')
+          agents_text = agents.read_text(encoding='utf-8')
+          agents_marker = '### 2026-08-27 — primary Fixed WebView2 gate false-negative correction'
+          if agents_marker in agents_text:
+              raise SystemExit('AGENTS correction note already exists; refusing duplicate application.')
+          agents_note = '''\n\n### 2026-08-27 — primary Fixed WebView2 gate false-negative correction\n\n- Primary Run `32982806130` / job `98339314033` on commit `ac0833d4c9aee3276918934048d5c74e55c61e21` passed steps 1–15 and failed step 16 only after the real packaged application was already running. Its failure artifact proves backend HTTP 200, bundled Java 25, Fixed WebView2 `151.0.4129.101` processes from `runtime\\webview2\\fixed`, package-local `data\\webview2\\EBWebView`, package-local Java temp, no host `EBWebView`, no Stirling Roaming AppData, no host TEMP leak and no `pdf-tunner` protocol key.\n- The step-16 wrapper incorrectly tested `$LASTEXITCODE` after calling `.github/scripts/validate-webview2-fixed-runtime.ps1`. `$LASTEXITCODE` belongs to the most recently invoked native executable and is not a reliable result code for a PowerShell script; null/stale state can therefore fail a successful validator. Never use `$LASTEXITCODE` to infer `.ps1` success. Let terminating errors propagate, or use PowerShell-native status handling where genuinely needed.\n- The permanent workflow now emits its live-WebView2 success line only after the validator returns without a terminating error. Do not describe the primary workflow as green until the next complete run actually passes all smoke, two-launch, hash, no-CAB, cleanup, ZIP and artifact gates.\n'''
+          agents.write_text(agents_text.rstrip() + agents_note, encoding='utf-8')
+          PY
+
+          git diff --check
+          changed="$(git diff --name-only)"
+          printf 'Changed files:\n%s\n' "$changed"
+          expected_files=$'.github/workflows/pdf-tunner-windows-portable.yml\nAGENTS.md\nREADME.md'
+          actual_files="$(printf '%s\n' "$changed" | sort)"
+          if [[ "$actual_files" != "$expected_files" ]]; then
+            echo 'Unexpected corrective diff; refusing to commit.' >&2
+            exit 1
+          fi
+
+          git config user.name 'PDF_Tunner CI'
+          git config user.email 'actions@users.noreply.github.com'
+          git add .github/workflows/pdf-tunner-windows-portable.yml README.md AGENTS.md
+          git commit -m 'fix(ci): remove false WebView2 PowerShell exit gate'
+          git push origin HEAD:pdf-tunner/windows-portable-v1
