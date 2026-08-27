@@ -112,11 +112,15 @@ $shaFile = Join-Path $tesseractRoot 'SHA256SUMS.txt'
 $eng = Join-Path $tessdataRoot 'eng.traineddata'
 $spa = Join-Path $tessdataRoot 'spa.traineddata'
 $osd = Join-Path $tessdataRoot 'osd.traineddata'
+$pluginDir = Join-Path $tesseractRoot '$PLUGINSDIR'
 
 foreach ($path in @($exe, $versionFile, $provenanceFile, $shaFile, $eng, $spa, $osd)) {
     if (-not (Test-Path -LiteralPath $path -PathType Leaf)) {
         throw "Required Tesseract package file is missing: $path"
     }
+}
+if (Test-Path -LiteralPath $pluginDir) {
+    throw 'NSIS $PLUGINSDIR is present inside the portable Tesseract runtime.'
 }
 
 $recordedVersion = (Get-Content -LiteralPath $versionFile -Raw).Trim()
@@ -142,6 +146,18 @@ foreach ($key in $requiredMetadata.Keys) {
     if ($metadata[$key].ToLowerInvariant() -ne $requiredMetadata[$key].ToLowerInvariant()) {
         throw "Tesseract provenance mismatch for ${key}: expected '$($requiredMetadata[$key])', got '$($metadata[$key])'."
     }
+}
+if (-not $metadata.ContainsKey('SOURCE_URL')) { throw 'Tesseract provenance is missing SOURCE_URL.' }
+if ($metadata['SOURCE_URL'] -notmatch 'tesseract-ocr-w64-setup-(?<cliVersion>\d+\.\d+\.\d+\.\d+)\.exe(?:$|\?)') {
+    throw "Tesseract SOURCE_URL does not expose an exact dated Windows CLI version: '$($metadata['SOURCE_URL'])'."
+}
+$expectedCliVersion = $Matches['cliVersion']
+if ($expectedCliVersion -notlike "$Version.*") {
+    throw "Tesseract CLI version '$expectedCliVersion' does not belong to release '$Version'."
+}
+if (-not $metadata.ContainsKey('CLI_VERSION')) { throw 'Tesseract provenance is missing CLI_VERSION.' }
+if ($metadata['CLI_VERSION'] -ne $expectedCliVersion) {
+    throw "Tesseract provenance CLI_VERSION mismatch: expected '$expectedCliVersion', got '$($metadata['CLI_VERSION'])'."
 }
 
 $machine = Get-PeMachine -Path $exe
@@ -201,8 +217,8 @@ try {
     $versionOutput = @(& tesseract --version 2>&1)
     if ($LASTEXITCODE -ne 0 -or $versionOutput.Count -eq 0) { throw "Packaged tesseract --version failed with exit code $LASTEXITCODE." }
     $firstLine = ($versionOutput[0] | Out-String).Trim()
-    if ($firstLine -notmatch ('^tesseract\s+' + [Regex]::Escape($Version) + '(\s|$)')) {
-        throw "Packaged Tesseract version mismatch: expected $Version, got '$firstLine'."
+    if ($firstLine -notmatch ('^tesseract\s+v?' + [Regex]::Escape($expectedCliVersion) + '(\s|$)')) {
+        throw "Packaged Tesseract CLI version mismatch: expected $expectedCliVersion, got '$firstLine'."
     }
 
     $languages = @(& tesseract --list-langs 2>&1)
@@ -257,4 +273,4 @@ if ($RequireBackendProbe) {
     Write-Host 'Stirling backend accepted Tesseract and confirmed the package-local tessdata path.'
 }
 
-Write-Host "PASS: packaged Tesseract $Version is AMD64, provenance/model pins verified, resolves package-locally, and completed English + Spanish OCR plus OSD functional validation."
+Write-Host "PASS: packaged Tesseract release $Version / CLI $expectedCliVersion is AMD64, provenance/model pins verified, resolves package-locally, and completed English + Spanish OCR plus OSD functional validation."

@@ -237,15 +237,17 @@ Accepted evidence includes real packaged startup/backend health, Java temp local
 - Mandatory validation: provenance/hash/PE AMD64/version, isolated `where gs`, real PostScript -> PDF -> PNG and Stirling backend acceptance.
 - **Acceptance:** Run `33104114920` (#68), job `98629258424`, commit `84b2fb4a8dd1e69896abc7147442aabec68c3004`; artifact `9660338658`, digest `sha256:843dfdad3def8072ced147ea3c208c01019ec397f0a5f49b3c5bfcbc47cda9cd`.
 
-## Active candidate: Tesseract OCR 5.5.3
+## Active candidate: Tesseract OCR release 5.5.3 / CLI 5.5.3.20260724
 
 Source-backed decisions:
 
 - official upstream: `tesseract-ocr/tesseract` release `5.5.3` (published 2026-07-24);
-- official Win64 asset: `tesseract-ocr-w64-setup-5.5.3.20260724.exe`;
+- official Win64 asset / exact CLI build: `tesseract-ocr-w64-setup-5.5.3.20260724.exe` / `5.5.3.20260724`;
 - official asset SHA-256: `bee9e3434bd94fd65387d9be28cd467a41f61b1275383b55b0f59a1331270ae4`;
 - package root: `tools/tesseract/`;
 - extract NSIS via 7-Zip without executing the installer;
+- remove/reject installer-only `$PLUGINSDIR` exposed by archive extraction;
+- keep release identity (`5.5.3`) separate from exact Windows CLI build identity (`5.5.3.20260724`) and record `CLI_VERSION` in package provenance;
 - do not inherit upstream installer's moving `tessdata_fast/main` downloads;
 - pin `tessdata_fast` to commit `87416418657359cb625c412a48b6e1d6d41c29bd`;
 - bundle initial `eng`, `spa`, `osd` models with exact Git blob IDs:
@@ -255,19 +257,23 @@ Source-backed decisions:
 
 Stirling's own OCR guidance requires `eng` as the base model and `RuntimePathConfig` prioritizes `TESSDATA_PREFIX`, so the existing portable Tauri bootstrap already supports package-local `tools/tesseract/tessdata` without a new Rust change.
 
+Diagnostic Run `33109977150` (#69), job `98649908490`, failed only in `Stage official Tesseract Windows runtime`; all preceding accepted gates passed. The staged diagnostics showed `tesseract.exe`, pinned models and `$PLUGINSDIR` had already reached `tools/tesseract/`, while provenance files had not yet been written. The real Windows CLI identifies itself as `tesseract v5.5.3.20260724`, but the first implementation asserted the release-only string `tesseract 5.5.3`. Therefore #69 is retained as diagnostic evidence and **must not** be described as Tesseract acceptance.
+
 `.github/scripts/prepare-tesseract.ps1` must:
 
 - verify the official installer SHA-256;
 - archive-extract without installation;
-- normalize the real Win64 runtime;
+- normalize the real Win64 runtime and remove `$PLUGINSDIR`;
+- derive the exact CLI build from the immutable installer filename and require it to belong to release `5.5.3`;
 - download models at the exact pinned commit;
 - verify each model by Git blob object SHA-1, not merely filename;
-- write fixed `version.txt`, `PROVENANCE.txt`, `SHA256SUMS.txt`;
-- reject installer leakage into the product tree.
+- write fixed `version.txt`, `PROVENANCE.txt` (including `CLI_VERSION`) and `SHA256SUMS.txt`;
+- reject installer/helper leakage into the product tree.
 
 `.github/scripts/validate-tesseract.ps1` must:
 
-- require AMD64 `tesseract.exe` and exact 5.5.3;
+- require AMD64 `tesseract.exe`, release 5.5.3 and exact CLI build 5.5.3.20260724;
+- allow only the upstream CLI's optional `v` prefix, not a looser version match;
 - require isolated `where tesseract` to resolve package-local executable;
 - require package-local `TESSDATA_PREFIX`;
 - verify exact `eng`, `spa`, `osd` blob pins and SHA metadata;
@@ -276,6 +282,7 @@ Stirling's own OCR guidance requires `eng` as the base model and `RuntimePathCon
 - run real Spanish OCR;
 - run real OSD against a rotated generated image;
 - during real PDF_Tunner startup require Stirling not to report `Missing dependency: tesseract` and require the backend log to confirm package-local tessdata path;
+- reject `$PLUGINSDIR` and downloaded installer residue;
 - rerun in the final cleaned tree before ZIP.
 
 **Do not call Tesseract accepted until the complete primary workflow is green with every previously accepted gate still enabled.**
@@ -424,7 +431,7 @@ Accepted/closed:
 
 Active candidate:
 
-- Tesseract 5.5.3 Win64 + pinned `eng`/`spa`/`osd` models.
+- Tesseract release 5.5.3 / Win64 CLI 5.5.3.20260724 + pinned `eng`/`spa`/`osd` models; #69 is diagnostic failure only and its version/provenance normalization fix is pending full workflow validation.
 
 Next block after Tesseract acceptance:
 
@@ -440,6 +447,7 @@ Broader roadmap after that:
 - **2026-08-22:** real packaged startup/backend health, Java temp, protocol and parent/child shutdown brought under CI; WebView2/profile and custom portable window-state work added.
 - **2026-08-23:** native Tauri stores/log/http cookies and two-launch window-state behavior audited/localized; consolidated AppData/window-state acceptance later proved by Run `32825188381`.
 - **2026-08-27:** Fixed WebView2 accepted by Run #62; qpdf accepted by Run #66; ImageMagick accepted by Run #67; Ghostscript accepted by Run #68.
-- **2026-08-27:** continuity protocol made explicit after a resumed conversation incorrectly narrowed the remaining roadmap; Tesseract 5.5.3 becomes the active candidate with official Win64 binary and exact pinned `tessdata_fast` models.
+- **2026-08-27:** continuity protocol made explicit after a resumed conversation incorrectly narrowed the remaining roadmap; Tesseract becomes the active candidate with official Win64 binary and exact pinned `tessdata_fast` models.
+- **2026-08-27:** diagnostic Run #69 proved the Tesseract runtime/models were staged before a strict but incorrectly shaped version assertion failed; corrected contract distinguishes release 5.5.3 from CLI build 5.5.3.20260724 and removes/rejects extracted NSIS `$PLUGINSDIR` residue. Tesseract remains unaccepted until a complete green primary run.
 
 Detailed diagnostic chronology remains preserved in git history; this file intentionally prioritizes the current technical contract, accepted evidence, active candidate and full remaining roadmap so work can resume safely in a new conversation.

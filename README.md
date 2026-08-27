@@ -10,7 +10,7 @@
 - Development branch: `pdf-tunner/windows-portable-v1`
 - Target: **Windows 10/11 x64 portable ZIP**
 - Current accepted portable/tool layers: Tauri/JRE/bootstrap containment, Fixed WebView2 `151.0.4129.101` x64, qpdf `12.4.0` MinGW64, ImageMagick `7.1.2-30` portable Q16 x64 and Ghostscript `10.07.1` Win64.
-- Active candidate: **Tesseract OCR 5.5.3 Win64 with pinned `eng`, `spa` and `osd` tessdata models**.
+- Active candidate: **Tesseract OCR release 5.5.3 / Windows CLI build 5.5.3.20260724 with pinned `eng`, `spa` and `osd` tessdata models**.
 - No final PDF_Tunner v1 Release exists yet. `main` remains the clean upstream base while the portable implementation is developed and validated on `pdf-tunner/windows-portable-v1`.
 
 The original Stirling documentation and developer guides remain part of this fork. PDF_Tunner-specific architecture, packaging and validation decisions are recorded here and in `AGENTS.md`.
@@ -168,11 +168,12 @@ The pinned source also uses/probes Poppler helpers such as `pdfinfo`/`pdfimages`
 
 ## Tesseract OCR Windows candidate — 2026-08-27
 
-The active layer pins official **Tesseract 5.5.3 Win64** from `tesseract-ocr/tesseract` release `5.5.3`.
+The active layer pins official **Tesseract release 5.5.3**, whose current Win64 installer embeds CLI build **5.5.3.20260724**.
 
 - Official asset: `tesseract-ocr-w64-setup-5.5.3.20260724.exe`.
 - Official GitHub SHA-256: `bee9e3434bd94fd65387d9be28cd467a41f61b1275383b55b0f59a1331270ae4`.
 - The NSIS asset is extracted without executing the installer, so CI cannot inherit installer-created PATH, registry or uninstall state.
+- 7-Zip exposes installer helper files under `$PLUGINSDIR`; PDF_Tunner removes that installer-only directory from the normalized portable runtime and validates that it does not survive.
 - The upstream installer downloads languages dynamically from `tessdata_fast/main`; PDF_Tunner deliberately does **not** inherit that moving source.
 - `tessdata_fast` is pinned to commit `87416418657359cb625c412a48b6e1d6d41c29bd`.
 - Initial bundled models:
@@ -182,10 +183,14 @@ The active layer pins official **Tesseract 5.5.3 Win64** from `tesseract-ocr/tes
 
 `eng` is retained because Stirling's OCR guidance treats it as the base language. Spanish is included for the initial PDF_Tunner user-facing language set, and OSD is required for orientation/script detection. The package remains extensible to additional `.traineddata` models; bundling every upstream language is deferred until the final package-size trade-off is assessed together with LibreOffice and Calibre.
 
-`.github/scripts/prepare-tesseract.ps1` owns official installer download/hash verification, archive extraction, runtime normalization and exact tessdata commit/blob verification. `.github/scripts/validate-tesseract.ps1` independently requires:
+Run `33109977150` (#69), job `98649908490`, was a useful **diagnostic failure**, not an acceptance run. Every previously accepted tool and build gate passed through Ghostscript; Tesseract staging extracted the real runtime and downloaded the pinned models, then failed its first version assertion because the Windows binary reports `tesseract v5.5.3.20260724` while the initial gate expected the release-only form `tesseract 5.5.3`. Failure diagnostics also proved `$PLUGINSDIR` was being copied into `tools/tesseract/`.
+
+The corrected staging/validation contract therefore keeps release identity (`5.5.3`) distinct from the exact Windows CLI build (`5.5.3.20260724`), derives the latter from the pinned immutable installer filename, records it as `CLI_VERSION` in provenance, requires the exact CLI build with an optional upstream `v` prefix, and removes/rejects `$PLUGINSDIR`.
+
+`.github/scripts/prepare-tesseract.ps1` owns official installer download/hash verification, archive extraction, runtime normalization, exact CLI-build identification and exact tessdata commit/blob verification. `.github/scripts/validate-tesseract.ps1` independently requires:
 
 - package-local AMD64 `tesseract.exe`;
-- exact Tesseract `5.5.3`;
+- release `5.5.3` plus exact Windows CLI build `5.5.3.20260724` from provenance/source identity;
 - `where tesseract` resolving the packaged executable from an isolated PATH;
 - package-local `TESSDATA_PREFIX`;
 - exact Git blob identities for `eng`, `spa`, `osd`;
@@ -194,7 +199,7 @@ The active layer pins official **Tesseract 5.5.3 Win64** from `tesseract-ocr/tes
 - real Spanish OCR;
 - real OSD execution on a rotated image;
 - Stirling backend logs accepting `tesseract` and explicitly reporting the package-local tessdata path;
-- no downloaded installer in the final product tree.
+- no downloaded installer or `$PLUGINSDIR` in the final product tree.
 
 Tesseract remains a **candidate** until the complete primary Windows portable workflow passes with all previously accepted gates still enabled.
 

@@ -75,6 +75,18 @@ try {
         throw "Tesseract installer SHA-256 mismatch: expected $expectedHash, got $installerHash."
     }
 
+    # The official Windows asset uses a release tag (for example 5.5.3) while
+    # the Windows CLI embeds the dated package build (for example
+    # 5.5.3.20260724). Derive and pin that exact CLI version from the immutable
+    # installer filename instead of weakening the version gate.
+    $expectedCliVersion = $Version
+    if ($DownloadUrl -match 'tesseract-ocr-w64-setup-(?<cliVersion>\d+\.\d+\.\d+\.\d+)\.exe(?:$|\?)') {
+        $expectedCliVersion = $Matches['cliVersion']
+        if ($expectedCliVersion -notlike "$Version.*") {
+            throw "Tesseract installer CLI version '$expectedCliVersion' does not belong to release '$Version'."
+        }
+    }
+
     # The upstream Windows release is an NSIS package. Extract it as an archive
     # rather than executing it so the build cannot create registry, PATH or
     # uninstall state that the portable runtime might accidentally inherit.
@@ -99,6 +111,11 @@ try {
     $sourceRoot = $candidateExe.Directory.FullName
     New-Item -ItemType Directory -Force -Path $tesseractRoot | Out-Null
     Get-ChildItem -LiteralPath $sourceRoot -Force | Copy-Item -Destination $tesseractRoot -Recurse -Force
+
+    # 7-Zip exposes the NSIS helper payload as $PLUGINSDIR. It is installer-only
+    # material and must not survive in the portable runtime.
+    $pluginDir = Join-Path $tesseractRoot '$PLUGINSDIR'
+    Remove-Item -LiteralPath $pluginDir -Recurse -Force -ErrorAction SilentlyContinue
 
     $packagedExe = Join-Path $tesseractRoot 'tesseract.exe'
     if (-not (Test-Path -LiteralPath $packagedExe -PathType Leaf)) {
@@ -133,8 +150,8 @@ try {
             throw "Packaged tesseract.exe --version failed with exit code $LASTEXITCODE."
         }
         $firstLine = ($versionOutput[0] | Out-String).Trim()
-        if ($firstLine -notmatch ('^tesseract\s+' + [Regex]::Escape($Version) + '(\s|$)')) {
-            throw "Packaged Tesseract version mismatch: expected $Version, got '$firstLine'."
+        if ($firstLine -notmatch ('^tesseract\s+v?' + [Regex]::Escape($expectedCliVersion) + '(\s|$)')) {
+            throw "Packaged Tesseract CLI version mismatch: expected $expectedCliVersion, got '$firstLine'."
         }
     }
     finally {
@@ -152,6 +169,7 @@ try {
     Set-Content -LiteralPath (Join-Path $tesseractRoot 'PROVENANCE.txt') -Encoding ascii -Value @(
         'NAME=Tesseract OCR',
         "VERSION=$Version",
+        "CLI_VERSION=$expectedCliVersion",
         "PACKAGE_VARIANT=$PackageVariant",
         "SOURCE_URL=$DownloadUrl",
         "INSTALLER_SHA256=$installerHash",
@@ -175,8 +193,11 @@ try {
         $leakedInstallers | Select-Object FullName, Length | Format-Table -AutoSize
         throw 'Downloaded Tesseract installer leaked into the portable tool directory.'
     }
+    if (Test-Path -LiteralPath $pluginDir) {
+        throw 'NSIS $PLUGINSDIR leaked into the portable Tesseract runtime.'
+    }
 
-    Write-Host "Staged Tesseract $Version at $tesseractRoot"
+    Write-Host "Staged Tesseract release $Version / CLI $expectedCliVersion at $tesseractRoot"
     Write-Host "Installer SHA-256: $installerHash"
     Write-Host "Tessdata commit: $TessdataCommit (eng, spa, osd)"
 }
