@@ -7,7 +7,7 @@ param(
     [string]$Version,
 
     [Parameter(Mandatory = $true)]
-    [ValidateSet('msvc64')]
+    [ValidateSet('mingw64')]
     [string]$PackageVariant,
 
     [Parameter(Mandatory = $true)]

@@ -109,7 +109,7 @@ The upstream fat toolchain also confirms use of `unpaper`, `pngquant`, LibreOffi
 
 ### qpdf Windows toolchain candidate — 2026-08-27
 
-The first external-tool layer pins official **qpdf 12.4.0** for Windows x64, which satisfies Stirling 2.14.3's explicit `qpdf >= 12.0.0` dependency gate. The package source is the upstream qpdf release asset `qpdf-12.4.0-msvc64.zip` from release `v12.4.0`; the pinned archive SHA-256 is `5bcb25353f7e6df92b5625dbcfe52a5c34a2a5fba2d1a8b98b8a6a0972c3ff72`.
+The first external-tool layer pins official **qpdf 12.4.0** for Windows x64, which satisfies Stirling 2.14.3's explicit `qpdf >= 12.0.0` dependency gate. The package source is the upstream qpdf release asset `qpdf-12.4.0-mingw64.zip` from release `v12.4.0`; the pinned archive SHA-256 is `dcec940ce825b3b654d4936918190f52e7bfca85b7fb1c49bc24b3035185b4f5`. The MinGW64 package is deliberately preferred over MSVC64 for PDF_Tunner portability: qpdf documents that MinGW64 does not require a Visual C++ runtime DLL on the host, avoiding an unnecessary machine-level prerequisite.
 
 PDF_Tunner does not commit or ship that ZIP. `.github/scripts/prepare-qpdf.ps1` downloads it during the Windows portable build, verifies the pinned SHA-256 before extraction, normalizes the extracted distribution into `tools/qpdf/`, records fixed provenance/version/executable-hash metadata and removes the temporary archive. `.github/scripts/validate-qpdf.ps1` then proves the packaged `tools/qpdf/bin/qpdf.exe` directly, resolves `qpdf` from an isolated package-first `PATH`, exercises it against a real repository PDF, verifies Stirling's own runtime dependency log reports qpdf 12.4.0 meeting the 12.0.0 minimum, and rejects any ZIP left in the product tree.
 

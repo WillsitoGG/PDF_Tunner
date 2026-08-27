@@ -248,8 +248,9 @@ CI must prove the assembled package resolves its own binaries. Do not count soft
 
 - Version: `12.4.0`.
 - Upstream release: `qpdf/qpdf` `v12.4.0`.
-- Windows package: `qpdf-12.4.0-msvc64.zip`.
-- Archive SHA-256: `5bcb25353f7e6df92b5625dbcfe52a5c34a2a5fba2d1a8b98b8a6a0972c3ff72`.
+- Windows package: `qpdf-12.4.0-mingw64.zip`.
+- Archive SHA-256: `dcec940ce825b3b654d4936918190f52e7bfca85b7fb1c49bc24b3035185b4f5`.
+- Portable rationale: qpdf documents that its MinGW64 Windows build does not require a Visual C++ runtime DLL, so PDF_Tunner prefers it over MSVC64 to avoid a host prerequisite even though MSVC can be slightly faster.
 - Portable layout: `tools/qpdf/`, with executable `tools/qpdf/bin/qpdf.exe`.
 - Stirling requirement: its source checks command `qpdf` and enforces minimum `12.0.0`.
 - `.github/scripts/prepare-qpdf.ps1` owns download, pinned archive-hash verification, extraction/normalization and fixed provenance files. The downloaded archive must never enter the product tree.
@@ -448,6 +449,6 @@ Unless a PDF_Tunner rule above overrides them:
 
 - Primary Run `33058462619` (#62), job `98471041328`, on commit `72924f81d1b54afe06563c9636b26f1cf1e4aca4` passed every permanent portable gate, resolving the prior false negative. Fixed WebView2 `151.0.4129.101` is now accepted in the primary workflow; the resulting CI artifact was `9641278175`.
 - Closed the Fixed WebView2 phase and moved the active implementation layer to external Windows dependencies.
-- Selected upstream qpdf `12.4.0` `msvc64` as the first candidate because Stirling's exact source probes `qpdf` and requires at least `12.0.0`.
-- Pinned official `qpdf-12.4.0-msvc64.zip` SHA-256 `5bcb25353f7e6df92b5625dbcfe52a5c34a2a5fba2d1a8b98b8a6a0972c3ff72` and added reproducible staging into `tools/qpdf/` without committing/downstreaming the ZIP itself.
+- Selected upstream qpdf `12.4.0` `mingw64` as the first candidate because Stirling's exact source probes `qpdf` and requires at least `12.0.0`; MinGW64 avoids a host Visual C++ runtime DLL dependency, which is preferable for PDF_Tunner's portable target.
+- Pinned official `qpdf-12.4.0-mingw64.zip` SHA-256 `dcec940ce825b3b654d4936918190f52e7bfca85b7fb1c49bc24b3035185b4f5` and added reproducible staging into `tools/qpdf/` without committing/downstreaming the ZIP itself.
 - Added isolated package-first PATH/version/hash/provenance/sample-PDF validation plus Stirling-backend dependency-log proof. This qpdf integration remains a candidate until the resulting complete primary run is green.
