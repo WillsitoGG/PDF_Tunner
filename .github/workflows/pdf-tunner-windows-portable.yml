@@ -34,6 +34,14 @@ env:
   PDF_TUNNER_GHOSTSCRIPT_VARIANT: "official-win64-nsis"
   PDF_TUNNER_GHOSTSCRIPT_URL: "https://github.com/ArtifexSoftware/ghostpdl-downloads/releases/download/gs10071/gs10071w64.exe"
   PDF_TUNNER_GHOSTSCRIPT_SHA256: "3a4c28d0aac47aa7cccd35a5932c55110376e9dbd966898dde388b7faba444a4"
+  PDF_TUNNER_TESSERACT_VERSION: "5.5.3"
+  PDF_TUNNER_TESSERACT_VARIANT: "official-win64-nsis"
+  PDF_TUNNER_TESSERACT_URL: "https://github.com/tesseract-ocr/tesseract/releases/download/5.5.3/tesseract-ocr-w64-setup-5.5.3.20260724.exe"
+  PDF_TUNNER_TESSERACT_SHA256: "bee9e3434bd94fd65387d9be28cd467a41f61b1275383b55b0f59a1331270ae4"
+  PDF_TUNNER_TESSDATA_FAST_COMMIT: "87416418657359cb625c412a48b6e1d6d41c29bd"
+  PDF_TUNNER_TESSDATA_ENG_BLOB: "bbef4675053b5b468cdb477053e28b1c698ba08e"
+  PDF_TUNNER_TESSDATA_SPA_BLOB: "72e901f13ca52cfe34cf239a368b9ed3c0ddaf26"
+  PDF_TUNNER_TESSDATA_OSD_BLOB: "527457ca8f8fe1fda7c2f88bce3c0e4be12be9d0"
   CI: "true"
 
 jobs:
@@ -208,6 +216,32 @@ jobs:
             -Version $env:PDF_TUNNER_GHOSTSCRIPT_VERSION `
             -ExpectedInstallerSha256 $env:PDF_TUNNER_GHOSTSCRIPT_SHA256
 
+      - name: Stage official Tesseract Windows runtime
+        shell: pwsh
+        run: |
+          & './.github/scripts/prepare-tesseract.ps1' `
+            -PortableRoot './dist/PDF_Tunner' `
+            -Version $env:PDF_TUNNER_TESSERACT_VERSION `
+            -PackageVariant $env:PDF_TUNNER_TESSERACT_VARIANT `
+            -DownloadUrl $env:PDF_TUNNER_TESSERACT_URL `
+            -ExpectedSha256 $env:PDF_TUNNER_TESSERACT_SHA256 `
+            -TessdataCommit $env:PDF_TUNNER_TESSDATA_FAST_COMMIT `
+            -EngBlobSha $env:PDF_TUNNER_TESSDATA_ENG_BLOB `
+            -SpaBlobSha $env:PDF_TUNNER_TESSDATA_SPA_BLOB `
+            -OsdBlobSha $env:PDF_TUNNER_TESSDATA_OSD_BLOB
+
+      - name: Validate packaged Tesseract independently of runner PATH
+        shell: pwsh
+        run: |
+          & './.github/scripts/validate-tesseract.ps1' `
+            -PortableRoot './dist/PDF_Tunner' `
+            -Version $env:PDF_TUNNER_TESSERACT_VERSION `
+            -ExpectedInstallerSha256 $env:PDF_TUNNER_TESSERACT_SHA256 `
+            -TessdataCommit $env:PDF_TUNNER_TESSDATA_FAST_COMMIT `
+            -EngBlobSha $env:PDF_TUNNER_TESSDATA_ENG_BLOB `
+            -SpaBlobSha $env:PDF_TUNNER_TESSDATA_SPA_BLOB `
+            -OsdBlobSha $env:PDF_TUNNER_TESSDATA_OSD_BLOB
+
       - name: Validate bundled Java runtime
         shell: pwsh
         run: |
@@ -325,6 +359,18 @@ jobs:
             -BackendLogRoot (Join-Path $portable 'data') `
             -RequireBackendProbe
           Write-Host 'Packaged Ghostscript runtime and Stirling dependency probe validated successfully.'
+
+          & './.github/scripts/validate-tesseract.ps1' `
+            -PortableRoot './dist/PDF_Tunner' `
+            -Version $env:PDF_TUNNER_TESSERACT_VERSION `
+            -ExpectedInstallerSha256 $env:PDF_TUNNER_TESSERACT_SHA256 `
+            -TessdataCommit $env:PDF_TUNNER_TESSDATA_FAST_COMMIT `
+            -EngBlobSha $env:PDF_TUNNER_TESSDATA_ENG_BLOB `
+            -SpaBlobSha $env:PDF_TUNNER_TESSDATA_SPA_BLOB `
+            -OsdBlobSha $env:PDF_TUNNER_TESSDATA_OSD_BLOB `
+            -BackendLogRoot (Join-Path $portable 'data') `
+            -RequireBackendProbe
+          Write-Host 'Packaged Tesseract runtime, tessdata path and Stirling dependency probe validated successfully.'
 
           Write-Host 'Containment check: Stirling AppData'
           if (-not $hostLeakExisted -and (Test-Path -LiteralPath $hostLeak)) {
@@ -472,8 +518,6 @@ jobs:
           $hostTempRoot = [System.IO.Path]::GetTempPath()
           $protocolKey = 'HKCU:\Software\Classes\pdf-tunner'
 
-          # Record host state first. This evidence must survive even if Chromium
-          # still owns locked files in data/webview2 after an early smoke failure.
           @(
             (Join-Path $hostTempRoot 'stirling-pdf'),
             (Join-Path $hostTempRoot 'stirling-mobile-scanner')
@@ -552,8 +596,6 @@ jobs:
               Set-Content -LiteralPath (Join-Path $diagnostics 'webview2-state.txt') -Encoding utf8
           }
 
-          # Copy only portable state that is safe to read while the app may still
-          # be alive. Do not recursively copy the live Chromium/WebView2 profile.
           $diagnosticData = Join-Path $diagnostics 'data'
           New-Item -ItemType Directory -Force -Path $diagnosticData | Out-Null
           foreach ($relative in @('logs', 'configs', 'tmp', 'pipeline', 'tauri')) {
@@ -604,6 +646,13 @@ jobs:
             'tools/ghostscript/PROVENANCE.txt',
             'tools/ghostscript/SHA256SUMS.txt',
             'tools/ghostscript/version.txt',
+            'tools/tesseract/tesseract.exe',
+            'tools/tesseract/tessdata/eng.traineddata',
+            'tools/tesseract/tessdata/spa.traineddata',
+            'tools/tesseract/tessdata/osd.traineddata',
+            'tools/tesseract/PROVENANCE.txt',
+            'tools/tesseract/SHA256SUMS.txt',
+            'tools/tesseract/version.txt',
             'data'
           )
           foreach ($relative in $required) {
@@ -626,6 +675,15 @@ jobs:
             -PortableRoot './dist/PDF_Tunner' `
             -Version $env:PDF_TUNNER_GHOSTSCRIPT_VERSION `
             -ExpectedInstallerSha256 $env:PDF_TUNNER_GHOSTSCRIPT_SHA256
+
+          & './.github/scripts/validate-tesseract.ps1' `
+            -PortableRoot './dist/PDF_Tunner' `
+            -Version $env:PDF_TUNNER_TESSERACT_VERSION `
+            -ExpectedInstallerSha256 $env:PDF_TUNNER_TESSERACT_SHA256 `
+            -TessdataCommit $env:PDF_TUNNER_TESSDATA_FAST_COMMIT `
+            -EngBlobSha $env:PDF_TUNNER_TESSDATA_ENG_BLOB `
+            -SpaBlobSha $env:PDF_TUNNER_TESSDATA_SPA_BLOB `
+            -OsdBlobSha $env:PDF_TUNNER_TESSDATA_OSD_BLOB
 
       - name: Create portable ZIP and SHA-256
         id: package

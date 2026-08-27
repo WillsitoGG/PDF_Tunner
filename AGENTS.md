@@ -1,62 +1,84 @@
 # AGENTS.md
 
-Permanent technical context and operating contract for **PDF_Tunner**. These rules override generic cleanup conventions when those conventions would make the Stirling fork harder to compare or synchronize upstream.
+Permanent technical context and operating contract for **PDF_Tunner**. Read this file before changing the repository. These rules override generic cleanup conventions when those conventions would make the Stirling fork harder to compare, synchronize or validate.
 
-## Project identity
+## Project identity and target
 
 PDF_Tunner is the real GitHub fork `WillsitoGG/PDF_Tunner` of `Stirling-Tools/Stirling-PDF`, not a wrapper repository.
 
 Target:
 
 - Windows 10/11 x64;
-- portable ZIP: extract and run;
+- portable ZIP: extract and run without machine-installed Java/Python/LibreOffice/Tesseract/Ghostscript/Calibre/etc. when those dependencies can technically be bundled;
 - application/binary name `PDF_Tunner`;
 - retain Stirling functionality except functionality specifically belonging to Enterprise/SaaS offerings;
-- bundle required runtimes and external conversion/OCR tools whenever technically viable;
 - keep configuration, caches, logs, temporary files and runtime state inside the portable tree as far as the underlying Windows APIs allow;
-- remain straightforward to diff/rebase/update from upstream.
+- remain straightforward to diff/rebase/update from upstream;
+- validate real assembled operations, not compilation or `--version` output alone.
 
 ## Pinned starting point
 
 - Upstream: `Stirling-Tools/Stirling-PDF`
 - Version: `2.14.3`
-- Initial commit: `7fb29d002dbb8fa4b5945d1d1fe8dd164a9f7632`
+- Initial snapshot commit: `7fb29d002dbb8fa4b5945d1d1fe8dd164a9f7632`
 - Java: 25
 - Development branch: `pdf-tunner/windows-portable-v1`
+- `main` remains the clean upstream base until the v1 release gates are complete.
+- No final PDF_Tunner v1 Release exists yet.
 
 Record any future upstream update here and in README before treating it as the new base.
 
 ## Mandatory repository rules
 
-1. Preserve Stirling's root structure. Do not reorganize this fork into generic root-level `Archive/`, `Source/` or `Validation/` trees.
+1. Preserve Stirling's root structure. Do not reorganize the fork into generic root `Archive/`, `Source/` or `Validation/` trees.
 2. Keep `main` clean: no build outputs, logs, abandoned experiments, one-shot triggers or temporary scripts.
 3. Prefer small, localized downstream deltas.
 4. Preserve upstream behavior unless the user explicitly requests removal or the functionality is specifically outside the PDF_Tunner target.
 5. Compilation alone is never validation. Test the assembled portable application and relevant operations.
-6. Never archive failed/intermediate builds as history.
-7. Preserve historical git tags; only final published packages count as release history.
+6. Never archive failed/intermediate builds as release history.
+7. Preserve historical git tags; only final published packages count as Release history.
 8. SHA-256/provenance belongs in repository validation records rather than miscellaneous Release assets unless a final packaging decision says otherwise.
 9. **Every PDF_Tunner-specific change must modify both `README.md` and `AGENTS.md` in the same commit.**
 10. Do not make licensing the center of technical work. Mention it only when it creates a concrete implementation/distribution constraint.
-11. Heavy repeated CI must use a branch/workflow-specific `concurrency` group with `cancel-in-progress: true`; do not allow obsolete portable runs to pile up.
+11. Heavy repeated CI must use branch/workflow-specific `concurrency` with `cancel-in-progress: true`; obsolete portable runs must not pile up.
 12. During active downstream development use at most one automatic trigger for the heavy portable workflow unless duplicate events are technically necessary and deduplicated.
-13. If connected GitHub tooling cannot enumerate `push` workflow runs natively, expose their IDs through a connector-readable Commit Status bridge inside the existing heavy workflow rather than adding another automatic workflow or asking the user for run URLs. The bridge must not commit/push repository content and must be removed with temporary development CI before final merge.
+13. The development Commit Status bridge may expose push-run IDs for connected tooling but must not add another workflow/job, commit repository state or remain in the final `main` configuration.
+14. Keep the old PR #1 closed. Do not reuse/reopen it as the final release integration vehicle.
+15. Do not create a final GitHub Release until toolchain, E2E, parity, branding, portability, cleanup and documentation gates are complete.
+
+## Continuity protocol — mandatory before resumed work
+
+A resumed PDF_Tunner conversation must not begin by simply doing the next remembered task. Before repository writes:
+
+1. Recover the **two most recent relevant PDF_Tunner conversations/work handoffs**.
+2. Read the current project prompt/rules plus `README.md` and `AGENTS.md`.
+3. Verify live GitHub state: development branch HEAD, most recent primary Actions run, PR state and Releases.
+4. Reconstruct and carry four states explicitly:
+   - **accepted/closed**;
+   - **active candidate**;
+   - **next block**;
+   - **broader remaining roadmap**.
+5. Never treat “the next task is X” as meaning X is the only remaining work.
+6. At an accepted milestone record commit, Run/job, artifact/digest where relevant, the next candidate and the broader roadmap in README + AGENTS.
+7. Before final Release, re-audit against the **full original PDF_Tunner objective**, not merely the most recently completed dependency.
+
+This protocol exists because continuity was previously lost when a resumed conversation narrowed the remaining project to one dependency while a much larger agreed backlog still existed.
 
 ## Architecture decision
 
 Use Stirling's own Tauri desktop under `frontend/editor/src-tauri`.
 
-Do not restore the old `PDF_Tunner_Legacy` architecture in which a separate .NET WinForms/WebView2 launcher started a Stirling JAR. The legacy repository is reference material only.
+Do not restore the old `PDF_Tunner_Legacy` architecture in which a separate .NET WinForms/WebView2 launcher starts a Stirling JAR. Legacy is reference material only.
 
-Useful legacy ideas retained:
+Retain useful portable principles:
 
-- portable profile/data redirection where it is safe for the owning component;
+- component-specific data/profile redirection;
 - bundled Java;
 - loopback-only backend;
-- readiness checks;
+- readiness/health checks;
 - process-tree cleanup;
 - reproducible ZIP + SHA-256;
-- explicit dependency/version checks.
+- explicit dependency source/version/hash/provenance checks.
 
 Current upstream Tauri already owns single-instance handling, file opening, drag/drop, WebView lifecycle, dynamic backend-port discovery and backend cleanup. Preserve those mechanisms unless a portable-specific defect is demonstrated.
 
@@ -65,7 +87,7 @@ Current upstream Tauri already owns single-instance handling, file opening, drag
 `.taskfiles/desktop.yml` is the authoritative desktop build path. At the pinned base it:
 
 - builds the desktop backend boot JAR;
-- bundles host-appropriate JPDFium natives;
+- bundles Windows x64 JPDFium natives;
 - builds a Java 25 JRE with JLink;
 - includes `jdk.dynalink` for VeraPDF;
 - includes `jdk.crypto.mscapi` on Windows;
@@ -73,138 +95,53 @@ Current upstream Tauri already owns single-instance handling, file opening, drag
 - stages the JRE in `frontend/editor/src-tauri/runtime/jre`;
 - exposes Tauri/Cargo tests via `task desktop:test`.
 
-The official desktop task currently sets `DISABLE_ADDITIONAL_FEATURES=true`. Treat core/proprietary/SaaS as a source-backed feature-partition question. Do not change flavor merely to obtain OCR/conversion functions: the external-tool families below are checked by core and disabled separately when their dependencies are absent.
+The official desktop task currently sets `DISABLE_ADDITIONAL_FEATURES=true`. Treat core/proprietary/SaaS as a source-backed feature-partition question; do not change flavor merely to make missing external tools appear supported.
 
-## Portable mode
+## Portable boundary
 
 Portable mode is enabled by marker file `PDF_TUNNER_PORTABLE` beside the executable.
 
-`frontend/editor/src-tauri/src/main.rs` detects the marker before Tauri starts and sets only PDF_Tunner-owned/bootstrap state. **Do not globally replace Windows `APPDATA`, `LOCALAPPDATA`, `PROGRAMDATA`, `USERPROFILE`, `HOME`, `TEMP` or `TMP` before Tauri/WebView2 initializes.** CI proved that the first implementation reached portable directory creation but terminated before Tauri setup/backend logging when those host profile variables were replaced.
+**Do not globally replace Windows `APPDATA`, `LOCALAPPDATA`, `PROGRAMDATA`, `USERPROFILE`, `HOME`, `TEMP` or `TMP` before Tauri/WebView2 initializes.** CI proved that strategy can kill startup before Tauri/backend logging.
 
-The portable boundary is component-specific:
+Use component-specific localization:
 
 - `PDF_TUNNER_PORTABLE_ROOT` -> executable directory;
-- `utils::app_data_dir()` -> `<portable root>/data`, which localizes Stirling backend config, logs and working state;
-- `utils::system_provisioning_dir()` -> `<portable root>/data/provisioning`;
-- Tauri-side `add_log()` -> `<portable root>/data/logs/tauri-backend.log`, avoiding `%APPDATA%\Stirling-PDF\logs`;
-- `tauri-plugin-log` -> stdout plus `<portable root>/data/logs/tauri/` in portable mode, replacing its default Windows `%LOCALAPPDATA%\com.willsitogg.pdf-tunner\logs` target while leaving non-portable behavior unchanged;
-- `JAVA_TOOL_OPTIONS=-Djava.io.tmpdir=...` -> `<portable root>/data/tmp` for bundled Java only; do not replace native parent `TEMP/TMP` to achieve this;
-- Stirling's default `system.tempFileManagement.baseTmpDir` therefore resolves to `<portable root>/data/tmp/stirling-pdf`, while `MobileScannerService` resolves to `<portable root>/data/tmp/stirling-mobile-scanner` through `java.io.tmpdir`;
-- `WEBVIEW2_USER_DATA_FOLDER` -> `<portable root>/data/webview2`, containing WebView2 cookies, IndexedDB, Local Storage and browser cache without replacing global `LOCALAPPDATA`;
-- desktop connection/user-info `tauri-plugin-store` -> `<portable root>/data/tauri/store/connection.json` in portable mode; keep the normal relative `connection.json` outside portable mode;
-- auth token fallback `tauri-plugin-store` -> `<portable root>/data/tauri/store/tokens.json` in portable mode; keep the normal relative `tokens.json` outside portable mode and preserve Windows keyring-first behavior;
-- `CALIBRE_CONFIG_DIRECTORY` -> `<portable root>/data/calibre`;
-- packaged ImageMagick -> `MAGICK_HOME` and `MAGICK_CONFIGURE_PATH` at `<portable root>/tools/imagemagick`, plus `MAGICK_TEMPORARY_PATH` at `<portable root>/data/tmp/imagemagick`; do not replace native `TEMP/TMP` for ImageMagick;
-- packaged Ghostscript -> use the existing package-first `<portable root>/tools/ghostscript/bin` PATH entry; retain official `gswin64c.exe` and add byte-identical `gs.exe` because Stirling 2.14.3 probes that exact command name;
-- packaged tool directories are prepended to `PATH` only when they exist;
-- `TESSDATA_PREFIX` is set only when packaged Tesseract data exists;
-- Windows/Linux deep-link protocol registration is skipped while portable mode is active so the app does not intentionally register `pdf-tunner://` in the host OS.
+- Stirling `app_data_dir()` -> `<portable>/data`;
+- provisioning -> `<portable>/data/provisioning`;
+- Tauri-side logs -> `<portable>/data/logs/`;
+- Java `java.io.tmpdir` -> `<portable>/data/tmp` through `JAVA_TOOL_OPTIONS`;
+- WebView2 user data -> `<portable>/data/webview2`;
+- desktop connection/token Store -> `<portable>/data/tauri/store/`;
+- portable window-state -> `<portable>/data/tauri/window-state/.window-state.json`;
+- `tauri-plugin-http` cookies -> `<portable>/data/tauri/http/.cookies`;
+- `CALIBRE_CONFIG_DIRECTORY` -> `<portable>/data/calibre` when Calibre is packaged;
+- ImageMagick `MAGICK_HOME`/`MAGICK_CONFIGURE_PATH` -> `<portable>/tools/imagemagick` and temp -> `<portable>/data/tmp/imagemagick`;
+- Ghostscript -> package-first `<portable>/tools/ghostscript/bin`;
+- Tesseract -> package-first `<portable>/tools/tesseract` and `TESSDATA_PREFIX=<portable>/tools/tesseract/tessdata`;
+- packaged tool directories are prepended to PATH only when present;
+- skip `pdf-tunner://` deep-link registration in portable mode.
 
-Run #15 proves the WebView2 override is active in the packaged production EXE: `data/webview2` contained 122 files (~4.6 MB) while the backend reached port 57658. **Do not use the parent `%LOCALAPPDATA%\com.willsitogg.pdf-tunner` directory as a WebView2 leak assertion.** The default WebView2 profile is the `EBWebView` child; test `%LOCALAPPDATA%\com.willsitogg.pdf-tunner\EBWebView` specifically and inventory the parent separately because native Tauri state may share the application identifier.
+The Windows keyring/Credential Manager remains authentication's first path and is not claimed to be package-contained; the Tauri Store fallback is package-local.
 
 ### Portable window-state
 
-The official `tauri-plugin-window-state` dependency stays pinned and unchanged for non-portable Stirling. In portable mode do not register that plugin, because its save path is hard-wired through `app_config_dir()` and therefore host Roaming AppData.
+Keep official `tauri-plugin-window-state` behavior outside portable mode. In portable mode use the localized implementation under `data/tauri/window-state/.window-state.json` because the official plugin path is tied to Tauri `app_config_dir()`.
 
-Portable mode uses `utils::portable_window_state` instead. Its state file is:
+The implementation must preserve upstream semantics (`width`, `height`, `x`, `y`, `prev_x`, `prev_y`, `maximized`, `visible`, `decorated`, `fullscreen`), operate directly on Tauri's native `Window<R>` in `on_window_ready`, restore monitor-safe geometry in upstream-compatible order, save before terminal portable cleanup/exit, and avoid duplicate listeners.
 
-`<portable root>/data/tauri/window-state/.window-state.json`
-
-The implementation must preserve the upstream state semantics:
-
-- `width` / `height`;
-- `x` / `y`;
-- `prev_x` / `prev_y` so maximization does not lose the prior normal position;
-- `maximized`;
-- `visible` defaults to true;
-- `decorated` defaults to true;
-- `fullscreen`;
-- update normal size only when not maximized/minimized;
-- capture the last window before it disappears;
-- restore position only if the saved rectangle still intersects an available monitor;
-- load the portable cache during plugin setup;
-- in `on_window_ready`, restore and attach listeners directly to the native `tauri::Window<R>` supplied by Tauri, exactly as `tauri-plugin-window-state` 2.2.1 does; **do not try to immediately convert/re-resolve that object through `get_webview_window()` because the WebviewWindow may not yet be registered**;
-- restore in upstream-compatible order: decorations, size, monitor-safe position, maximized, fullscreen, visibility/focus;
-- use the same native `on_window_ready` hook for both config-created `main` and dynamically-created windows; do not also call `track_window()` manually after a dynamic builder because that installs duplicate listeners;
-- save before portable `cleanup_before_exit()` and immediate `process::exit()`, because relying on a later `RunEvent::Exit` is incompatible with the terminal portable shutdown sequence.
-
-Do not call window-state proven merely because the Rust code compiles or the first packaged launch is green. The primary portable workflow invokes `.github/scripts/validate-portable-window-state.ps1` against the assembled production tree before generated runtime data is reset and the final ZIP is created. The validator deletes the host Roaming identifier directory to establish a zero baseline, moves/resizes the real Win32 window, closes normally, compares the package-local JSON with measured geometry, relaunches the same tree, verifies restored position/client size within tolerance and confirms no persisted content exists under `%APPDATA%\com.willsitogg.pdf-tunner`. A completely empty identifier directory is not treated as state; any file or subdirectory is a hard failure and is inventoried recursively.
-
-Run #49 was the first real execution of this deliberate geometry proof. All preceding build/bootstrap checks passed. Its first validator launch closed normally and diagnostics proved `data/tauri/window-state/.window-state.json` was written, but the then-current assertion stopped on the mere existence of the Roaming identifier directory before the second launch. That test-design issue is superseded by the content-aware assertion.
-
-Run #50 (`run_id 32582638502`) reached the real second-launch check. The first launch measured and persisted client 824x581 at x=111/y=87. The second launch ended around 1028x749 at x=0/y=0. Neither the base nor PDF_Tunner Tauri config defines a minimum for `main`, so the test geometry is valid.
-
-Run `32634578447` on commit `eb010bc84e09b57964053530614ff66828a9b3c7` passed every build/bootstrap step through the real packaged backend/containment smoke test, then failed the two-launch geometry validator. The failure artifact provided the actual root cause: **both launches logged `Portable window-state window-ready hook could not resolve WebviewWindow 'main'`**. The hook itself was firing, but PDF_Tunner discarded the valid native `Window` handed to it and attempted an early `get_webview_window()` lookup that returned `None`; therefore no restore or event listeners were attached. The package-local JSON still retained the first-launch 824x581 at x=111/y=87 state. Run `32825188381` proved the native-`Window<R>` correction on the assembled production EXE: the two-launch validator persisted the deliberate first-launch geometry package-locally and restored it on relaunch within tolerance.
-
-### Other native Tauri state
-
-Run `32598488359` proved the connection module's relative `connection.json` leaked to `%APPDATA%\com.willsitogg.pdf-tunner`; commit `eb010bc...` localized it to `data/tauri/store/connection.json`. Run `32634578447` then passed the real startup containment step, proving that connection-store localization and the `tauri-plugin-log` redirection at runtime.
-
-The failure artifact from run `32634578447` exposed a second Roaming store: `%APPDATA%\com.willsitogg.pdf-tunner\tokens.json` (2 bytes), created by `commands/auth.rs` when the frontend clears/reads the Tauri Store auth fallback. The same module also had an independent relative `connection.json` used for user info. Portable mode must route both auth stores to `data/tauri/store/` while preserving keyring-first authentication and all non-portable relative paths. The implementation uses `AsRef<Path>` store-path objects, leaving every login/OAuth/token command call site and semantic unchanged. Run `32825188381` proved the package-local connection and token Store fallback files. Windows keyring/Credential Manager remains the first authentication path and is not claimed to be package-contained.
-
-`tauri-plugin-log` 2.8.0 defaults to stdout plus Tauri `app_log_dir()`, which is `%LOCALAPPDATA%\<identifier>\logs` on Windows. Portable mode retains stdout and replaces only the file target with `data/logs/tauri/` via the official `TargetKind::Folder` API; run `32634578447` proved the packaged startup smoke succeeds with this configuration.
-
-`tauri-plugin-http` 2.5.8 stays functionally enabled. PDF_Tunner vendors the verified official `http-v2.5.8` source and applies one localized portable-path adaptation: with `PDF_TUNNER_PORTABLE_ROOT`, its persistent cookie directory is `<portable root>/data/tauri/http`; without portable mode it still uses the official `app_cache_dir()`. Do not disable cookie/auth semantics. Run `32825188381` proved `data/tauri/http/.cookies` is created package-locally and the host Local/Roaming PDF_Tunner identifier roots contain no non-empty state.
-
-### AppData containment closed
-
-Run `32825188381` (job `97731512714`) on clean candidate `f088d0ad288a21d6419ff94b35c0f76b9667e7d5` is the acceptance proof for this phase. It passed official desktop preparation and Tauri/Cargo tests, production Tauri build, bundled JRE validation, real backend startup, the reinforced package-local Tauri-state/two-launch validator, runtime cleanup, ZIP/SHA generation and validated-artifact upload. Required portable locations are `data/tauri/http/.cookies`, `data/logs/tauri/PDF_Tunner.log`, `data/tauri/store/connection.json`, `data/tauri/store/tokens.json` and `data/tauri/window-state/.window-state.json`; host Local/Roaming identifier roots may exist only if empty. The protocol registry key and process tree must remain contained as enforced by the validator. Fixed WebView2 was subsequently closed by primary Run `33058462619`, qpdf by Run `33086404875`, and ImageMagick by Run `33092698357`; the active external portability phase is Ghostscript.
-
-Portable `ExitRequested` is terminal and synchronous: save portable window state, terminate the bundled backend, record final logs, call `AppHandle::cleanup_before_exit()`, then immediately call `std::process::exit()` with the requested code. Tauri explicitly documents that no Tauri API may be used after manual cleanup. Run #11 proved that relying on a later `RunEvent::Exit` can leave the Windows portable parent alive even after Java and other child processes are gone. Keep non-portable upstream behavior unchanged unless upstream itself changes.
-
-Intended layout:
-
-```text
-PDF_Tunner/
-  PDF_Tunner.exe
-  PDF_TUNNER_PORTABLE
-  libs/
-  runtime/jre/
-  runtime/webview2/
-  tools/
-    qpdf/
-      bin/qpdf.exe
-      PROVENANCE.txt
-      SHA256SUMS.txt
-      version.txt
-    imagemagick/
-      magick.exe
-      PROVENANCE.txt
-      SHA256SUMS.txt
-      version.txt
-    ghostscript/
-      bin/
-        gswin64c.exe
-        gs.exe
-      lib/
-      PROVENANCE.txt
-      SHA256SUMS.txt
-      version.txt
-  data/
-    tmp/
-      imagemagick/
-    webview2/
-    logs/
-      tauri/
-    tauri/
-      store/
-        connection.json
-        tokens.json
-      window-state/
-        .window-state.json
-      http/
-        .cookies
-```
-
-`data/tauri/http/.cookies` is CI-proven by Run `32825188381`. Never commit generated `data/` contents.
+Run `32825188381` is the accepted AppData/window-state containment proof: deliberate geometry was persisted package-locally and restored on a second launch while tracked host identifier state remained empty/contained.
 
 ## Branding/config
 
-Prefer additive downstream config over rewriting upstream config wholesale. Current overlay:
+Prefer additive downstream config over rewriting upstream config wholesale.
+
+Current overlay:
 
 `frontend/editor/src-tauri/tauri.pdf-tunner.conf.json`
 
-It supplies PDF_Tunner product/binary/window identity and prevents the downstream executable from following Stirling's upstream updater endpoint. Until PDF_Tunner has its own signed updater metadata, in-app updating is not considered an available feature.
+It supplies PDF_Tunner product/binary/window identity and prevents the downstream executable from following Stirling's upstream updater endpoint. Until PDF_Tunner has its own signed updater metadata, in-app updating is not considered an available PDF_Tunner feature.
+
+A final branding audit is still required before Release.
 
 ## External dependency source of truth
 
@@ -213,9 +150,9 @@ Do not invent dependency lists. For Stirling 2.14.3 inspect at least:
 - `app/core/src/main/java/stirling/software/SPDF/config/ExternalAppDepConfig.java`;
 - `app/common/src/main/java/stirling/software/common/configuration/RuntimePathConfig.java`;
 - `docker/base/Dockerfile`;
-- the controller/service code of the feature being validated.
+- relevant controller/service source for each feature being validated.
 
-Direct runtime probes from `ExternalAppDepConfig`:
+Direct runtime probes include:
 
 | Feature group | Runtime probe |
 | --- | --- |
@@ -233,15 +170,13 @@ Direct runtime probes from `ExternalAppDepConfig`:
 | Python | `python3` or `python` |
 | OpenCV | Python `import cv2` |
 
-The upstream fat Docker base also confirms active installation/use of Calibre, Ghostscript, QPDF, ImageMagick, Poppler, `unpaper`, `pngquant`, LibreOffice, Tesseract languages + OSD, Python, WeasyPrint, `pdf2image`, OpenCV headless, OCRmyPDF, `unoserver`/Unoconvert infrastructure and conversion fonts.
+The pinned source/toolchain also exposes Poppler helpers such as `pdfinfo`/`pdfimages` and confirms `unpaper`, `pngquant`, LibreOffice/UNO infrastructure, Tesseract languages + OSD, Python, WeasyPrint, `pdf2image`, OpenCV headless, OCRmyPDF, `unoserver`/Unoconvert infrastructure and conversion fonts.
 
-For every Windows tool added later, document exact version, download/source, layout and validation here and in README.
+For every Windows dependency record exact version, official source, immutable hash/ref, normalized portable layout and real validation here and in README.
 
-## Windows toolchain strategy
+## Toolchain packaging strategy
 
-Use `tools/` with one clear subdirectory per upstream tool. Do not dump unrelated DLLs into repository or portable root.
-
-Expected PATH candidates currently include:
+Use `tools/` with one subdirectory per upstream tool. Expected PATH candidates include:
 
 - `tools/bin`;
 - `tools/python` and `tools/python/Scripts`;
@@ -257,276 +192,254 @@ Expected PATH candidates currently include:
 - `tools/rar`;
 - `tools/jbig2enc`.
 
-If a Windows executable name differs from what Stirling probes, provide a deterministic package-local shim/alias and test the exact Stirling probe name. Ghostscript is the concrete current case: official Windows x64 uses `gswin64c.exe`, while Stirling 2.14.3 checks `gs`, so PDF_Tunner adds a byte-identical `gs.exe` copy beside the canonical executable and validates that exact command from an isolated PATH.
+If a Windows executable name differs from what Stirling probes, provide a deterministic package-local alias/shim only after proving the exact probe works. Never count runner-installed software as package evidence.
 
-CI must prove the assembled package resolves its own binaries. Do not count software already installed on the GitHub-hosted runner.
+## Accepted layers
 
-### qpdf — accepted external dependency
+### Native portable/Tauri containment — accepted
 
-- Version: `12.4.0`.
-- Upstream release: `qpdf/qpdf` `v12.4.0`.
-- Windows package: `qpdf-12.4.0-mingw64.zip`.
-- Archive SHA-256: `dcec940ce825b3b654d4936918190f52e7bfca85b7fb1c49bc24b3035185b4f5`.
-- Portable rationale: qpdf documents that its MinGW64 Windows build does not require a Visual C++ runtime DLL, so PDF_Tunner prefers it over MSVC64 to avoid a host prerequisite even though MSVC can be slightly faster.
-- Portable layout: `tools/qpdf/`, with executable `tools/qpdf/bin/qpdf.exe`.
-- Stirling requirement: its source checks command `qpdf` and enforces minimum `12.0.0`.
-- `.github/scripts/prepare-qpdf.ps1` owns download, pinned archive-hash verification, extraction/normalization and fixed provenance files. The downloaded archive must never enter the product tree.
-- `.github/scripts/validate-qpdf.ps1` verifies packaged executable hash/provenance/version, resolves `qpdf` from an isolated package-first PATH, generates an independent deterministic one-page PDF with byte-accurate xref offsets, requires qpdf `--check` plus exact `--show-npages` result `1`, and—during the real PDF_Tunner launch—finds Stirling's own `qpdf 12.4.0 meets minimum 12.0.0` dependency evidence in package-local logs.
-- `SamplePdf` is legacy/optional only: if supplied it may provide an additional qpdf read check only when its byte signature begins `%PDF-`; it can never replace or bypass the generated mandatory PDF gate.
-- Acceptance proof: Primary Run `33086404875` (#66), job `98567113737`, commit `413994c9ea368b5144a26686afef6011eba8de59`, complete green permanent workflow including final-tree revalidation and packaged artifact.
+Accepted evidence includes real packaged startup/backend health, Java temp localization, WebView2 profile localization, package-local Tauri stores/logs/http cookie state, protocol-registry containment, process-tree cleanup and the two-launch window-state proof. Run `32825188381` is the key consolidated AppData/window-state acceptance run.
 
-### ImageMagick — accepted external dependency
+### Fixed WebView2 — accepted
 
-- Version: `7.1.2-30`.
-- Upstream release: `ImageMagick/ImageMagick` tag `7.1.2-30`.
-- Windows package: `ImageMagick-7.1.2-30-portable-Q16-x64.7z`.
-- Official asset SHA-256: `47a4ffd20f9360fc85817286df29019fad781df15002dcffdd260c9b27a9e4d8`.
-- Portable layout: `tools/imagemagick/`, executable `tools/imagemagick/magick.exe`.
-- Stirling requirement: exact source probes command `magick`; no minimum ImageMagick version is enforced at this pinned base.
-- `.github/scripts/prepare-imagemagick.ps1` owns download, official archive-hash verification, extraction with CI 7-Zip, normalization and fixed provenance/version/executable-hash metadata. The `.7z` must never enter the final product tree.
-- `.github/scripts/validate-imagemagick.ps1` proves executable hash/provenance, PE AMD64 machine `0x8664`, exact `7.1.2-30` and Q16 build, isolated package-first PATH resolution, and a real 32x32 PNG create/identify operation.
-- The GitHub-hosted Windows image contains ImageMagick 7.1.2-25; therefore normal runner PATH evidence is invalid. The validator requires `where magick` to resolve the packaged executable.
-- Portable bootstrap sets `MAGICK_HOME`, `MAGICK_CONFIGURE_PATH` and `MAGICK_TEMPORARY_PATH=data/tmp/imagemagick` only for the packaged candidate/runtime.
-- Acceptance proof: Primary Run `33092698357` (#67), job `98589465377`, commit `d1801e8569a23a762035a39dc7295de0f19e6115`, complete green permanent workflow including backend dependency probe, all prior gates, final-tree revalidation, ZIP/SHA and artifact upload. Artifact `9655904308` has Actions digest `sha256:f09b2d20d249c94a783ef129ec36bf9050d7ea7201f76122f0cf091606e27f83`.
+- `151.0.4129.101` x64.
+- Official pinned CAB SHA-256 `c386640d35f7a4604d088925a9bb01938400297f6da6fe985b72614daba87cda`.
+- Package: `runtime/webview2/fixed/`.
+- Acceptance: primary Run `33058462619` (#62), job `98471041328`, commit `72924f81d1b54afe06563c9636b26f1cf1e4aca4`.
+- Keep package-local browser executable/profile and required AppContainer ACL proof; no Evergreen/system fallback for acceptance.
 
-### Ghostscript — active external dependency candidate
+### qpdf — accepted
 
-- Version: `10.07.1`.
-- Upstream release source: `ArtifexSoftware/ghostpdl-downloads`, tag `gs10071`, release name `Ghostscript/GhostPDL 10.07.1`.
-- Official Windows x64 asset: `gs10071w64.exe`.
-- Official asset SHA-256: `3a4c28d0aac47aa7cccd35a5932c55110376e9dbd966898dde388b7faba444a4`.
-- Portable layout: `tools/ghostscript/`, canonical executable `tools/ghostscript/bin/gswin64c.exe`, Stirling alias `tools/ghostscript/bin/gs.exe`.
-- Stirling requirement: exact source probes command `gs`; it does not probe `gswin64c` on Windows.
-- `.github/scripts/prepare-ghostscript.ps1` downloads and hash-verifies the official Win64 NSIS asset into CI temp, then extracts it with 7-Zip **without executing the installer**. This avoids creating machine registry/uninstall state that could invalidate portability evidence.
-- The normalized runtime retains official `gswin64c.exe` and adds a byte-identical `gs.exe` copy. `PROVENANCE.txt`, `SHA256SUMS.txt` and `version.txt` must record the official asset hash, canonical executable and alias mode.
-- `.github/scripts/validate-ghostscript.ps1` must prove both executables are byte-identical PE AMD64 (`0x8664`), metadata/hash/version consistency, isolated package-first `where gs`, exact `gs --version`, and a real PostScript -> PDF -> PNG conversion with signature checks. It clears Ghostscript-specific host environment variables during this proof.
-- During real PDF_Tunner startup, package-local backend logs must not report `Missing dependency: gs`.
-- Final cleaned product-tree validation must rerun the Ghostscript functional gate and reject any downloaded installer leaking into `tools/ghostscript/`.
-- Do not mark Ghostscript accepted until the complete primary Windows portable workflow is green with Fixed WebView2, qpdf, ImageMagick, backend, containment, window-state, final ZIP and SHA gates all still enabled.
+- Version `12.4.0` MinGW64.
+- Asset `qpdf-12.4.0-mingw64.zip`.
+- SHA-256 `dcec940ce825b3b654d4936918190f52e7bfca85b7fb1c49bc24b3035185b4f5`.
+- Package `tools/qpdf/`.
+- Mandatory validation: archive/exe provenance, isolated package-first PATH, generated structurally valid PDF `--check`, exact page count and Stirling minimum-version acceptance.
+- Acceptance: Run `33086404875` (#66), job `98567113737`, commit `413994c9ea368b5144a26686afef6011eba8de59`.
 
-## Build workflow
+### ImageMagick — accepted
 
-Permanent workflow path:
+- Version `7.1.2-30` portable Q16 x64.
+- Asset `ImageMagick-7.1.2-30-portable-Q16-x64.7z`.
+- SHA-256 `47a4ffd20f9360fc85817286df29019fad781df15002dcffdd260c9b27a9e4d8`.
+- Package `tools/imagemagick/`.
+- Mandatory validation: executable/provenance, PE AMD64, exact Q16/version, isolated package-first PATH, real PNG create/identify, Stirling dependency acceptance.
+- Acceptance: Run `33092698357` (#67), job `98589465377`, commit `d1801e8569a23a762035a39dc7295de0f19e6115`; artifact `9655904308`, digest `sha256:f09b2d20d249c94a783ef129ec36bf9050d7ea7201f76122f0cf091606e27f83`.
+
+### Ghostscript — accepted
+
+- Version `10.07.1` Win64.
+- Upstream `ArtifexSoftware/ghostpdl-downloads`, release `gs10071`, asset `gs10071w64.exe`.
+- SHA-256 `3a4c28d0aac47aa7cccd35a5932c55110376e9dbd966898dde388b7faba444a4`.
+- Package `tools/ghostscript/`.
+- Extract official NSIS with 7-Zip without executing the installer.
+- Retain `bin/gswin64c.exe`; add byte-identical package-local `bin/gs.exe` because Stirling probes literal `gs`.
+- Mandatory validation: provenance/hash/PE AMD64/version, isolated `where gs`, real PostScript -> PDF -> PNG and Stirling backend acceptance.
+- **Acceptance:** Run `33104114920` (#68), job `98629258424`, commit `84b2fb4a8dd1e69896abc7147442aabec68c3004`; artifact `9660338658`, digest `sha256:843dfdad3def8072ced147ea3c208c01019ec397f0a5f49b3c5bfcbc47cda9cd`.
+
+## Active candidate: Tesseract OCR 5.5.3
+
+Source-backed decisions:
+
+- official upstream: `tesseract-ocr/tesseract` release `5.5.3` (published 2026-07-24);
+- official Win64 asset: `tesseract-ocr-w64-setup-5.5.3.20260724.exe`;
+- official asset SHA-256: `bee9e3434bd94fd65387d9be28cd467a41f61b1275383b55b0f59a1331270ae4`;
+- package root: `tools/tesseract/`;
+- extract NSIS via 7-Zip without executing the installer;
+- do not inherit upstream installer's moving `tessdata_fast/main` downloads;
+- pin `tessdata_fast` to commit `87416418657359cb625c412a48b6e1d6d41c29bd`;
+- bundle initial `eng`, `spa`, `osd` models with exact Git blob IDs:
+  - eng `bbef4675053b5b468cdb477053e28b1c698ba08e`;
+  - spa `72e901f13ca52cfe34cf239a368b9ed3c0ddaf26`;
+  - osd `527457ca8f8fe1fda7c2f88bce3c0e4be12be9d0`.
+
+Stirling's own OCR guidance requires `eng` as the base model and `RuntimePathConfig` prioritizes `TESSDATA_PREFIX`, so the existing portable Tauri bootstrap already supports package-local `tools/tesseract/tessdata` without a new Rust change.
+
+`.github/scripts/prepare-tesseract.ps1` must:
+
+- verify the official installer SHA-256;
+- archive-extract without installation;
+- normalize the real Win64 runtime;
+- download models at the exact pinned commit;
+- verify each model by Git blob object SHA-1, not merely filename;
+- write fixed `version.txt`, `PROVENANCE.txt`, `SHA256SUMS.txt`;
+- reject installer leakage into the product tree.
+
+`.github/scripts/validate-tesseract.ps1` must:
+
+- require AMD64 `tesseract.exe` and exact 5.5.3;
+- require isolated `where tesseract` to resolve package-local executable;
+- require package-local `TESSDATA_PREFIX`;
+- verify exact `eng`, `spa`, `osd` blob pins and SHA metadata;
+- require `--list-langs` to contain `eng`, `spa`, `osd`;
+- run real English OCR;
+- run real Spanish OCR;
+- run real OSD against a rotated generated image;
+- during real PDF_Tunner startup require Stirling not to report `Missing dependency: tesseract` and require the backend log to confirm package-local tessdata path;
+- rerun in the final cleaned tree before ZIP.
+
+**Do not call Tesseract accepted until the complete primary workflow is green with every previously accepted gate still enabled.**
+
+## Primary workflow contract
+
+Permanent path:
 
 `.github/workflows/pdf-tunner-windows-portable.yml`
 
-Normal final state should be manual `workflow_dispatch`. During the active bootstrap/fix loop, one temporary automatic `push` trigger is allowed and restricted to `pdf-tunner/windows-portable-v1`. The duplicate `pull_request` trigger was removed after it helped create a queue of obsolete duplicate runs and woke inherited upstream PR workflows. The heavy workflow must use `concurrency.group: pdf-tunner-windows-portable-${{ github.ref }}` plus `cancel-in-progress: true`. Keep PR #1 closed while active downstream CI does not need PR event coverage; reopen it as draft later when useful. Remove the development `push` trigger before merge to `main`.
+During active development only:
 
-Connector run discovery bridge during active development:
+- `workflow_dispatch` plus one `push` trigger restricted to `pdf-tunner/windows-portable-v1`;
+- branch-scoped concurrency + `cancel-in-progress: true`;
+- `.github/scripts/publish-push-run-statuses.ps1` as a connector-readable push-run ID bridge.
 
-- implementation: `.github/scripts/publish-push-run-statuses.ps1`, invoked as the first post-checkout step of the existing Windows portable job;
-- permissions: `actions: read`, `contents: read`, `statuses: write`;
-- current run: publishes `GITHUB_RUN_ID`, `GITHUB_RUN_NUMBER`, `GITHUB_SHA` and the exact Actions URL immediately as Commit Status context `pdf-tunner/windows-portable-push`;
-- backfill: queries recent runs of `.github/workflows/pdf-tunner-windows-portable.yml` through GitHub Actions REST filtered to `event=push` and `pdf-tunner/windows-portable-v1`, then publishes the same status context on each historical head SHA;
-- state mapping: active runs -> `pending`; successful completed runs -> `success`; failure/timeout/action-required -> `failure`; other terminal conclusions -> `error`;
-- each status description includes the run number/result and `run_id`; `target_url` is the exact Actions run URL;
-- connected tooling calls `get_commit_combined_status`, extracts the run ID/target URL, then uses normal run/job/log/artifact endpoints;
-- no second workflow or job is created, no repository content is written during execution, and no CI recursion is possible;
-- remove this development-only status bridge with other temporary CI before final merge to `main`.
+Final state before `main`:
 
-Baseline sequence:
+- remove the development `push` trigger;
+- remove the Commit Status bridge and its unnecessary permissions;
+- retain the permanent/manual validation workflow only;
+- remove other temporary diagnostic mechanisms that are no longer required.
 
-1. checkout this fork;
-2. publish/backfill connector-readable `push` run IDs as Commit Status metadata;
-3. verify pinned upstream commit is an ancestor;
-4. setup Node 22, Rust stable, Java 25 and Task;
-5. run `task desktop:prepare` with Windows x64 JPDFium;
-6. run `task desktop:test`;
-7. build Tauri with `tauri.pdf-tunner.conf.json` and no installer;
-8. assemble `PDF_Tunner.exe`, `libs/`, `runtime/jre/`, marker and empty `data/`;
-9. stage and validate pinned Fixed WebView2 into `runtime/webview2/`;
-10. stage accepted qpdf into `tools/qpdf/`, verify archive SHA/provenance/executable hash/version, then prove it from an isolated package-first PATH and the mandatory generated valid PDF input;
-11. stage accepted ImageMagick into `tools/imagemagick/`, verify official archive/executable hashes, provenance, PE x64, exact version/Q16, isolated package-first resolution and functional PNG conversion;
-12. stage candidate Ghostscript into `tools/ghostscript/` by extracting the official hash-pinned NSIS asset without installation; verify canonical/alias hashes, PE x64, exact version, isolated `gs` resolution and PostScript -> PDF -> PNG functionality;
-13. launch the assembled executable;
-14. find the actual backend port from package-local logs and request `/api/v1/info/status`;
-15. prove Stirling's own runtime dependency check accepted package-first qpdf, does not report `magick` missing and does not report `gs` missing;
-16. assert Stirling Java temp directories live under package `data/tmp` and were not newly created in host `%TEMP%`;
-17. assert WebView2 populated package `data/webview2` and did not newly create `%LOCALAPPDATA%\com.willsitogg.pdf-tunner\EBWebView`;
-18. assert portable startup/shutdown did not persist files/subdirectories under `%APPDATA%\com.willsitogg.pdf-tunner`, including connection/user-info/token-store state;
-19. assert native Tauri log output and HTTP cookie state are package-local and inventory Local/Roaming application roots separately;
-20. assert portable startup/shutdown did not newly register `HKCU\Software\Classes\pdf-tunner`;
-21. request normal app shutdown and check for portable child-process leftovers;
-22. run the real two-launch Win32 window-state persistence/restore validator on the assembled production tree;
-23. on failure, write host/profile/registry/process evidence first, recursively inventory the PDF_Tunner/Stirling host application roots, summarize live WebView2 without recursively copying it, and copy safe package-local state including `data/tauri` best-effort;
-24. upload diagnostics with hidden files enabled so `.window-state.json` is retained when present;
-25. clean generated runtime data from the distribution and revalidate qpdf, ImageMagick and Ghostscript in the final tree;
-26. create ZIP + SHA-256;
-27. upload only a short-lived CI artifact while the build remains bootstrap/non-release.
+Current baseline sequence:
 
-Startup diagnostics are implementation-branch evidence only. They must not become Release assets or permanent repository build output.
+1. checkout fork and expose push run ID during development;
+2. verify pinned upstream ancestry;
+3. setup Node 22, Rust stable, Java 25 and Task;
+4. `task desktop:prepare` + `task desktop:test`;
+5. build production Tauri executable without installer;
+6. assemble portable bootstrap;
+7. stage/validate Fixed WebView2;
+8. stage/validate qpdf;
+9. stage/validate ImageMagick;
+10. stage/validate Ghostscript;
+11. stage/validate candidate Tesseract + pinned models;
+12. validate bundled Java 25;
+13. launch assembled PDF_Tunner and detect real backend port;
+14. require `/api/v1/info/status` HTTP 200;
+15. require package-local dependency acceptance for qpdf/ImageMagick/Ghostscript/Tesseract and package-local Tesseract data path;
+16. assert AppData/TEMP/WebView2/Tauri/registry/process containment;
+17. close normally and reject package-local orphan processes;
+18. run deliberate two-launch Win32 window-state persistence/restore proof;
+19. on failure collect resilient host/profile/registry/process/package diagnostics without recursively copying a live Chromium profile;
+20. clear generated `data/`, require final portable layout and rerun external tool validators;
+21. create ZIP + SHA-256;
+22. upload a short-lived CI artifact only while this remains a non-release build.
 
-A failure diagnostics step must itself be resilient. In particular, do not recursively `Copy-Item` a live `data/webview2` tree: Chromium/WebView2 may hold files open and abort the diagnostic before host-state evidence is written. Record host state first, then summarize WebView2 by path/count/bytes/sample and copy only safe subtrees with best-effort error handling.
+## Remaining v1 roadmap — do not collapse this list
 
-## Fixed WebView2 accepted
+### A. External toolchain
 
-Primary Run `33058462619` (#62), job `98471041328`, on commit `72924f81d1b54afe06563c9636b26f1cf1e4aca4` is the permanent-workflow proof for bundled Microsoft Fixed WebView2 `151.0.4129.101` x64. It passed official Stirling desktop preparation, Tauri/Cargo tests, production assembly, pinned runtime staging/static/live selection, bundled Java 25, backend HTTP 200, package-local browser profile, AppContainer ACLs, AppData/TEMP/registry/process containment, two-launch window-state restoration, final CAB SHA/no-CAB checks, package cleanup, ZIP/SHA and artifact upload. No Evergreen/system WebView2 fallback is accepted.
+After Tesseract, still required/investigated before v1:
 
-Keep `WEBVIEW2_BROWSER_EXECUTABLE_FOLDER` pointed at package-local `runtime/webview2/fixed`, keep `WEBVIEW2_USER_DATA_FOLDER` package-local, retain the Windows 10 Fixed Version 120+ AppContainer SID grants, and continue rejecting UNC/network execution.
+1. OCRmyPDF;
+2. LibreOffice;
+3. UNO / `unoconvert` (or a source-compatible portable alternative if required);
+4. Poppler including `pdftohtml`, `pdfinfo`, `pdfimages`;
+5. portable Python runtime;
+6. NumPy;
+7. OpenCV;
+8. WeasyPrint;
+9. Calibre / `ebook-convert`;
+10. `unpaper`;
+11. `pngquant`;
+12. conversion fonts;
+13. explicit VeraPDF end-to-end validation;
+14. investigate/build/package `jbig2enc` if technically viable;
+15. find a technically viable portable RAR/CBR implementation or document the concrete limitation;
+16. add any further dependency exposed by exact pinned Stirling source during feature auditing.
 
-## qpdf accepted
+### B. Functional validation
 
-Primary Run `33086404875` (#66), job `98567113737`, on commit `413994c9ea368b5144a26686afef6011eba8de59` is the qpdf acceptance proof. It passed every permanent portable step including qpdf staging, isolated PATH/functionality, Stirling minimum-version probe, final-tree revalidation, ZIP/SHA and artifact upload. qpdf is closed unless an upstream update or a later regression changes the evidence.
-
-## ImageMagick accepted
-
-Primary Run `33092698357` (#67), job `98589465377`, on commit `d1801e8569a23a762035a39dc7295de0f19e6115` is the ImageMagick acceptance proof. It passed every permanent portable step including official pinned 7.1.2-30 staging, executable/provenance/PE/Q16/version gates, isolated package-first resolution despite host ImageMagick 7.1.2-25, functional PNG creation/identification, Stirling dependency acceptance, all pre-existing backend/containment/window-state gates, final-tree revalidation, ZIP/SHA and artifact upload. Short-lived artifact `9655904308` has Actions digest `sha256:f09b2d20d249c94a783ef129ec36bf9050d7ea7201f76122f0cf091606e27f83`. ImageMagick is closed unless a later regression/upstream update changes the evidence.
-
-## Final validation target
-
-Before a final Release, automate where technically possible:
-
-- PDF_Tunner startup;
-- backend startup and health endpoint;
-- bundled JRE version;
-- dependency path/version checks from the portable tree;
 - Tesseract OCR + OSD/languages;
-- OCRmyPDF end-to-end;
+- OCRmyPDF E2E;
 - LibreOffice -> PDF;
 - PDF -> supported Office formats where Stirling exposes them;
-- WeasyPrint;
 - HTML/URL -> PDF;
+- WeasyPrint;
+- Poppler/PDF HTML conversion;
 - Calibre/EPUB;
-- qpdf;
-- Ghostscript;
-- Poppler/pdftohtml;
-- Python + OpenCV + NumPy where required;
-- ImageMagick;
-- `pngquant` and `unpaper` when exercised;
-- RAR/CBR if a technically viable packaged Windows implementation is established;
+- Python + NumPy + OpenCV operations used by Stirling;
+- qpdf/Ghostscript/ImageMagick regressions;
+- `pngquant`/`unpaper` when exercised;
+- RAR/CBR if integrated;
 - jbig2enc if integrated;
 - representative end-to-end API tests across Stirling functional families;
-- WebView2 runtime/profile containment;
-- Tauri/plugin state containment and window-state restore;
-- path containment under portable root;
-- child-process cleanup;
-- no accidental dependency on runner-installed tools;
-- clean final ZIP;
-- SHA-256.
+- explicit proof that runner-installed software is not satisfying package tests.
 
-Clearly distinguish CI validation from manual tests that must be performed by the user on real Windows 10/11 hardware.
+### C. Release readiness
+
+1. non-Enterprise feature parity audit against pinned Stirling 2.14.3;
+2. final branding audit: executable/product/window strings, UI, icons/logos, metadata, updater behavior, ZIP/Release names;
+3. final portability audit for every component's config/cache/temp/registry/process state;
+4. CI/repository cleanup, including development push/status bridge;
+5. final downstream diff hygiene review;
+6. final README/AGENTS/provenance/version/hash record;
+7. integrate to `main` without reopening old PR #1;
+8. publish clean v1 ZIP only when all gates are complete;
+9. manual clean-machine Windows 10/11 checklist and user validation.
+
+## Acceptance policy
+
+A dependency/layer moves from candidate to accepted only when the **complete current primary workflow** is green, so previously accepted functionality is regression-tested at every new layer. Record:
+
+- commit SHA;
+- Run ID/number;
+- job ID;
+- relevant exact dependency version/source/hash;
+- artifact ID/digest if the run produces the accepted short-lived artifact.
+
+A green standalone preparation step is not acceptance.
 
 ## Upstream synchronization
 
 For each future Stirling update:
 
-1. inspect the new upstream version/commit;
-2. compare PDF_Tunner delta against it;
-3. update through a dedicated branch;
+1. inspect new upstream version/commit;
+2. compare PDF_Tunner delta;
+3. use a dedicated branch;
 4. resolve only real conflicts;
-5. re-audit desktop/external-tool behavior if relevant upstream files changed;
-6. rerun the complete portable validation suite;
-7. update README and AGENTS with the new base and decisions.
+5. re-audit relevant desktop/external-tool behavior;
+6. rerun the complete portable suite;
+7. update README + AGENTS in the same final change.
 
 Do not recreate the application from scratch.
 
 ## Versioning/releases
 
-- Keep the upstream Stirling version visible.
+- Keep upstream Stirling version visible.
 - Do not invent unnecessary versions.
 - Add PDF_Tunner revision suffixes only for real downstream revisions.
-- No final Release exists yet for this real-fork implementation.
-- Before publication, verify ZIP SHA-256 and provenance.
-- Only final published packages enter historical tracking.
-- When one final revision replaces another: validate/publish new first, verify/archive prior exact package/hash as applicable, remove old Release listing, keep its git tag, then clean temporary workflows/scripts/outputs.
+- No final Release exists yet.
+- Before publication verify final ZIP SHA-256 and provenance.
+- Only final published packages enter Release history.
 
-## Upstream coding conventions retained
+## Current handoff — 2026-08-27
 
-Unless a PDF_Tunner rule above overrides them:
+Accepted/closed:
 
-- use Task from repo root;
-- run the relevant quality gate for changed code;
-- Java is JDK 25 / Spring Boot 4.x / Jackson 3: inspect current imports/source instead of relying on older patterns;
-- frontend is Vite + React + TypeScript and normal imports use `@app/*` so layer shadowing remains intact;
-- file state flows through `FileContext`;
-- preserve backend cleanup and single-instance behavior;
-- consult root `DeveloperGuide.md`, `frontend/editor/DeveloperGuide.md`, `ADDING_TOOLS.md` and current source for implementation details.
+- native portable/Tauri/AppData/window-state/bootstrap containment;
+- Fixed WebView2 151.0.4129.101 x64;
+- qpdf 12.4.0 MinGW64;
+- ImageMagick 7.1.2-30 Q16 x64;
+- Ghostscript 10.07.1 Win64 via primary Run `33104114920` (#68), job `98629258424`, commit `84b2fb4a8dd1e69896abc7147442aabec68c3004`, artifact `9660338658`, digest `sha256:843dfdad3def8072ced147ea3c208c01019ec397f0a5f49b3c5bfcbc47cda9cd`.
 
-## PDF_Tunner changelog
+Active candidate:
 
-### 2026-08-21 — bootstrap v1 work
+- Tesseract 5.5.3 Win64 + pinned `eng`/`spa`/`osd` models.
 
-- Confirmed `WillsitoGG/PDF_Tunner` is a real fork and its initial `main` matched Stirling exactly at `7fb29d0`, version 2.14.3.
-- Located `WillsitoGG/PDF_Tunner_Legacy` and audited its launcher/workflow as reference material.
-- Chose Stirling's official Tauri desktop + JLink Java 25 architecture instead of the legacy C# wrapper.
-- Audited the first source-backed external dependency inventory.
-- Created branch `pdf-tunner/windows-portable-v1`.
-- Added the initial pre-Tauri Windows portable environment redirection activated by `PDF_TUNNER_PORTABLE`.
-- Added PDF_Tunner Tauri config/branding overlay.
-- Added Windows portable build, backend-health, shutdown, ZIP and SHA-256 validation workflow.
-- Temporarily enabled branch push/PR triggers for CI diagnostics; remove them before merge to `main`.
-- Diagnostic runs #5/#9 isolated pre-Tauri profile hijacking, then proved real packaged Tauri/Java/backend startup.
-- Replaced global Windows-profile overrides with component-specific portable paths, skipped portable deep-link registration, and localized Tauri logs.
+Next block after Tesseract acceptance:
 
-### 2026-08-22 — packaged startup containment
+- OCRmyPDF, with Windows/Python packaging researched from current upstream sources before implementation.
 
-- Added Java-specific `java.io.tmpdir` redirection to package-local `data/tmp` without globally replacing native Windows `TEMP/TMP`.
-- Run #11 proved Java temp and protocol-registry containment and isolated the remaining parent shutdown issue.
-- Run #13 passed the complete portable bootstrap: production startup, backend health, Java-temp containment, protocol-registry containment, parent/child shutdown, package reset, ZIP and SHA-256.
-- General upstream CI on that baseline passed all required functional/build families except `dependency-review`, which fails because GitHub Dependency Graph is disabled on this fork.
-- Added `WEBVIEW2_USER_DATA_FOLDER=data/webview2` instead of replacing `LOCALAPPDATA`.
-- Run #15 proved the packaged WebView2 override creates a real local profile (122 files, about 4.6 MB) and does not prevent backend startup; backend port was 57658.
-- Narrowed the hard host WebView2 assertion from the application LocalAppData root to the actual `EBWebView` child; kept broader Local/Roaming roots as diagnostics.
-- Made startup diagnostics resilient to locked live Chromium files by recording host state first and summarizing—not copying—the live WebView2 profile.
-- Audited and replaced `tauri-plugin-window-state` only in portable mode. The replacement uses package-local `data/tauri/window-state/.window-state.json`, retains the official plugin in non-portable mode, tracks main/dynamic windows, preserves maximization metadata and monitor-safe restoration, and saves before terminal portable exit.
-- Run #19 passed the full portable bootstrap with the custom portable window-state layer integrated, proving no startup/shutdown regression.
-- Integrated a real two-launch window-state proof directly into the primary Windows portable workflow: it moves/resizes the assembled production Win32 window, verifies package-local JSON, relaunches for restoration, rejects Roaming AppData content and checks child-process cleanup before the final ZIP is built.
-- Run #49 passed every pre-window-state build/bootstrap step and proved the first deliberate launch writes package-local `.window-state.json`; its initial Roaming-root assertion was then corrected to distinguish an empty identifier directory from actual persisted state.
-- Removed the duplicate heavy `pull_request` trigger during development, kept one branch-scoped `push` trigger plus `workflow_dispatch`, and added `concurrency` with `cancel-in-progress: true` so obsolete portable runs cannot accumulate again.
-- Replaced the failed separate run-index workflow experiment with an integrated Commit Status bridge: the primary Portable run now publishes its own `run_id` and backfills recent `push` run IDs onto their head commits, making them discoverable through the existing connector without adding another workflow/job.
-- Verified Microsoft Fixed WebView2 distribution requirements for the next layer: current x64 build 151.0.4129.101 at the time of audit, `WEBVIEW2_BROWSER_EXECUTABLE_FOLDER`, Windows 10 AppContainer ACLs for Fixed Version 120+, and no UNC/network execution.
+Broader roadmap after that:
 
-### 2026-08-23 — real window restore and native Tauri state audit
+- the complete A/B/C lists above remain mandatory through final v1 Release and manual Windows validation.
 
-- Recovered `push` runs autonomously through the Commit Status bridge; run #50 is `32582638502`, later primary runs include `32598488359` and `32634578447`.
-- Run #50 proved actual package-local window-state write with measured client 824x581 at x=111/y=87, then proved second-launch restoration still failed around 1028x749 at x=0/y=0.
-- Confirmed the main production Tauri config has no `minWidth`/`minHeight`; the smaller test geometry is valid and must not be weakened to hide the restore defect.
-- Run `32598488359` diagnostics proved the Java backend started successfully on port 53150 and shut down cleanly; the startup step failed instead on real Roaming `%APPDATA%\com.willsitogg.pdf-tunner\connection.json` state.
-- Localized the desktop connection `tauri-plugin-store` to `data/tauri/store/connection.json` in portable mode while preserving normal non-portable behavior.
-- Classified `%LOCALAPPDATA%\com.willsitogg.pdf-tunner\logs\PDF_Tunner.log` as the default `tauri-plugin-log` file target and redirected that target to `data/logs/tauri/` while retaining stdout.
-- Run `32634578447` passed all build/bootstrap checks through the real backend/containment smoke test, proving the connection-store and log redirections; the window validator still failed.
-- Its diagnostics identified the actual window-state defect: `on_window_ready` correctly supplied a native `Window`, but PDF_Tunner immediately tried `get_webview_window("main")`, which returned `None` at that lifecycle point. The candidate now restores/listens directly on the native `Window<R>` and mirrors upstream restore ordering/defaults.
-- The same diagnostics exposed `%APPDATA%\com.willsitogg.pdf-tunner\tokens.json` from the authentication Tauri Store fallback and a second relative `connection.json` path in auth user-info code. Both are localized to `data/tauri/store/` in portable mode without changing keyring/login/OAuth semantics.
-- Classified `%LOCALAPPDATA%\com.willsitogg.pdf-tunner\.cookies` as `tauri-plugin-http` 2.5.8's persistent cookie jar. Verified official ref `tauri-apps/plugins-workspace` `http-v2.5.8` and localized it without disabling cookie/auth semantics; Run `32825188381` accepted the result.
+## PDF_Tunner changelog — compact accepted milestones
 
-### Permanent Fixed WebView2 acceptance
+- **2026-08-21:** real fork/base confirmed; Tauri + JLink architecture selected; portable bootstrap branch/workflow established.
+- **2026-08-22:** real packaged startup/backend health, Java temp, protocol and parent/child shutdown brought under CI; WebView2/profile and custom portable window-state work added.
+- **2026-08-23:** native Tauri stores/log/http cookies and two-launch window-state behavior audited/localized; consolidated AppData/window-state acceptance later proved by Run `32825188381`.
+- **2026-08-27:** Fixed WebView2 accepted by Run #62; qpdf accepted by Run #66; ImageMagick accepted by Run #67; Ghostscript accepted by Run #68.
+- **2026-08-27:** continuity protocol made explicit after a resumed conversation incorrectly narrowed the remaining roadmap; Tesseract 5.5.3 becomes the active candidate with official Win64 binary and exact pinned `tessdata_fast` models.
 
-- Staging Run `32977842546` is the green acceptance evidence for Fixed WebView2 `151.0.4129.101` x64. Permanent Windows builds must retain the exact official Microsoft CDN CAB URL and SHA-256 `c386640d35f7a4604d088925a9bb01938400297f6da6fe985b72614daba87cda`.
-- A passing build must prove static runtime integrity and live selection of package-local `runtime\webview2\fixed\msedgewebview2.exe`, package-local `data\webview2`, both AppContainer SID ACLs with Allow + ReadAndExecute + ObjectInherit + ContainerInherit, backend HTTP 200, two-launch/AppData/window-state containment, no orphan package-local child processes, and no CAB archive in the final portable root.
-- Do not promote staging diagnostic workflows or artifacts into the permanent product workflow/release. The primary `.github/workflows/pdf-tunner-windows-portable.yml` owns the accepted gates.
-- Upstream base identity is the exact snapshot commit `7fb29d002dbb8fa4b5945d1d1fe8dd164a9f7632`, which reports version `2.14.3` in its source metadata. Do not describe that SHA as identical to the separate upstream `v2.14.3` tag object.
-
-### 2026-08-27 — primary Fixed WebView2 gate false-negative correction
-
-- Primary Run `32982806130` / job `98339314033` on commit `ac0833d4c9aee3276918934048d5c74e55c61e21` passed steps 1–15 and failed step 16 only after the real packaged application was already running. Its failure artifact proves backend HTTP 200, bundled Java 25, Fixed WebView2 `151.0.4129.101` processes from `runtime\webview2\fixed`, package-local `data\webview2\EBWebView`, package-local Java temp, no host `EBWebView`, no Stirling Roaming AppData, no host TEMP leak and no `pdf-tunner` protocol key.
-- The step-16 wrapper incorrectly tested `$LASTEXITCODE` after calling `.github/scripts/validate-webview2-fixed-runtime.ps1`. `$LASTEXITCODE` belongs to the most recently invoked native executable and is not a reliable result code for a PowerShell script; null/stale state can therefore fail a successful validator. Never use `$LASTEXITCODE` to infer `.ps1` success. Let terminating errors propagate, or use PowerShell-native status handling where genuinely needed.
-- The permanent workflow now emits its live-WebView2 success line only after the validator returns without a terminating error.
-
-### 2026-08-27 — primary Fixed WebView2 accepted; qpdf toolchain begins
-
-- Primary Run `33058462619` (#62), job `98471041328`, on commit `72924f81d1b54afe06563c9636b26f1cf1e4aca4` passed every permanent portable gate, resolving the prior false negative. Fixed WebView2 `151.0.4129.101` is accepted in the primary workflow; the resulting CI artifact was `9641278175`.
-- Selected upstream qpdf `12.4.0` `mingw64` as the first candidate because Stirling's exact source probes `qpdf` and requires at least `12.0.0`; MinGW64 avoids a host Visual C++ runtime DLL dependency.
-- Pinned official `qpdf-12.4.0-mingw64.zip` SHA-256 `dcec940ce825b3b654d4936918190f52e7bfca85b7fb1c49bc24b3035185b4f5` and added reproducible staging into `tools/qpdf/` without committing/downstreaming the ZIP itself.
-- Run `33066989038` (#64) isolated the invalid `test_globalsign.pdf` HTML fixture and moved the mandatory qpdf proof to an internally generated valid one-page PDF.
-
-### 2026-08-27 — qpdf Run #65 PowerShell parser correction
-
-- Run `33071025776` (#65), job `98512996138`, passed qpdf 12.4.0 MinGW64 download, pinned archive SHA-256 verification and staging into `tools/qpdf/`, then failed when PowerShell parsed `.github/scripts/validate-qpdf.ps1` before any qpdf command executed.
-- Exact cause: the error-message interpolation `"... $LASTEXITCODE: ..."` is invalid because PowerShell treats the colon as part of the variable reference unless the variable name is braced. The validator now uses `${LASTEXITCODE}:`.
-- No qpdf gate was relaxed: package-first PATH resolution, executable/archive hashes, provenance/version, generated-PDF `--check` and exact page count, Stirling backend minimum-version proof and final-tree validation remained mandatory.
-
-### 2026-08-27 — qpdf accepted; ImageMagick toolchain begins
-
-- Primary Run `33086404875` (#66), job `98567113737`, on commit `413994c9ea368b5144a26686afef6011eba8de59` passed the complete permanent Windows portable workflow. qpdf 12.4.0 MinGW64 is accepted.
-- Selected immutable upstream ImageMagick release `7.1.2-30`, asset `ImageMagick-7.1.2-30-portable-Q16-x64.7z`, official SHA-256 `47a4ffd20f9360fc85817286df29019fad781df15002dcffdd260c9b27a9e4d8`.
-- Added reproducible ImageMagick staging into `tools/imagemagick/`, exact provenance/executable hashes, PE AMD64/Q16/version validation, isolated package-first `PATH`, and a real PNG create/identify proof.
-- Added component-specific `MAGICK_HOME`, `MAGICK_CONFIGURE_PATH` and `MAGICK_TEMPORARY_PATH=data/tmp/imagemagick` to portable bootstrap rather than changing native Windows `TEMP/TMP`.
-- The GitHub-hosted Windows runner carries ImageMagick 7.1.2-25, so ImageMagick acceptance explicitly requires `where magick` to resolve packaged 7.1.2-30 plus Stirling logs to avoid `Missing dependency: magick`.
-
-### 2026-08-27 — ImageMagick accepted; Ghostscript toolchain begins
-
-- Primary Run `33092698357` (#67), job `98589465377`, on commit `d1801e8569a23a762035a39dc7295de0f19e6115` passed the complete permanent Windows portable workflow and accepted ImageMagick 7.1.2-30. Artifact `9655904308` has Actions digest `sha256:f09b2d20d249c94a783ef129ec36bf9050d7ea7201f76122f0cf091606e27f83`.
-- Selected official Artifex Ghostscript `10.07.1`, `ghostpdl-downloads` release `gs10071`, Win64 asset `gs10071w64.exe`, official SHA-256 `3a4c28d0aac47aa7cccd35a5932c55110376e9dbd966898dde388b7faba444a4`.
-- Added reproducible Ghostscript staging by archive-extracting the official NSIS asset without executing the installer, normalizing the runtime into `tools/ghostscript/`, retaining `gswin64c.exe` and creating a byte-identical `gs.exe` alias for Stirling's exact probe.
-- Added provenance/executable-hash/PE AMD64/exact-version checks, isolated `where gs`, a real PostScript -> PDF -> PNG functional proof, Stirling backend `gs` dependency-log validation and final-tree revalidation.
-- Ghostscript remains a candidate until the resulting complete primary workflow is green; Fixed WebView2, qpdf, ImageMagick and every existing portability gate remain mandatory during that run.
+Detailed diagnostic chronology remains preserved in git history; this file intentionally prioritizes the current technical contract, accepted evidence, active candidate and full remaining roadmap so work can resume safely in a new conversation.
