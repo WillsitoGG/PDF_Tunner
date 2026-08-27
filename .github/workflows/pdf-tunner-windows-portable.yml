@@ -30,6 +30,10 @@ env:
   PDF_TUNNER_IMAGEMAGICK_VARIANT: "portable-Q16-x64"
   PDF_TUNNER_IMAGEMAGICK_URL: "https://github.com/ImageMagick/ImageMagick/releases/download/7.1.2-30/ImageMagick-7.1.2-30-portable-Q16-x64.7z"
   PDF_TUNNER_IMAGEMAGICK_SHA256: "47a4ffd20f9360fc85817286df29019fad781df15002dcffdd260c9b27a9e4d8"
+  PDF_TUNNER_GHOSTSCRIPT_VERSION: "10.07.1"
+  PDF_TUNNER_GHOSTSCRIPT_VARIANT: "official-win64-nsis"
+  PDF_TUNNER_GHOSTSCRIPT_URL: "https://github.com/ArtifexSoftware/ghostpdl-downloads/releases/download/gs10071/gs10071w64.exe"
+  PDF_TUNNER_GHOSTSCRIPT_SHA256: "3a4c28d0aac47aa7cccd35a5932c55110376e9dbd966898dde388b7faba444a4"
   CI: "true"
 
 jobs:
@@ -186,6 +190,24 @@ jobs:
             -Version $env:PDF_TUNNER_IMAGEMAGICK_VERSION `
             -ExpectedArchiveSha256 $env:PDF_TUNNER_IMAGEMAGICK_SHA256
 
+      - name: Stage official Ghostscript Windows runtime
+        shell: pwsh
+        run: |
+          & './.github/scripts/prepare-ghostscript.ps1' `
+            -PortableRoot './dist/PDF_Tunner' `
+            -Version $env:PDF_TUNNER_GHOSTSCRIPT_VERSION `
+            -PackageVariant $env:PDF_TUNNER_GHOSTSCRIPT_VARIANT `
+            -DownloadUrl $env:PDF_TUNNER_GHOSTSCRIPT_URL `
+            -ExpectedSha256 $env:PDF_TUNNER_GHOSTSCRIPT_SHA256
+
+      - name: Validate packaged Ghostscript independently of runner PATH
+        shell: pwsh
+        run: |
+          & './.github/scripts/validate-ghostscript.ps1' `
+            -PortableRoot './dist/PDF_Tunner' `
+            -Version $env:PDF_TUNNER_GHOSTSCRIPT_VERSION `
+            -ExpectedInstallerSha256 $env:PDF_TUNNER_GHOSTSCRIPT_SHA256
+
       - name: Validate bundled Java runtime
         shell: pwsh
         run: |
@@ -295,6 +317,14 @@ jobs:
             -BackendLogRoot (Join-Path $portable 'data') `
             -RequireBackendProbe
           Write-Host 'Packaged ImageMagick runtime and Stirling dependency probe validated successfully.'
+
+          & './.github/scripts/validate-ghostscript.ps1' `
+            -PortableRoot './dist/PDF_Tunner' `
+            -Version $env:PDF_TUNNER_GHOSTSCRIPT_VERSION `
+            -ExpectedInstallerSha256 $env:PDF_TUNNER_GHOSTSCRIPT_SHA256 `
+            -BackendLogRoot (Join-Path $portable 'data') `
+            -RequireBackendProbe
+          Write-Host 'Packaged Ghostscript runtime and Stirling dependency probe validated successfully.'
 
           Write-Host 'Containment check: Stirling AppData'
           if (-not $hostLeakExisted -and (Test-Path -LiteralPath $hostLeak)) {
@@ -569,6 +599,11 @@ jobs:
             'tools/imagemagick/PROVENANCE.txt',
             'tools/imagemagick/SHA256SUMS.txt',
             'tools/imagemagick/version.txt',
+            'tools/ghostscript/bin/gswin64c.exe',
+            'tools/ghostscript/bin/gs.exe',
+            'tools/ghostscript/PROVENANCE.txt',
+            'tools/ghostscript/SHA256SUMS.txt',
+            'tools/ghostscript/version.txt',
             'data'
           )
           foreach ($relative in $required) {
@@ -586,6 +621,11 @@ jobs:
             -PortableRoot './dist/PDF_Tunner' `
             -Version $env:PDF_TUNNER_IMAGEMAGICK_VERSION `
             -ExpectedArchiveSha256 $env:PDF_TUNNER_IMAGEMAGICK_SHA256
+
+          & './.github/scripts/validate-ghostscript.ps1' `
+            -PortableRoot './dist/PDF_Tunner' `
+            -Version $env:PDF_TUNNER_GHOSTSCRIPT_VERSION `
+            -ExpectedInstallerSha256 $env:PDF_TUNNER_GHOSTSCRIPT_SHA256
 
       - name: Create portable ZIP and SHA-256
         id: package

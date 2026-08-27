@@ -9,7 +9,7 @@
 - Initial upstream commit: `7fb29d002dbb8fa4b5945d1d1fe8dd164a9f7632`
 - Development branch: `pdf-tunner/windows-portable-v1`
 - Target: **Windows 10/11 x64 portable ZIP**
-- Status: **Primary Run `33086404875` (#66), job `98567113737`, passed the complete permanent Windows portable workflow on commit `413994c9ea368b5144a26686afef6011eba8de59` and accepts bundled qpdf 12.4.0 MinGW64. Fixed WebView2 and qpdf are closed. The active external-tool phase is ImageMagick 7.1.2-30 portable Q16 x64, pinned to its immutable official GitHub release asset and validated independently from the ImageMagick already installed on the GitHub-hosted Windows runner.**
+- Status: **Primary Run `33092698357` (#67), job `98589465377`, passed the complete permanent Windows portable workflow on commit `d1801e8569a23a762035a39dc7295de0f19e6115` and accepts bundled ImageMagick 7.1.2-30 portable Q16 x64 in addition to Fixed WebView2 and qpdf. The active external-tool phase is Ghostscript 10.07.1 Win64, pinned to the official Artifex `gs10071w64.exe` asset and validated through the exact `gs` command Stirling probes.**
 
 The full original Stirling documentation and developer guide remain in this fork. Upstream project information is available at [Stirling-Tools/Stirling-PDF](https://github.com/Stirling-Tools/Stirling-PDF).
 
@@ -44,7 +44,7 @@ Run #50 and subsequent diagnostics proved that Stirling desktop state uses sever
 
 `tauri-plugin-http` 2.5.8 remains enabled with its normal cookie/authentication behavior. PDF_Tunner vendors the verified official `http-v2.5.8` source locally and changes only the persistent cookie directory selection: portable mode resolves `.cookies` under `data/tauri/http/`, while non-portable mode keeps the official Tauri `app_cache_dir()` behavior. Run `32825188381` proved the package-local cookie jar together with the other Tauri state and found no non-empty PDF_Tunner identifier content in host Local or Roaming AppData. The Windows keyring/Credential Manager path used by authentication remains keyring-first and is not claimed to be package-contained; the Tauri Store fallback is package-local.
 
-Bundled tool directories are prepended to `PATH` only when present, packaged Tesseract data is exposed through `TESSDATA_PREFIX` when available, and Calibre configuration is pointed at `data/calibre/`. ImageMagick receives component-specific `MAGICK_HOME` and `MAGICK_CONFIGURE_PATH` pointing at `tools/imagemagick/` plus `MAGICK_TEMPORARY_PATH` pointing at `data/tmp/imagemagick/`, so its configuration and scratch space stay package-local without globally replacing native Windows `TEMP/TMP`. Runtime deep-link protocol registration is skipped in portable mode to avoid writing the `pdf-tunner://` handler into the host OS registry.
+Bundled tool directories are prepended to `PATH` only when present, packaged Tesseract data is exposed through `TESSDATA_PREFIX` when available, and Calibre configuration is pointed at `data/calibre/`. ImageMagick receives component-specific `MAGICK_HOME` and `MAGICK_CONFIGURE_PATH` pointing at `tools/imagemagick/` plus `MAGICK_TEMPORARY_PATH` pointing at `data/tmp/imagemagick/`, so its configuration and scratch space stay package-local without globally replacing native Windows `TEMP/TMP`. Ghostscript uses the already-defined package-first `tools/ghostscript/bin` PATH entry; the official `gswin64c.exe` is retained and a byte-identical `gs.exe` alias satisfies Stirling 2.14.3's literal Windows dependency probe without machine installation or registry lookup. Runtime deep-link protocol registration is skipped in portable mode to avoid writing the `pdf-tunner://` handler into the host OS registry.
 
 Portable shutdown handles `ExitRequested` synchronously: it saves portable window state, terminates the bundled Java backend, calls Tauri's `cleanup_before_exit()`, and finally exits the process immediately with the requested exit code. This follows Tauri's contract for manual cleanup: after `cleanup_before_exit()` returns, the process must terminate immediately and no further Tauri APIs may be used. Run #11 proved that merely waiting for a later `RunEvent::Exit` after backend cleanup can leave the Windows portable parent alive. Non-portable upstream behavior remains unchanged.
 
@@ -65,6 +65,14 @@ PDF_Tunner/
       version.txt
     imagemagick/
       magick.exe
+      PROVENANCE.txt
+      SHA256SUMS.txt
+      version.txt
+    ghostscript/
+      bin/
+        gswin64c.exe
+        gs.exe
+      lib/
       PROVENANCE.txt
       SHA256SUMS.txt
       version.txt
@@ -124,15 +132,25 @@ Run #64 (`33066989038`) proved qpdf download/staging itself succeeded but expose
 
 **Acceptance:** Primary Run `33086404875` (#66), job `98567113737`, on commit `413994c9ea368b5144a26686afef6011eba8de59` passed every permanent Windows portable step, including qpdf staging, archive/executable hash and provenance gates, isolated package-first resolution, mandatory generated-PDF functional checks, Stirling's own runtime dependency acceptance, final-tree revalidation, ZIP/SHA-256 and artifact upload. qpdf 12.4.0 MinGW64 is therefore a supported PDF_Tunner bundled dependency.
 
-### ImageMagick Windows toolchain candidate — 2026-08-27
+### ImageMagick Windows toolchain — accepted 2026-08-27
 
-The next layer pins official **ImageMagick 7.1.2-30 portable Q16 x64** from the immutable upstream `ImageMagick/ImageMagick` release `7.1.2-30`. The asset is `ImageMagick-7.1.2-30-portable-Q16-x64.7z`; its official GitHub asset digest is SHA-256 `47a4ffd20f9360fc85817286df29019fad781df15002dcffdd260c9b27a9e4d8`. This is the upstream Windows portable/static distribution rather than an installer. Stirling 2.14.3 probes the command `magick` for the ImageMagick feature group and does not impose a minimum ImageMagick version.
+PDF_Tunner pins official **ImageMagick 7.1.2-30 portable Q16 x64** from upstream `ImageMagick/ImageMagick` release `7.1.2-30`. The asset is `ImageMagick-7.1.2-30-portable-Q16-x64.7z`; its official GitHub asset digest is SHA-256 `47a4ffd20f9360fc85817286df29019fad781df15002dcffdd260c9b27a9e4d8`. This is the upstream Windows portable/static distribution rather than an installer. Stirling 2.14.3 probes the command `magick` for the ImageMagick feature group and does not impose a minimum ImageMagick version.
 
 `.github/scripts/prepare-imagemagick.ps1` downloads only that pinned asset into CI temporary storage, verifies its official SHA-256 before extraction with the runner's 7-Zip, normalizes the executable/support files under `tools/imagemagick/`, writes provenance/version/executable-hash metadata and prevents the `.7z` archive from leaking into the product. `.github/scripts/validate-imagemagick.ps1` independently verifies those records, parses the PE header to require AMD64 (`0x8664`), requires the exact `7.1.2-30`/Q16 build, isolates `PATH` to the package plus Windows system directories, requires `where magick` to resolve `tools/imagemagick/magick.exe`, and performs a real 32x32 PNG create/identify operation.
 
-This isolation is mandatory because the GitHub-hosted Windows image currently includes host ImageMagick 7.1.2-25. A green PDF_Tunner gate must prove the packaged 7.1.2-30 executable rather than accidentally inheriting that runner dependency. During real PDF_Tunner startup, Stirling logs must not report `Missing dependency: magick`. Portable bootstrap also sets `MAGICK_HOME`/`MAGICK_CONFIGURE_PATH` to the package-local ImageMagick directory and `MAGICK_TEMPORARY_PATH` to `data/tmp/imagemagick/`.
+This isolation is mandatory because the GitHub-hosted Windows image includes host ImageMagick 7.1.2-25. PDF_Tunner proves the packaged 7.1.2-30 executable instead of inheriting that runner dependency. Portable bootstrap also sets `MAGICK_HOME`/`MAGICK_CONFIGURE_PATH` to the package-local ImageMagick directory and `MAGICK_TEMPORARY_PATH` to `data/tmp/imagemagick/`.
 
-ImageMagick remains a **candidate** until the complete primary Windows portable workflow is green on the assembled package with these gates enabled.
+**Acceptance:** Primary Run `33092698357` (#67), job `98589465377`, on commit `d1801e8569a23a762035a39dc7295de0f19e6115` passed every permanent Windows portable step, including exact archive/executable hash and provenance checks, PE AMD64/Q16/version proof, isolated package-first resolution despite the runner's older ImageMagick, real PNG creation/identification, Stirling's runtime dependency probe, AppData/TEMP/WebView2/window-state containment, final-tree revalidation, ZIP/SHA-256 and artifact upload. The resulting short-lived Actions artifact is `9655904308` (`PDF_Tunner-Windows-x64-Portable-bootstrap`), with Actions artifact digest `sha256:f09b2d20d249c94a783ef129ec36bf9050d7ea7201f76122f0cf091606e27f83`. ImageMagick is therefore closed.
+
+### Ghostscript Windows toolchain candidate — 2026-08-27
+
+The next layer pins official **Ghostscript 10.07.1 Win64** from ArtifexSoftware `ghostpdl-downloads` release `gs10071` (`Ghostscript/GhostPDL 10.07.1`, published 2026-05-19). The official Windows x64 asset is `gs10071w64.exe`, SHA-256 `3a4c28d0aac47aa7cccd35a5932c55110376e9dbd966898dde388b7faba444a4`. Stirling 2.14.3 probes the literal command `gs`, while the official Windows command-line executable is `gswin64c.exe`.
+
+`.github/scripts/prepare-ghostscript.ps1` downloads the pinned official asset into CI temporary storage and verifies the official SHA-256. It deliberately **does not execute the Windows installer**: 7-Zip extracts the NSIS package so the build cannot create machine-level Ghostscript registry/uninstall state that the portable runtime might accidentally depend on. The extracted runtime is normalized into `tools/ghostscript/`; the canonical `bin/gswin64c.exe` remains untouched and a byte-identical package-local copy `bin/gs.exe` provides the exact command Stirling checks. Fixed provenance/version/hash metadata records both names and the alias mode.
+
+`.github/scripts/validate-ghostscript.ps1` verifies provenance, installer hash, byte-identical canonical/alias executable hashes, PE AMD64 (`0x8664`), exact `10.07.1` version and isolated package-first resolution of `gs`. With Ghostscript-specific environment overrides removed during the standalone proof, it performs a real **PostScript -> PDF -> PNG** conversion and verifies the resulting file signatures. During real PDF_Tunner startup it also requires package-local backend logs not to report `Missing dependency: gs`; the final cleaned product tree is revalidated before ZIP generation.
+
+Ghostscript remains a **candidate** until the complete primary Windows portable workflow is green with all existing Fixed WebView2/qpdf/ImageMagick gates still enabled.
 
 ## Build and validation
 
@@ -151,7 +169,8 @@ Bootstrap validation currently targets:
 - package-local portable marker/data paths;
 - exact pinned Fixed WebView2 runtime plus live process selection from the package;
 - accepted qpdf archive SHA-256, package-local qpdf executable hash/version/provenance, isolated package-first `PATH`, deterministic generated-PDF structural/page-count proof and Stirling's own qpdf dependency probe;
-- pinned ImageMagick archive SHA-256, package-local executable hash/provenance, PE x64 and exact Q16/version proof, isolated package-first `PATH`, functional PNG create/identify operation and Stirling dependency-log probe;
+- accepted ImageMagick archive SHA-256, package-local executable hash/provenance, PE x64 and exact Q16/version proof, isolated package-first `PATH`, functional PNG create/identify operation and Stirling dependency-log probe;
+- candidate Ghostscript official installer SHA-256, package-local `gswin64c.exe` plus byte-identical `gs.exe` Stirling alias, PE x64/exact-version/provenance proof, isolated package-first `gs` resolution, real PostScript -> PDF -> PNG operation and Stirling dependency-log probe;
 - real Java backend startup and dynamic port detection;
 - `/api/v1/info/status` health response;
 - Java temporary paths under `data/tmp/`, with no new `stirling-pdf` or `stirling-mobile-scanner` directories created in host `%TEMP%`;
@@ -164,7 +183,7 @@ Bootstrap validation currently targets:
 - clean ZIP generation;
 - SHA-256 generation.
 
-Run `32825188381` closed the tracked native Tauri AppData containment set, including the HTTP `.cookies` jar. Run `33058462619` closed the package-local Fixed WebView2 phase in the permanent primary workflow. Run `33086404875` then accepted qpdf 12.4.0 MinGW64. ImageMagick is the active external dependency candidate.
+Run `32825188381` closed the tracked native Tauri AppData containment set, including the HTTP `.cookies` jar. Run `33058462619` closed the package-local Fixed WebView2 phase in the permanent primary workflow. Run `33086404875` accepted qpdf 12.4.0 MinGW64, and Run `33092698357` accepted ImageMagick 7.1.2-30 portable Q16 x64. Ghostscript is the active external dependency candidate.
 
 Window-state proof is part of the primary portable workflow. After the first real startup/backend/containment smoke test, `.github/scripts/validate-portable-window-state.ps1` establishes a clean `%APPDATA%\com.willsitogg.pdf-tunner` baseline, launches the same assembled production executable, deliberately moves/resizes its real Win32 top-level window, closes normally, checks `data/tauri/window-state/.window-state.json` against the measured outer position/client size, relaunches the same portable tree, verifies restoration within tolerance, checks child-process cleanup and fails if any actual Roaming-AppData content is persisted. Only after that proof does CI clear generated `data/`, revalidate accepted/candidate external tools, create the final portable ZIP and generate its SHA-256.
 
@@ -190,7 +209,7 @@ The earlier push run `32598488359` failed in startup containment even though its
 
 The general upstream `Build and Test Workflow` on the run #13 baseline passed frontend validation/a11y, stubbed and live Playwright, database migration, Docker Compose/images and the official Windows Tauri build. Its sole failure is GitHub `dependency-review`, which reports that Dependency Graph is disabled on this fork; that is a repository security-setting prerequisite rather than a demonstrated PDF_Tunner code regression. Each subsequent downstream commit is checked again for additional failures before it is accepted.
 
-The bootstrap/AppData/window-state/Fixed-WebView2/qpdf layers are now proven. The following validation layers integrate the remaining external dependencies and representative end-to-end Stirling operations before any final Release is published.
+The bootstrap/AppData/window-state/Fixed-WebView2/qpdf/ImageMagick layers are now proven. The following validation layers integrate the remaining external dependencies and representative end-to-end Stirling operations before any final Release is published.
 
 ## Upstream synchronization
 
@@ -233,4 +252,10 @@ Run `33071025776` (#65), job `98512996138`, again passed the official qpdf 12.4.
 
 ### qpdf acceptance / ImageMagick phase begins — 2026-08-27
 
-Run `33086404875` (#66), job `98567113737`, on commit `413994c9ea368b5144a26686afef6011eba8de59` passed the complete permanent portable workflow. qpdf 12.4.0 MinGW64 therefore moves from candidate to accepted dependency. The next candidate is ImageMagick `7.1.2-30` portable Q16 x64 from the immutable official GitHub release, asset SHA-256 `47a4ffd20f9360fc85817286df29019fad781df15002dcffdd260c9b27a9e4d8`. Its permanent gate must prove package-local exact version/Q16/x64, package-first resolution despite runner ImageMagick 7.1.2-25, a real image operation, Stirling dependency availability, package-local ImageMagick config/temp paths and final-tree provenance before ImageMagick can be accepted.
+Run `33086404875` (#66), job `98567113737`, on commit `413994c9ea368b5144a26686afef6011eba8de59` passed the complete permanent portable workflow. qpdf 12.4.0 MinGW64 therefore moved from candidate to accepted dependency. The next candidate was ImageMagick `7.1.2-30` portable Q16 x64 from the official GitHub release, asset SHA-256 `47a4ffd20f9360fc85817286df29019fad781df15002dcffdd260c9b27a9e4d8`.
+
+### ImageMagick acceptance / Ghostscript phase begins — 2026-08-27
+
+Run `33092698357` (#67), job `98589465377`, on commit `d1801e8569a23a762035a39dc7295de0f19e6115` passed the complete permanent portable workflow and accepted ImageMagick 7.1.2-30. The run retained every Fixed WebView2/qpdf/AppData/window-state/backend/final-package gate and uploaded artifact `9655904308` with Actions artifact digest `sha256:f09b2d20d249c94a783ef129ec36bf9050d7ea7201f76122f0cf091606e27f83`.
+
+The next candidate is official Artifex Ghostscript `10.07.1`, release `gs10071`, asset `gs10071w64.exe`, SHA-256 `3a4c28d0aac47aa7cccd35a5932c55110376e9dbd966898dde388b7faba444a4`. PDF_Tunner extracts the official NSIS asset without installation, retains `gswin64c.exe`, creates a byte-identical package-local `gs.exe` for Stirling's literal probe, and requires an isolated PostScript -> PDF -> PNG functional proof plus Stirling backend dependency acceptance before Ghostscript can be marked supported.
