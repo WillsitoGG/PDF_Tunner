@@ -97,17 +97,91 @@ finally {
     $env:PATH = $originalPath
 }
 
-if ($SamplePdf) {
-    $samplePath = (Resolve-Path -LiteralPath $SamplePdf).Path
-    $pageOutput = (& $qpdfExe --show-npages $samplePath 2>&1 | Out-String).Trim()
+# Always create the functional fixture ourselves. The former repository fixture
+# test_globalsign.pdf was discovered in Run #64 to contain a GlobalSign HTML 404
+# page rather than PDF bytes, so an external/misnamed fixture must not be able to
+# create a false qpdf failure again.
+$validationDir = Join-Path $portable 'data\validation'
+New-Item -ItemType Directory -Force -Path $validationDir | Out-Null
+$generatedPdf = Join-Path $validationDir 'qpdf-smoke.pdf'
+$ascii = [System.Text.Encoding]::ASCII
+$stream = [System.IO.MemoryStream]::new()
+try {
+    function Write-AsciiPdf {
+        param([Parameter(Mandatory = $true)][string]$Text)
+        $bytes = $ascii.GetBytes($Text)
+        $stream.Write($bytes, 0, $bytes.Length)
+    }
+
+    $offsets = [System.Collections.Generic.List[long]]::new()
+    Write-AsciiPdf "%PDF-1.4`n"
+
+    $offsets.Add($stream.Position)
+    Write-AsciiPdf "1 0 obj`n<< /Type /Catalog /Pages 2 0 R >>`nendobj`n"
+
+    $offsets.Add($stream.Position)
+    Write-AsciiPdf "2 0 obj`n<< /Type /Pages /Kids [3 0 R] /Count 1 >>`nendobj`n"
+
+    $offsets.Add($stream.Position)
+    Write-AsciiPdf "3 0 obj`n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 200 200] /Resources << >> >>`nendobj`n"
+
+    $xrefOffset = $stream.Position
+    Write-AsciiPdf "xref`n0 4`n"
+    Write-AsciiPdf "0000000000 65535 f `n"
+    foreach ($offset in $offsets) {
+        Write-AsciiPdf (("{0:D10} 00000 n `n" -f $offset))
+    }
+    Write-AsciiPdf "trailer`n<< /Size 4 /Root 1 0 R >>`nstartxref`n$xrefOffset`n%%EOF`n"
+
+    [System.IO.File]::WriteAllBytes($generatedPdf, $stream.ToArray())
+}
+finally {
+    $stream.Dispose()
+}
+
+try {
+    $signatureBytes = [System.IO.File]::ReadAllBytes($generatedPdf)
+    if ($signatureBytes.Length -lt 5 -or $ascii.GetString($signatureBytes, 0, 5) -ne '%PDF-') {
+        throw "Generated qpdf smoke fixture does not start with a PDF signature: $generatedPdf"
+    }
+
+    $checkOutput = (& $qpdfExe --check $generatedPdf 2>&1 | Out-String).Trim()
     if ($LASTEXITCODE -ne 0) {
-        throw "Packaged qpdf failed to inspect sample PDF '$samplePath': $pageOutput"
+        throw "Packaged qpdf --check failed against generated PDF '$generatedPdf': $checkOutput"
     }
-    $pageCount = 0
-    if (-not [int]::TryParse($pageOutput, [ref]$pageCount) -or $pageCount -lt 1) {
-        throw "Packaged qpdf returned an invalid page count for sample PDF '$samplePath': $pageOutput"
+
+    $pageOutput = (& $qpdfExe --show-npages $generatedPdf 2>&1 | Out-String).Trim()
+    if ($LASTEXITCODE -ne 0) {
+        throw "Packaged qpdf failed to inspect generated PDF '$generatedPdf': $pageOutput"
     }
-    Write-Host "Packaged qpdf sample-PDF check passed: $pageCount page(s)."
+    if ($pageOutput -ne '1') {
+        throw "Packaged qpdf returned an unexpected page count for generated PDF '$generatedPdf': $pageOutput"
+    }
+    Write-Host 'Packaged qpdf generated-PDF check passed: structurally valid, 1 page.'
+
+    if ($SamplePdf) {
+        $legacySample = Resolve-Path -LiteralPath $SamplePdf -ErrorAction SilentlyContinue
+        if ($legacySample) {
+            $sampleBytes = [System.IO.File]::ReadAllBytes($legacySample.Path)
+            $isPdf = $sampleBytes.Length -ge 5 -and $ascii.GetString($sampleBytes, 0, 5) -eq '%PDF-'
+            if ($isPdf) {
+                $legacyOutput = (& $qpdfExe --show-npages $legacySample.Path 2>&1 | Out-String).Trim()
+                if ($LASTEXITCODE -ne 0) {
+                    throw "Packaged qpdf failed to inspect optional repository PDF '$($legacySample.Path)': $legacyOutput"
+                }
+                Write-Host "Optional repository PDF also passed qpdf inspection: $legacyOutput page(s)."
+            }
+            else {
+                Write-Warning "Ignoring optional SamplePdf because it is not a PDF by signature: $($legacySample.Path). The generated PDF gate above remains mandatory."
+            }
+        }
+    }
+}
+finally {
+    Remove-Item -LiteralPath $generatedPdf -Force -ErrorAction SilentlyContinue
+    if ((Test-Path -LiteralPath $validationDir -PathType Container) -and -not (Get-ChildItem -LiteralPath $validationDir -Force -ErrorAction SilentlyContinue)) {
+        Remove-Item -LiteralPath $validationDir -Force -ErrorAction SilentlyContinue
+    }
 }
 
 if ($RequireBackendProbe) {
@@ -139,4 +213,4 @@ if ($archives.Count -gt 0) {
     throw 'Downloaded qpdf archive is present in the final tool directory.'
 }
 
-Write-Host "PASS: qpdf $Version is package-local, hash-verified, runnable and independent of runner-installed qpdf."
+Write-Host "PASS: qpdf $Version is package-local, hash-verified, runnable, functionally PDF-tested and independent of runner-installed qpdf."

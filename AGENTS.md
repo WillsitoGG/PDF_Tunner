@@ -254,7 +254,8 @@ CI must prove the assembled package resolves its own binaries. Do not count soft
 - Portable layout: `tools/qpdf/`, with executable `tools/qpdf/bin/qpdf.exe`.
 - Stirling requirement: its source checks command `qpdf` and enforces minimum `12.0.0`.
 - `.github/scripts/prepare-qpdf.ps1` owns download, pinned archive-hash verification, extraction/normalization and fixed provenance files. The downloaded archive must never enter the product tree.
-- `.github/scripts/validate-qpdf.ps1` must verify packaged executable hash/provenance/version, resolve `qpdf` from an isolated package-first PATH, exercise a real PDF, and—during the real PDF_Tunner launch—find Stirling's own `qpdf 12.4.0 meets minimum 12.0.0` dependency evidence in package-local logs.
+- `.github/scripts/validate-qpdf.ps1` must verify packaged executable hash/provenance/version, resolve `qpdf` from an isolated package-first PATH, generate an independent deterministic one-page PDF with byte-accurate xref offsets, require qpdf `--check` plus exact `--show-npages` result `1`, and—during the real PDF_Tunner launch—find Stirling's own `qpdf 12.4.0 meets minimum 12.0.0` dependency evidence in package-local logs.
+- `SamplePdf` is legacy/optional only: if supplied it may provide an additional qpdf read check only when its byte signature begins `%PDF-`; it can never replace or bypass the generated mandatory PDF gate.
 - Do not mark qpdf supported merely because these scripts exist; acceptance requires a complete green primary Windows portable run on the assembled tree.
 
 ## Build workflow
@@ -288,7 +289,7 @@ Baseline sequence:
 7. build Tauri with `tauri.pdf-tunner.conf.json` and no installer;
 8. assemble `PDF_Tunner.exe`, `libs/`, `runtime/jre/`, marker and empty `data/`;
 9. stage and validate pinned Fixed WebView2 into `runtime/webview2/`;
-10. stage official qpdf into `tools/qpdf/`, verify archive SHA/provenance/executable hash/version, then prove it from an isolated package-first PATH and real PDF input;
+10. stage official qpdf into `tools/qpdf/`, verify archive SHA/provenance/executable hash/version, then prove it from an isolated package-first PATH and the mandatory generated valid PDF input;
 11. launch the assembled executable;
 12. find the actual backend port from package-local logs and request `/api/v1/info/status`;
 13. prove Stirling's own runtime dependency check accepted package-first qpdf 12.4.0 against its 12.0.0 minimum;
@@ -452,3 +453,4 @@ Unless a PDF_Tunner rule above overrides them:
 - Selected upstream qpdf `12.4.0` `mingw64` as the first candidate because Stirling's exact source probes `qpdf` and requires at least `12.0.0`; MinGW64 avoids a host Visual C++ runtime DLL dependency, which is preferable for PDF_Tunner's portable target.
 - Pinned official `qpdf-12.4.0-mingw64.zip` SHA-256 `dcec940ce825b3b654d4936918190f52e7bfca85b7fb1c49bc24b3035185b4f5` and added reproducible staging into `tools/qpdf/` without committing/downstreaming the ZIP itself.
 - Added isolated package-first PATH/version/hash/provenance/sample-PDF validation plus Stirling-backend dependency-log proof. This qpdf integration remains a candidate until the resulting complete primary run is green.
+- Run `33066989038` (#64) passed qpdf archive staging and reached the mandatory functional read gate, where it failed because `test_globalsign.pdf` is actually a GlobalSign HTML 404 page (`<!DOCTYPE html>`), not PDF data. The validator now generates an independent minimal valid one-page PDF with calculated xref offsets, requires packaged qpdf `--check` and exact page count `1`, and keeps all package-first/path/hash/version/backend gates intact. qpdf remains pending until the corrected full run is green.

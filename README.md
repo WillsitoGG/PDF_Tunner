@@ -9,7 +9,7 @@
 - Initial upstream commit: `7fb29d002dbb8fa4b5945d1d1fe8dd164a9f7632`
 - Development branch: `pdf-tunner/windows-portable-v1`
 - Target: **Windows 10/11 x64 portable ZIP**
-- Status: **Primary Run `33058462619` (#62) passed the complete permanent portable workflow and closes the bundled Fixed WebView2 phase. The current phase is the external Windows toolchain; qpdf 12.4.0 x64 is the first pinned package candidate and must pass the same assembled-package gate before being accepted.**
+- Status: **Primary Run `33058462619` (#62) passed the complete permanent portable workflow and closes the bundled Fixed WebView2 phase. The current phase is the external Windows toolchain; qpdf 12.4.0 x64 remains the first pinned package candidate. Run #64 isolated a broken non-PDF repository fixture in the qpdf functional gate; the validator now generates its own deterministic valid PDF and qpdf still requires a complete green assembled-package run before acceptance.**
 
 The full original Stirling documentation and developer guide remain in this fork. Upstream project information is available at [Stirling-Tools/Stirling-PDF](https://github.com/Stirling-Tools/Stirling-PDF).
 
@@ -111,9 +111,11 @@ The upstream fat toolchain also confirms use of `unpaper`, `pngquant`, LibreOffi
 
 The first external-tool layer pins official **qpdf 12.4.0** for Windows x64, which satisfies Stirling 2.14.3's explicit `qpdf >= 12.0.0` dependency gate. The package source is the upstream qpdf release asset `qpdf-12.4.0-mingw64.zip` from release `v12.4.0`; the pinned archive SHA-256 is `dcec940ce825b3b654d4936918190f52e7bfca85b7fb1c49bc24b3035185b4f5`. The MinGW64 package is deliberately preferred over MSVC64 for PDF_Tunner portability: qpdf documents that MinGW64 does not require a Visual C++ runtime DLL on the host, avoiding an unnecessary machine-level prerequisite.
 
-PDF_Tunner does not commit or ship that ZIP. `.github/scripts/prepare-qpdf.ps1` downloads it during the Windows portable build, verifies the pinned SHA-256 before extraction, normalizes the extracted distribution into `tools/qpdf/`, records fixed provenance/version/executable-hash metadata and removes the temporary archive. `.github/scripts/validate-qpdf.ps1` then proves the packaged `tools/qpdf/bin/qpdf.exe` directly, resolves `qpdf` from an isolated package-first `PATH`, exercises it against a real repository PDF, verifies Stirling's own runtime dependency log reports qpdf 12.4.0 meeting the 12.0.0 minimum, and rejects any ZIP left in the product tree.
+PDF_Tunner does not commit or ship that ZIP. `.github/scripts/prepare-qpdf.ps1` downloads it during the Windows portable build, verifies the pinned SHA-256 before extraction, normalizes the extracted distribution into `tools/qpdf/`, records fixed provenance/version/executable-hash metadata and removes the temporary archive. `.github/scripts/validate-qpdf.ps1` then proves the packaged `tools/qpdf/bin/qpdf.exe` directly, resolves `qpdf` from an isolated package-first `PATH`, generates a deterministic minimal one-page PDF with a calculated cross-reference table and requires package-local qpdf to pass both `--check` and `--show-npages`, verifies Stirling's own runtime dependency log reports qpdf 12.4.0 meeting the 12.0.0 minimum, and rejects any ZIP left in the product tree.
 
-This commit is the **qpdf candidate**, not its acceptance proof. qpdf becomes a supported PDF_Tunner tool only after the new complete primary portable workflow is green on the assembled package.
+Run #64 (`33066989038`) proved qpdf download/staging itself succeeded but exposed that the former repository fixture `test_globalsign.pdf` was actually HTML for a GlobalSign “Page Not Found” response, not a PDF. The validator therefore no longer relies on that mislabeled external fixture for its mandatory functional proof. The generated PDF gate is mandatory; the legacy `SamplePdf` argument is treated only as an optional additional test when its bytes start with `%PDF-`.
+
+This remains the **qpdf candidate**, not its acceptance proof. qpdf becomes a supported PDF_Tunner tool only after the corrected complete primary portable workflow is green on the assembled package.
 
 ## Build and validation
 
@@ -131,7 +133,7 @@ Bootstrap validation currently targets:
 - bundled Java 25 runtime;
 - package-local portable marker/data paths;
 - exact pinned Fixed WebView2 runtime plus live process selection from the package;
-- pinned qpdf archive SHA-256, package-local qpdf executable hash/version/provenance, isolated package-first `PATH`, a real PDF inspection and Stirling's own qpdf dependency probe;
+- pinned qpdf archive SHA-256, package-local qpdf executable hash/version/provenance, isolated package-first `PATH`, a deterministic generated-PDF structural/page-count proof and Stirling's own qpdf dependency probe;
 - real Java backend startup and dynamic port detection;
 - `/api/v1/info/status` health response;
 - Java temporary paths under `data/tmp/`, with no new `stirling-pdf` or `stirling-mobile-scanner` directories created in host `%TEMP%`;
@@ -164,7 +166,7 @@ Run #49 was the first execution of the deliberate two-launch geometry validator.
 
 Run #50 (`run_id 32582638502`) then reached the genuine second-launch proof. The first launch measured client 824x581 at x=111/y=87 and saved exactly those values package-locally. On relaunch the main window appeared around 1028x749 at x=0/y=0, so restore failed. Inspection confirmed neither the base nor PDF_Tunner Tauri config imposes a main-window minimum that would invalidate 824x581.
 
-Push run `32634578447` on commit `eb010bc84e09b57964053530614ff66828a9b3c7` passed official desktop preparation/tests, production Tauri build, portable assembly, bundled Java 25 and the complete real backend/containment smoke step, proving the package-local connection store and Tauri log target at runtime. Its two-launch validator still failed, and the uploaded diagnostics finally exposed the exact lifecycle bug: both launches logged that the `on_window_ready` hook could not resolve `WebviewWindow 'main'`. The package-local state file still held the requested first-launch geometry 824x581 at x=111/y=87. The same diagnostics exposed a two-byte Roaming `tokens.json` auth fallback store. Those corrections were subsequently accepted by Run `32825188381` together with the native HTTP cookie localization.
+Push run `32634578447` on commit `eb010bc84e09b57964053530614ff66828a9b3c7` passed official desktop preparation/tests, production Tauri build, portable assembly, bundled Java 25 and the complete real backend/containment smoke step, proving the package-local connection store and Tauri logger redirection both pass the real packaged startup smoke test. Its two-launch validator still failed, and the uploaded diagnostics finally exposed the exact lifecycle bug: both launches logged that the `on_window_ready` hook could not resolve `WebviewWindow 'main'`. The package-local state file still held the requested first-launch geometry 824x581 at x=111/y=87. The same diagnostics exposed a two-byte Roaming `tokens.json` auth fallback store. Those corrections were subsequently accepted by Run `32825188381` together with the native HTTP cookie localization.
 
 The earlier push run `32598488359` failed in startup containment even though its diagnostics proved the Java backend started correctly on port 53150 and shut down cleanly. Its actual failure was `%APPDATA%\com.willsitogg.pdf-tunner\connection.json`; the artifact also classified `%LOCALAPPDATA%\com.willsitogg.pdf-tunner\logs\PDF_Tunner.log` as the default `tauri-plugin-log` target and `%LOCALAPPDATA%\com.willsitogg.pdf-tunner\.cookies` as `tauri-plugin-http`'s native cookie jar. These tracked native Tauri AppData writes are now closed by Run `32825188381`.
 
@@ -202,3 +204,7 @@ Primary Run `32982806130` on commit `ac0833d4c9aee3276918934048d5c74e55c61e21` p
 ### Primary Fixed WebView2 acceptance — Run `33058462619`
 
 Run `33058462619` (#62), job `98471041328`, on commit `72924f81d1b54afe06563c9636b26f1cf1e4aca4` is the permanent primary-workflow acceptance proof that resolves the false-negative above. Every step passed: official Stirling desktop preparation, Tauri/Cargo tests, production `PDF_Tunner.exe`, portable assembly, pinned Fixed WebView2 staging/static/live validation, bundled Java 25, real backend HTTP health, package-local browser data, AppData/TEMP/registry/process containment, two-launch window-state restoration, final Fixed Runtime SHA/no-CAB gates, runtime-data reset, ZIP/SHA-256 and artifact upload. The resulting short-lived CI artifact is `PDF_Tunner-Windows-x64-Portable-bootstrap` (Actions artifact `9641278175`). Fixed WebView2 is therefore closed; the active phase is the external toolchain.
+
+### qpdf Run #64 fixture correction — 2026-08-27
+
+Run `33066989038` (#64) passed qpdf staging after the official MinGW64 archive SHA gate but failed the first functional PDF inspection. Direct inspection of `test_globalsign.pdf` proved the file begins with `<!DOCTYPE html>` and is a GlobalSign “Page Not Found” HTML document, so the failure did not demonstrate a qpdf packaging defect. The qpdf validator now creates its own standards-shaped one-page PDF with byte-accurate xref offsets, requires packaged qpdf `--check` to return success, and requires `--show-npages` to return exactly `1`. The package-first PATH/hash/version/provenance and Stirling backend minimum-version gates remain unchanged. qpdf remains pending until the corrected complete primary run passes.
