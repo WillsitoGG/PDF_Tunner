@@ -105,8 +105,11 @@ function Test-OcrRuntime {
         if (-not (Test-Path -LiteralPath $outputPdf -PathType Leaf)) { throw 'OCRmyPDF did not produce output PDF.' }
         if ((Get-Item -LiteralPath $outputPdf).Length -lt 1000) { throw 'OCRmyPDF output PDF is unexpectedly small.' }
 
-        $extract = @(& python -c "import sys; from pypdf import PdfReader; print(' '.join((p.extract_text() or '') for p in PdfReader(sys.argv[1]).pages))" $outputPdf 2>&1)
-        if ($LASTEXITCODE -ne 0) { $extract | Out-Host; throw 'pypdf text extraction from OCRmyPDF output failed.' }
+        # OCRmyPDF 17.10.0 already depends on pdfminer-six. Reuse that packaged
+        # dependency to prove a searchable text layer instead of adding pypdf only
+        # for CI validation.
+        $extract = @(& python -c "import sys; from pdfminer.high_level import extract_text; print(extract_text(sys.argv[1]))" $outputPdf 2>&1)
+        if ($LASTEXITCODE -ne 0) { $extract | Out-Host; throw 'pdfminer text extraction from OCRmyPDF output failed.' }
         $normalized = (($extract -join ' ') -replace '[^A-Za-z0-9]+',' ').Trim().ToUpperInvariant()
         if ($normalized -notlike '*PDF TUNNER OCRMY PDF 2026*') {
             throw "OCRmyPDF output did not contain the expected searchable text layer: '$normalized'"
