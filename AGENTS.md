@@ -101,6 +101,8 @@ Also audit Poppler `pdfinfo`/`pdfimages`, `unpaper`, `pngquant`, NumPy/OpenCV, W
 
 `ExternalAppDepConfig` disables the OCRmyPDF group if `ocrmypdf` is absent and disables the LibreOffice group if `soffice` is absent. `unoconvert` is an independent dependency check. Do not infer UNO support from LibreOffice support.
 
+Pinned `docker/base/Dockerfile` sets **`UNOSERVER_VERSION=3.7`** and installs `unoserver==${UNOSERVER_VERSION}`. `scripts/init-without-ocr.sh` starts a managed local unoserver pool on `127.0.0.1:2003/2004...`; Windows desktop does not yet reproduce that process lifecycle. UNO remains a separate block after LibreOffice.
+
 ## Tool layout strategy
 
 Package under one `tools/` subtree per dependency. Tauri prepends, when present:
@@ -194,9 +196,11 @@ Focused implementation on `pdf-tunner/libreoffice-candidate`:
 - `.github/scripts/validate-libreoffice.ps1` requires provenance/hash/PE checks, isolated PATH resolution to the package shim, real headless HTML -> PDF conversion, package-local temp/profile state, no new host `%APPDATA%/LibreOffice`, no orphan soffice process and full relocation proof to a path containing spaces;
 - `.github/workflows/pdf-tunner-libreoffice-candidate.yml` is focused evidence only. A green candidate is not acceptance.
 
+Focused Run **`33203808675` (#1)**, job **`98959628802`**, commit `d56dd6b6fa93de573b3a2440bb826c81c299be2b`, is diagnostic failure evidence only. It established that the official MSI download, pinned SHA-256, The Document Foundation Authenticode signature and Windows Installer administrative extraction are all valid. The failure occurred at the intentional no-MSI packaging assertion because `msiexec /a` writes a transformed installer copy beside the expanded administrative image. That MSI is not required to execute the expanded LibreOffice tree. The staging logic now explicitly excludes top-level administrative-image MSI files while preserving the final recursive no-MSI assertion.
+
 Acceptance will require promotion into `.github/workflows/pdf-tunner-windows-portable.yml`, a green **complete primary workflow**, real backend proof that Stirling does not report `Missing dependency: soffice` or disable the LibreOffice group, final layout/provenance checks and ZIP/SHA creation with all existing gates still green.
 
-UNO/`unoconvert` is deliberately excluded from this LibreOffice gate. The pinned server-oriented Stirling setup starts `unoserver` separately, while the Windows desktop lifecycle does not yet reproduce that process management. Treat UNO as the next independent block after LibreOffice acceptance.
+UNO/`unoconvert` is deliberately excluded from this LibreOffice gate. Pinned Stirling 2.14.3 uses `unoserver==3.7` and starts a managed server pool in the server/container startup script; the Windows desktop lifecycle does not yet reproduce that process management. Treat UNO as the next independent block after LibreOffice acceptance.
 
 ## Primary workflow acceptance contract
 
@@ -212,7 +216,7 @@ A green standalone/focused workflow is not acceptance. `--version` alone is not 
 
 1. focused LibreOffice gate -> primary promotion -> primary acceptance;
 2. retire focused OCR/LibreOffice workflows when safe;
-3. UNO/`unoconvert` or source-compatible portable alternative;
+3. UNO/`unoconvert` / `unoserver==3.7` with desktop lifecycle;
 4. Poppler including `pdftohtml`, `pdfinfo`, `pdfimages`;
 5. consolidate portable Python dependency lock;
 6. NumPy;
@@ -249,9 +253,9 @@ Accepted/closed: native portable/Tauri containment; Fixed WebView2; qpdf; ImageM
 
 Latest fully green primary: **Run #77**, job `98952028665`, commit `54802c15427673c0e95738195947ab76239d6e31`, artifact `9710851673`, digest `sha256:96d914e252505efa26327c16316903740b0e1216e526d0721efb448c3738ae2e`.
 
-Active candidate: **LibreOffice 26.8.0.3 x64**, official MSI/hash, isolated focused gate on `pdf-tunner/libreoffice-candidate`.
+Active candidate: **LibreOffice 26.8.0.3 x64**, official MSI/hash, isolated focused gate on `pdf-tunner/libreoffice-candidate`. Run #1 diagnosed only the administrative-image MSI copy and did not expose a product/runtime failure.
 
-Next block after LibreOffice acceptance: UNO/Unoconvert lifecycle, then Poppler, while the broader A/B/C roadmap remains mandatory.
+Next block after LibreOffice acceptance: `unoserver==3.7` / Unoconvert desktop lifecycle, then Poppler, while the broader A/B/C roadmap remains mandatory.
 
 ## Compact changelog
 
@@ -260,3 +264,4 @@ Next block after LibreOffice acceptance: UNO/Unoconvert lifecycle, then Poppler,
 - **2026-08-28:** OCRmyPDF candidate built around pinned relocatable Python standalone + native relative launcher + real searchable-PDF/relocation validation.
 - **2026-08-28:** primary Run #77 passed completely; Python/OCRmyPDF accepted with backend probe, real OCR, relocation, containment and final ZIP artifact.
 - **2026-08-28:** LibreOffice 26.8.0.3 focused candidate opened with official MSI pin, native package-relative `soffice` shim and real conversion/relocation gate; UNO remains separate.
+- **2026-08-28:** LibreOffice focused Run #1 confirmed valid official MSI/hash/signature/admin extraction and exposed only the administrative-image MSI copy; staging corrected to exclude installer metadata from the runtime tree while retaining the no-MSI gate.

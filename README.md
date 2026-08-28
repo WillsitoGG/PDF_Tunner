@@ -57,7 +57,9 @@ Current LibreOffice candidate:
 
 Stirling's Office fallback already supplies a unique `-env:UserInstallation=...` profile under Java temp; PDF_Tunner already redirects Java temp into package-local `data/tmp/`. The focused candidate deliberately does **not** claim UNO/Unoconvert support.
 
-The Windows LibreOffice distribution declares a Microsoft Visual C++ 2015+ x64 runtime dependency. The candidate gate tests the vendor files and portable state behavior on GitHub's Windows runner; clean-machine v1 acceptance must still establish whether the VC runtime needs to be bundled or can be treated as an operating-system prerequisite.
+Focused LibreOffice **Run #1 `33203808675`**, job `98959628802`, commit `d56dd6b6fa93de573b3a2440bb826c81c299be2b`, was diagnostic only. The official MSI downloaded successfully, matched the pinned SHA-256 and had a valid The Document Foundation Authenticode signature. Windows Installer administrative extraction also succeeded. The gate then correctly rejected the administrative-image copy of the MSI that `msiexec /a` places beside the expanded runtime. That MSI is install metadata, not a runtime dependency; the staging script now excludes it from the xcopy-portable tree and keeps the final no-MSI assertion enabled.
+
+The Windows LibreOffice distribution declares a Microsoft Visual C++ 2015+ x64 runtime dependency. The candidate gate tests vendor files and portable state behavior on GitHub's Windows runner; clean-machine v1 acceptance must still establish whether the VC runtime needs to be bundled or can be treated as an operating-system prerequisite.
 
 ## Architecture
 
@@ -97,6 +99,8 @@ The dependency inventory is source-backed from Stirling 2.14.3, especially `Exte
 | Python | `python3` or `python` |
 | OpenCV | Python `import cv2` |
 
+Pinned Stirling 2.14.3 also sets **`UNOSERVER_VERSION=3.7`** in its Docker toolchain; do not substitute an older release without a source-backed reason.
+
 Also audit Poppler helpers (`pdfinfo`, `pdfimages`), `unpaper`, `pngquant`, NumPy/OpenCV, WeasyPrint, LibreOffice/UNO, Calibre, conversion fonts, VeraPDF E2E, `jbig2enc` and any additional exact dependency exposed by pinned source.
 
 ## Validation contract
@@ -109,7 +113,7 @@ A dependency is accepted only when the **complete current primary workflow** is 
 
 1. Pass the focused LibreOffice gate, promote it to the primary workflow and obtain full primary acceptance.
 2. Retire focused OCRmyPDF/LibreOffice workflows when no longer needed.
-3. Complete external toolchain: UNO/Unoconvert or source-compatible portable alternative; Poppler (`pdftohtml`, `pdfinfo`, `pdfimages`); portable Python dependency consolidation; NumPy; OpenCV; WeasyPrint; Calibre; `unpaper`; `pngquant`; conversion fonts; explicit VeraPDF E2E; investigate `jbig2enc`; establish viable RAR/CBR support or document the concrete limitation; add any further dependency found in exact pinned source.
+3. Complete external toolchain: UNO/Unoconvert `3.7` or source-compatible portable alternative; Poppler (`pdftohtml`, `pdfinfo`, `pdfimages`); portable Python dependency consolidation; NumPy; OpenCV; WeasyPrint; Calibre; `unpaper`; `pngquant`; conversion fonts; explicit VeraPDF E2E; investigate `jbig2enc`; establish viable RAR/CBR support or document the concrete limitation; add any further dependency found in exact pinned source.
 4. Representative E2E operations across OCR, Office, HTML/URL -> PDF, Poppler, WeasyPrint, Calibre/EPUB, Python/OpenCV and representative Stirling API families.
 5. Non-Enterprise parity audit against Stirling 2.14.3.
 6. Final branding and portability/state/process audits.

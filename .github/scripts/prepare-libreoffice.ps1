@@ -61,7 +61,7 @@ try {
 
     # Build a Windows Installer administrative image instead of installing
     # LibreOffice into the CI host. VC_REDIST=0 prevents the MSI from servicing
-    # the host Visual C++ runtime while we are only extracting the vendor files.
+    # the host Visual C++ runtime while we are only extracting vendor files.
     $msiexec = Join-Path $env:SystemRoot 'System32\msiexec.exe'
     $arguments = @(
         '/a',
@@ -89,7 +89,18 @@ try {
         throw "Located soffice.exe but LibreOffice share/ directory is missing beside program/: $officeRoot"
     }
 
-    Copy-Item -Path (Join-Path $officeRoot '*') -Destination $toolRoot -Recurse -Force
+    # An MSI administrative image intentionally contains a transformed copy of
+    # the source MSI next to the expanded application tree. That MSI is install
+    # metadata, not a LibreOffice runtime dependency, so exclude it from the
+    # xcopy-portable tree rather than shipping a redundant installer.
+    Get-ChildItem -LiteralPath $officeRoot -Force | ForEach-Object {
+        if (-not $_.PSIsContainer -and $_.Extension -ieq '.msi') {
+            Write-Host "Excluding administrative-image MSI from portable runtime: $($_.Name)"
+        }
+        else {
+            Copy-Item -LiteralPath $_.FullName -Destination $toolRoot -Recurse -Force
+        }
+    }
 
     $canonical = Join-Path $toolRoot 'program\soffice.exe'
     $sofficeBin = Join-Path $toolRoot 'program\soffice.bin'
@@ -120,7 +131,7 @@ try {
         'PACKAGE_VARIANT=official-windows-x86-64-msi-administrative-image',
         "SOURCE_URL=$DownloadUrl",
         "MSI_SHA256=$actualSha",
-        'EXTRACTION=Windows Installer administrative image (/a), VC_REDIST=0',
+        'EXTRACTION=Windows Installer administrative image (/a), VC_REDIST=0; administrative MSI excluded from runtime tree',
         'CANONICAL_EXE=program/soffice.exe',
         'STIRLING_PROBE=soffice',
         'STIRLING_SHIM=../bin/soffice.exe',
@@ -135,7 +146,8 @@ try {
 
     $leakedMsi = @(Get-ChildItem -LiteralPath $toolRoot -Recurse -Force -File -Filter '*.msi' -ErrorAction SilentlyContinue)
     if ($leakedMsi.Count -gt 0) {
-        throw 'LibreOffice source MSI leaked into the portable tools tree.'
+        $leakedMsi | Select-Object FullName, Length | Format-Table -AutoSize
+        throw 'LibreOffice source/admin MSI leaked into the portable tools tree.'
     }
 
     Write-Host "Staged LibreOffice $Version at $toolRoot with package-local soffice launcher $shim"
