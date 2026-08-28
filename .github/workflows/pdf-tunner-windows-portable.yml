@@ -42,6 +42,11 @@ env:
   PDF_TUNNER_TESSDATA_ENG_BLOB: "bbef4675053b5b468cdb477053e28b1c698ba08e"
   PDF_TUNNER_TESSDATA_SPA_BLOB: "72e901f13ca52cfe34cf239a368b9ed3c0ddaf26"
   PDF_TUNNER_TESSDATA_OSD_BLOB: "527457ca8f8fe1fda7c2f88bce3c0e4be12be9d0"
+  PDF_TUNNER_PYTHON_VERSION: "3.12.14"
+  PDF_TUNNER_PYTHON_URL: "https://github.com/astral-sh/python-build-standalone/releases/download/20260825/cpython-3.12.14%2B20260825-x86_64-pc-windows-msvc-install_only_stripped.tar.gz"
+  PDF_TUNNER_PYTHON_SHA256: "8e6aad12ef6fc9685e67ce66253f8f72d6e8fa02cb7187e5850bd4db5ecd9e2a"
+  PDF_TUNNER_OCRMYPDF_VERSION: "17.10.0"
+  PDF_TUNNER_OCRMYPDF_WHEEL_SHA256: "34ba1b595ecacc94b6dc3c9d4fa51953de63082cd16cf8595251bd72120b930a"
   CI: "true"
 
 jobs:
@@ -242,6 +247,29 @@ jobs:
             -SpaBlobSha $env:PDF_TUNNER_TESSDATA_SPA_BLOB `
             -OsdBlobSha $env:PDF_TUNNER_TESSDATA_OSD_BLOB
 
+      - name: Stage portable Python and OCRmyPDF
+        shell: pwsh
+        run: |
+          & './.github/scripts/prepare-ocrmypdf.ps1' `
+            -PortableRoot './dist/PDF_Tunner' `
+            -PythonVersion $env:PDF_TUNNER_PYTHON_VERSION `
+            -PythonDownloadUrl $env:PDF_TUNNER_PYTHON_URL `
+            -PythonSha256 $env:PDF_TUNNER_PYTHON_SHA256 `
+            -OcrMyPdfVersion $env:PDF_TUNNER_OCRMYPDF_VERSION `
+            -OcrMyPdfWheelSha256 $env:PDF_TUNNER_OCRMYPDF_WHEEL_SHA256 `
+            -LauncherSource './.github/scripts/ocrmypdf-launcher.rs'
+
+      - name: Validate packaged Python and OCRmyPDF independently of runner PATH
+        shell: pwsh
+        run: |
+          & './.github/scripts/validate-ocrmypdf.ps1' `
+            -PortableRoot './dist/PDF_Tunner' `
+            -PythonVersion $env:PDF_TUNNER_PYTHON_VERSION `
+            -PythonSha256 $env:PDF_TUNNER_PYTHON_SHA256 `
+            -OcrMyPdfVersion $env:PDF_TUNNER_OCRMYPDF_VERSION `
+            -OcrMyPdfWheelSha256 $env:PDF_TUNNER_OCRMYPDF_WHEEL_SHA256 `
+            -RequireRelocation
+
       - name: Validate bundled Java runtime
         shell: pwsh
         run: |
@@ -371,6 +399,24 @@ jobs:
             -BackendLogRoot (Join-Path $portable 'data') `
             -RequireBackendProbe
           Write-Host 'Packaged Tesseract runtime, tessdata path and Stirling dependency probe validated successfully.'
+
+          & './.github/scripts/validate-ocrmypdf.ps1' `
+            -PortableRoot './dist/PDF_Tunner' `
+            -PythonVersion $env:PDF_TUNNER_PYTHON_VERSION `
+            -PythonSha256 $env:PDF_TUNNER_PYTHON_SHA256 `
+            -OcrMyPdfVersion $env:PDF_TUNNER_OCRMYPDF_VERSION `
+            -OcrMyPdfWheelSha256 $env:PDF_TUNNER_OCRMYPDF_WHEEL_SHA256
+
+          $backendLogs = @(Get-ChildItem -LiteralPath (Join-Path $portable 'data') -Recurse -Force -File -Filter '*.log' -ErrorAction SilentlyContinue)
+          if ($backendLogs.Count -eq 0) { throw 'No backend logs were available for OCRmyPDF dependency acceptance.' }
+          $backendLogText = ($backendLogs | ForEach-Object { Get-Content -LiteralPath $_.FullName -Raw -ErrorAction SilentlyContinue }) -join "`n"
+          if ($backendLogText -match '(?im)Missing dependency:\s*ocrmypdf\b') {
+            throw 'Stirling backend reported Missing dependency: ocrmypdf.'
+          }
+          if ($backendLogText -match '(?im)Disabling group:\s*OCRmyPDF\b') {
+            throw 'Stirling backend disabled the OCRmyPDF group.'
+          }
+          Write-Host 'Packaged Python/OCRmyPDF completed real OCR and the Stirling backend did not disable the OCRmyPDF dependency group.'
 
           Write-Host 'Containment check: Stirling AppData'
           if (-not $hostLeakExisted -and (Test-Path -LiteralPath $hostLeak)) {
@@ -653,6 +699,13 @@ jobs:
             'tools/tesseract/PROVENANCE.txt',
             'tools/tesseract/SHA256SUMS.txt',
             'tools/tesseract/version.txt',
+            'tools/python/python.exe',
+            'tools/python/ocrmypdf.exe',
+            'tools/python/PROVENANCE.txt',
+            'tools/python/SHA256SUMS.txt',
+            'tools/python/PYTHON_VERSION.txt',
+            'tools/python/OCRMY_PDF_VERSION.txt',
+            'tools/python/DEPENDENCIES.txt',
             'data'
           )
           foreach ($relative in $required) {
@@ -684,6 +737,19 @@ jobs:
             -EngBlobSha $env:PDF_TUNNER_TESSDATA_ENG_BLOB `
             -SpaBlobSha $env:PDF_TUNNER_TESSDATA_SPA_BLOB `
             -OsdBlobSha $env:PDF_TUNNER_TESSDATA_OSD_BLOB
+
+          & './.github/scripts/validate-ocrmypdf.ps1' `
+            -PortableRoot './dist/PDF_Tunner' `
+            -PythonVersion $env:PDF_TUNNER_PYTHON_VERSION `
+            -PythonSha256 $env:PDF_TUNNER_PYTHON_SHA256 `
+            -OcrMyPdfVersion $env:PDF_TUNNER_OCRMYPDF_VERSION `
+            -OcrMyPdfWheelSha256 $env:PDF_TUNNER_OCRMYPDF_WHEEL_SHA256
+
+          Remove-Item -LiteralPath $data -Recurse -Force -ErrorAction Stop
+          New-Item -ItemType Directory -Force -Path $data | Out-Null
+          if (@(Get-ChildItem -LiteralPath $data -Force -ErrorAction SilentlyContinue).Count -ne 0) {
+            throw 'Final portable data directory is not empty after validation cleanup.'
+          }
 
       - name: Create portable ZIP and SHA-256
         id: package

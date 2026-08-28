@@ -36,11 +36,11 @@ PDF_Tunner is the real fork `WillsitoGG/PDF_Tunner` of `Stirling-Tools/Stirling-
 
 Before writes in a resumed conversation:
 
-1. recover the two most recent relevant PDF_Tunner handoffs/conversations;
+1. recover the most recent relevant PDF_Tunner handoff/conversation context;
 2. read the current project prompt/rules, README and AGENTS;
 3. verify live branch HEAD, latest primary Actions run, PR state and Release state;
 4. explicitly carry **accepted/closed**, **active candidate**, **next block** and **broader roadmap**;
-5. never treat “next task X” as the only remaining work;
+5. never treat one immediate next task as the only remaining work;
 6. at each accepted milestone record commit, Run/job, artifact/digest where relevant, next candidate and remaining roadmap in README + AGENTS;
 7. before final Release re-audit against the full original PDF_Tunner objective.
 
@@ -52,7 +52,7 @@ The pinned desktop build uses Java 25/JLink and Stirling's existing Tauri lifecy
 
 Portable mode is enabled by `PDF_TUNNER_PORTABLE` beside the executable.
 
-Do **not** globally replace `APPDATA`, `LOCALAPPDATA`, `PROGRAMDATA`, `USERPROFILE`, `HOME`, `TEMP` or `TMP` before Tauri/WebView2 initializes. CI previously proved that this can terminate native startup. Use component-specific localization instead:
+Do **not** globally replace `APPDATA`, `LOCALAPPDATA`, `PROGRAMDATA`, `USERPROFILE`, `HOME`, `TEMP` or `TMP` before Tauri/WebView2 initializes. Use component-specific localization:
 
 - `PDF_TUNNER_PORTABLE_ROOT` -> executable directory;
 - Stirling app data -> `<portable>/data`;
@@ -97,9 +97,11 @@ Direct runtime probes include:
 
 Also audit Poppler `pdfinfo`/`pdfimages`, `unpaper`, `pngquant`, NumPy/OpenCV, WeasyPrint, LibreOffice/UNO, Calibre, conversion fonts, VeraPDF E2E, `jbig2enc` and any additional exact dependency exposed by pinned source.
 
+`ExternalAppDepConfig` disables the OCRmyPDF endpoint group when the configured `ocrmypdf` command cannot be resolved. Primary acceptance of OCRmyPDF therefore requires both an isolated real OCR operation and proof that the real PDF_Tunner backend does not log `Missing dependency: ocrmypdf` / disable the OCRmyPDF group.
+
 ## Tool layout strategy
 
-Package under one `tools/` subtree per dependency. Tauri already prepends, when present:
+Package under one `tools/` subtree per dependency. Tauri prepends, when present:
 
 - `tools/bin`;
 - `tools/python` and `tools/python/Scripts`;
@@ -155,15 +157,13 @@ Real packaged startup/backend health, Java temp localization, WebView2 profile l
 - `tessdata_fast` commit `87416418657359cb625c412a48b6e1d6d41c29bd`;
 - models: `eng` blob `bbef4675053b5b468cdb477053e28b1c698ba08e`, `spa` `72e901f13ca52cfe34cf239a368b9ed3c0ddaf26`, `osd` `527457ca8f8fe1fda7c2f88bce3c0e4be12be9d0`;
 - validation includes isolated package-first PATH, real English/Spanish OCR, OSD and Stirling backend package-local tessdata acceptance;
-- **acceptance Run `33122172947` (#70), job `98691480028`, commit `52429eb7812e8615ee39aab695641d495798c1ba`; artifact `9667429758`, digest `sha256:12943b1b38ac7660156667acbaf5a0d3ccae189d0f9d28be97fe32b0db8326aa`.**
+- acceptance Run `33122172947` (#70), job `98691480028`, commit `52429eb7812e8615ee39aab695641d495798c1ba`; artifact `9667429758`, digest `sha256:12943b1b38ac7660156667acbaf5a0d3ccae189d0f9d28be97fe32b0db8326aa`.
 
-Run #69 remains diagnostic failure evidence only; #70 is the acceptance proof.
+Latest pre-OCRmyPDF primary baseline: Run `33169895113` (#76), job `98844184305`, commit `9f0dcb4cb35cb73a1ceadf2ebe105ec23c5fd3c8`, complete success.
 
-## Active candidate: Python 3.12.14 + OCRmyPDF 17.10.0
+## Active integration: Python 3.12.14 + OCRmyPDF 17.10.0
 
-Stirling's `OCRController` executes the configured `ocrmypdf` executable directly, so packaging must expose an executable command, not merely a Python module.
-
-Candidate pins:
+Pins:
 
 - Python `3.12.14` x64;
 - `astral-sh/python-build-standalone` release `20260825`, `x86_64-pc-windows-msvc-install_only_stripped`;
@@ -171,29 +171,21 @@ Candidate pins:
 - OCRmyPDF `17.10.0` PyPI wheel;
 - wheel SHA-256 `34ba1b595ecacc94b6dc3c9d4fa51953de63082cd16cf8595251bd72120b930a`.
 
-Rationale:
+The normal pip-generated Windows launcher is removed. `.github/scripts/ocrmypdf-launcher.rs` builds a native relative launcher under `tools/python/ocrmypdf.exe`, executing sibling `python.exe -m ocrmypdf` and localizing OCRmyPDF temp/Python cache to `data/`.
 
-- OCRmyPDF 17.10.0 supports Windows and requires Python >=3.11;
-- official Windows installation guidance requires 64-bit Python, Tesseract and Ghostscript; Tesseract and Ghostscript are already accepted in PDF_Tunner;
-- a relocatable standalone Python is preferred over a normal installed Python/venv;
-- pip's generated Windows OCRmyPDF console launcher is removed rather than trusted after relocation;
-- `.github/scripts/ocrmypdf-launcher.rs` builds a native relative launcher under `tools/python/ocrmypdf.exe`, executing sibling `python.exe -m ocrmypdf` and localizing OCRmyPDF temp/Python cache to `data/`.
+Permanent scripts:
 
-Permanent candidate scripts:
-
-- `.github/scripts/prepare-ocrmypdf.ps1` — download/hash/extract Python standalone, verify/install exact OCRmyPDF, compile relative launcher, run `pip check`, write package provenance/hashes/canonical dependency inventory;
-- `.github/scripts/validate-ocrmypdf.ps1` — PE/version/provenance checks, isolated PATH proof, real OCR searchable-text check and relocation proof;
+- `.github/scripts/prepare-ocrmypdf.ps1` — download/hash/extract Python standalone, verify/install exact OCRmyPDF, compile relative launcher, run `pip check`, write provenance/hashes/canonical dependency inventory;
+- `.github/scripts/validate-ocrmypdf.ps1` — PE/version/provenance checks, isolated PATH proof, real OCR searchable-text check and optional relocation proof;
 - `.github/scripts/ocrmypdf-launcher.rs` — native relative launcher.
 
-Focused workflow `.github/workflows/pdf-tunner-ocrmypdf-candidate.yml` is an active-development diagnostic gate. It reuses accepted Ghostscript/Tesseract staging and tests OCRmyPDF in a synthetic portable tree, including a second run after relocation to a path containing spaces. **A green focused workflow does not accept OCRmyPDF.** After it is green, integrate the same block into the primary workflow, require real PDF_Tunner backend dependency acceptance and a real backend/API OCR operation where source-compatible, then remove the focused workflow after that phase is complete.
+Focused Run `33169895080` (#5), job `98844184266`, commit `9f0dcb4cb35cb73a1ceadf2ebe105ec23c5fd3c8`, is green and proves exact versions/hashes, AMD64, package-only command resolution, clean `pip check`, real searchable-PDF OCR, `pdfminer-six` searchable-text extraction, package-local temp/cache and a second complete OCR after relocation to a path containing spaces.
 
-Focused Run `33165240128` (#1), job `98828956888`, is diagnostic failure evidence only. Python 3.12.14 + OCRmyPDF 17.10.0 staged successfully, both pinned hashes matched and `pip check` was clean. It failed at the metadata gate before executing the OCR operation because `pip freeze` retained the temporary local-wheel `file://` install origin rather than emitting `ocrmypdf==17.10.0`. The preparation contract now uses `pip list --format=freeze` for the package inventory so installed package identity is reproducible and independent of build-temp paths.
+Runs #1, #2 and #4 remain diagnostic failure evidence only: they exposed and led to fixes for dependency inventory normalization, synthetic image DPI and alpha-channel fixture encoding respectively.
 
-Focused Run `33166452974` (#2), job `98832912169`, advanced through the corrected metadata gate and reached the real OCR call. Package hashes, exact versions, canonical dependency inventory and `pip check` all passed. OCRmyPDF then rejected the System.Drawing PNG fixture because it carried roughly 95 DPI, below a credible scan resolution. The validator now declares `--image-dpi 300` for this synthetic fixture only; this does not change packaged runtime behavior.
+**Focused green is not acceptance.** The active revision promotes the same Python/OCRmyPDF layer into the primary workflow. Accept only when the complete primary workflow is green with all previous gates enabled, backend dependency probing accepts `ocrmypdf`, the real OCR/relocation checks pass from the package, final layout contains the Python/OCRmyPDF provenance files, and the final ZIP/SHA is produced.
 
-Focused Run `33167136751` (#4), job `98835125870`, reached the real OCRmyPDF operation after all packaging/hash/version/dependency gates passed. The only blocker was the synthetic PNG's alpha channel: OCRmyPDF correctly rejects image inputs with alpha. The validator now constructs the scan as explicit 24-bit RGB (`Format24bppRgb`) while retaining `--image-dpi 300`. Primary Run `33167136777` (#75) remained green in parallel, so the accepted portable baseline has not regressed during this focused iteration.
-
-The focused searchable-text assertion uses `pdfminer-six`, already present because it is an OCRmyPDF 17.10.0 dependency. Do not add validation-only `pypdf` to the portable runtime.
+After primary acceptance, remove `.github/workflows/pdf-tunner-ocrmypdf-candidate.yml` when it is no longer needed and document that removal in README + AGENTS in the same commit.
 
 ## Primary workflow acceptance contract
 
@@ -207,23 +199,22 @@ A green standalone preparation/focused workflow is not acceptance. `--version` a
 
 ### A. External toolchain
 
-1. finish focused OCRmyPDF validation;
-2. integrate OCRmyPDF + Python into primary portable packaging/backend probes and accept only on complete green primary run;
-3. LibreOffice;
-4. UNO/`unoconvert` or source-compatible portable alternative;
-5. Poppler including `pdftohtml`, `pdfinfo`, `pdfimages`;
-6. consolidate portable Python dependency lock;
-7. NumPy;
-8. OpenCV;
-9. WeasyPrint;
-10. Calibre/`ebook-convert`;
-11. `unpaper`;
-12. `pngquant`;
-13. conversion fonts;
-14. explicit VeraPDF E2E;
-15. investigate/build/package `jbig2enc` if viable;
-16. viable portable RAR/CBR or concrete documented limitation;
-17. any further exact dependency exposed during pinned-source parity audit.
+1. complete primary OCRmyPDF + Python acceptance and retire the focused gate when safe;
+2. LibreOffice;
+3. UNO/`unoconvert` or source-compatible portable alternative;
+4. Poppler including `pdftohtml`, `pdfinfo`, `pdfimages`;
+5. consolidate portable Python dependency lock;
+6. NumPy;
+7. OpenCV;
+8. WeasyPrint;
+9. Calibre/`ebook-convert`;
+10. `unpaper`;
+11. `pngquant`;
+12. conversion fonts;
+13. explicit VeraPDF E2E;
+14. investigate/build/package `jbig2enc` if viable;
+15. viable portable RAR/CBR or concrete documented limitation;
+16. any further exact dependency exposed during pinned-source parity audit.
 
 ### B. Functional validation
 
@@ -243,20 +234,20 @@ OCRmyPDF E2E; Office -> PDF; supported PDF -> Office; HTML/URL -> PDF; WeasyPrin
 
 ## Current handoff — 2026-08-28
 
-Accepted/closed: native portable/Tauri containment; Fixed WebView2; qpdf; ImageMagick; Ghostscript; **Tesseract via Run #70**.
+Accepted/closed: native portable/Tauri containment; Fixed WebView2; qpdf; ImageMagick; Ghostscript; Tesseract.
 
-Active candidate: **portable Python 3.12.14 + OCRmyPDF 17.10.0**, currently at the focused real-OCR/relocation gate. Run #4 proved the runtime reaches real OCRmyPDF execution; the synthetic alpha-channel fixture is the current corrected test-only blocker.
+Latest fully green primary baseline: **Run #76** on commit `9f0dcb4cb35cb73a1ceadf2ebe105ec23c5fd3c8`.
 
-Next block only after OCRmyPDF acceptance: LibreOffice/UNO planning and packaging, while the broader A/B/C roadmap remains mandatory.
+Focused OCRmyPDF/Python gate: **Run #5 green** on the same commit, including real searchable OCR and relocation.
+
+Active work: promote Python/OCRmyPDF into the complete primary workflow and require the real backend to accept the `ocrmypdf` dependency. OCRmyPDF is not accepted until that primary run is green.
+
+Next external block only after OCRmyPDF acceptance: LibreOffice/UNO, while the broader A/B/C roadmap remains mandatory.
 
 ## Compact changelog
 
 - **2026-08-21–23:** real fork/base confirmed; Stirling Tauri + JLink architecture selected; portable state containment and two-launch window-state proof established.
-- **2026-08-27:** Fixed WebView2 accepted #62; qpdf #66; ImageMagick #67; Ghostscript #68.
-- **2026-08-27:** Tesseract diagnostic #69 exposed exact Windows CLI version and NSIS helper residue; both contracts corrected.
-- **2026-08-27:** **Tesseract accepted by complete primary Run #70** with every prior gate still green.
-- **2026-08-28:** OCRmyPDF candidate designed around pinned relocatable Python standalone + native relative launcher + real searchable-PDF/relocation validation; focused candidate gate added before primary integration.
-- **2026-08-28:** focused OCRmyPDF Run #1 proved staging/hash/dependency consistency and exposed only a non-canonical `pip freeze` local-wheel record; dependency inventory switched to `pip list --format=freeze` before rerunning the real OCR/relocation gate.
-- **2026-08-28:** focused OCRmyPDF Run #2 reached real OCR; its only blocker was synthetic fixture DPI, corrected explicitly with `--image-dpi 300` before the next focused run.
-- **2026-08-28:** focused searchable-text validation now reuses bundled `pdfminer-six` rather than introducing an unrelated validation-only `pypdf` dependency.
-- **2026-08-28:** focused OCRmyPDF Run #4 reached real OCR with every package gate green; OCRmyPDF rejected only the alpha-bearing synthetic PNG, so the fixture was normalized to 24-bit RGB. Primary #75 stayed green concurrently.
+- **2026-08-27:** Fixed WebView2 accepted #62; qpdf #66; ImageMagick #67; Ghostscript #68; Tesseract #70.
+- **2026-08-28:** OCRmyPDF candidate built around pinned relocatable Python standalone + native relative launcher + real searchable-PDF/relocation validation.
+- **2026-08-28:** focused Runs #1/#2/#4 diagnosed and corrected package inventory, fixture DPI and alpha-channel test issues without changing Stirling behavior.
+- **2026-08-28:** focused OCRmyPDF Run #5 passed fully; primary Run #76 concurrently reconfirmed the previous accepted baseline. Primary integration is now the active gate.
