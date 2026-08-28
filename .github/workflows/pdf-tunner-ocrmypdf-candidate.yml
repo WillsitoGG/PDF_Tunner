@@ -1,0 +1,115 @@
+name: PDF_Tunner OCRmyPDF Candidate
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - pdf-tunner/windows-portable-v1
+    paths:
+      - '.github/workflows/pdf-tunner-ocrmypdf-candidate.yml'
+      - '.github/scripts/prepare-ocrmypdf.ps1'
+      - '.github/scripts/validate-ocrmypdf.ps1'
+      - '.github/scripts/ocrmypdf-launcher.rs'
+
+concurrency:
+  group: pdf-tunner-ocrmypdf-candidate-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  PDF_TUNNER_GHOSTSCRIPT_VERSION: "10.07.1"
+  PDF_TUNNER_GHOSTSCRIPT_VARIANT: "official-win64-nsis"
+  PDF_TUNNER_GHOSTSCRIPT_URL: "https://github.com/ArtifexSoftware/ghostpdl-downloads/releases/download/gs10071/gs10071w64.exe"
+  PDF_TUNNER_GHOSTSCRIPT_SHA256: "3a4c28d0aac47aa7cccd35a5932c55110376e9dbd966898dde388b7faba444a4"
+  PDF_TUNNER_TESSERACT_VERSION: "5.5.3"
+  PDF_TUNNER_TESSERACT_VARIANT: "official-win64-nsis"
+  PDF_TUNNER_TESSERACT_URL: "https://github.com/tesseract-ocr/tesseract/releases/download/5.5.3/tesseract-ocr-w64-setup-5.5.3.20260724.exe"
+  PDF_TUNNER_TESSERACT_SHA256: "bee9e3434bd94fd65387d9be28cd467a41f61b1275383b55b0f59a1331270ae4"
+  PDF_TUNNER_TESSDATA_FAST_COMMIT: "87416418657359cb625c412a48b6e1d6d41c29bd"
+  PDF_TUNNER_TESSDATA_ENG_BLOB: "bbef4675053b5b468cdb477053e28b1c698ba08e"
+  PDF_TUNNER_TESSDATA_SPA_BLOB: "72e901f13ca52cfe34cf239a368b9ed3c0ddaf26"
+  PDF_TUNNER_TESSDATA_OSD_BLOB: "527457ca8f8fe1fda7c2f88bce3c0e4be12be9d0"
+  PDF_TUNNER_PYTHON_VERSION: "3.12.14"
+  PDF_TUNNER_PYTHON_URL: "https://github.com/astral-sh/python-build-standalone/releases/download/20260825/cpython-3.12.14%2B20260825-x86_64-pc-windows-msvc-install_only_stripped.tar.gz"
+  PDF_TUNNER_PYTHON_SHA256: "8e6aad12ef6fc9685e67ce66253f8f72d6e8fa02cb7187e5850bd4db5ecd9e2a"
+  PDF_TUNNER_OCRMYPDF_VERSION: "17.10.0"
+  PDF_TUNNER_OCRMYPDF_WHEEL_SHA256: "34ba1b595ecacc94b6dc3c9d4fa51953de63082cd16cf8595251bd72120b930a"
+
+jobs:
+  ocrmypdf-candidate:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout fork
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@4be9e76fd7c4901c61fb841f559994984270fce7 # stable
+        with:
+          toolchain: stable
+
+      - name: Create synthetic portable root
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path './dist/PDF_Tunner/data' | Out-Null
+          New-Item -ItemType File -Force -Path './dist/PDF_Tunner/PDF_TUNNER_PORTABLE' | Out-Null
+
+      - name: Stage accepted Ghostscript prerequisite
+        shell: pwsh
+        run: |
+          & './.github/scripts/prepare-ghostscript.ps1' `
+            -PortableRoot './dist/PDF_Tunner' `
+            -Version $env:PDF_TUNNER_GHOSTSCRIPT_VERSION `
+            -PackageVariant $env:PDF_TUNNER_GHOSTSCRIPT_VARIANT `
+            -DownloadUrl $env:PDF_TUNNER_GHOSTSCRIPT_URL `
+            -ExpectedSha256 $env:PDF_TUNNER_GHOSTSCRIPT_SHA256
+          & './.github/scripts/validate-ghostscript.ps1' `
+            -PortableRoot './dist/PDF_Tunner' `
+            -Version $env:PDF_TUNNER_GHOSTSCRIPT_VERSION `
+            -ExpectedInstallerSha256 $env:PDF_TUNNER_GHOSTSCRIPT_SHA256
+
+      - name: Stage accepted Tesseract prerequisite
+        shell: pwsh
+        run: |
+          & './.github/scripts/prepare-tesseract.ps1' `
+            -PortableRoot './dist/PDF_Tunner' `
+            -Version $env:PDF_TUNNER_TESSERACT_VERSION `
+            -PackageVariant $env:PDF_TUNNER_TESSERACT_VARIANT `
+            -DownloadUrl $env:PDF_TUNNER_TESSERACT_URL `
+            -ExpectedSha256 $env:PDF_TUNNER_TESSERACT_SHA256 `
+            -TessdataCommit $env:PDF_TUNNER_TESSDATA_FAST_COMMIT `
+            -EngBlobSha $env:PDF_TUNNER_TESSDATA_ENG_BLOB `
+            -SpaBlobSha $env:PDF_TUNNER_TESSDATA_SPA_BLOB `
+            -OsdBlobSha $env:PDF_TUNNER_TESSDATA_OSD_BLOB
+          & './.github/scripts/validate-tesseract.ps1' `
+            -PortableRoot './dist/PDF_Tunner' `
+            -Version $env:PDF_TUNNER_TESSERACT_VERSION `
+            -ExpectedInstallerSha256 $env:PDF_TUNNER_TESSERACT_SHA256 `
+            -TessdataCommit $env:PDF_TUNNER_TESSDATA_FAST_COMMIT `
+            -EngBlobSha $env:PDF_TUNNER_TESSDATA_ENG_BLOB `
+            -SpaBlobSha $env:PDF_TUNNER_TESSDATA_SPA_BLOB `
+            -OsdBlobSha $env:PDF_TUNNER_TESSDATA_OSD_BLOB
+
+      - name: Stage portable Python and OCRmyPDF
+        shell: pwsh
+        run: |
+          & './.github/scripts/prepare-ocrmypdf.ps1' `
+            -PortableRoot './dist/PDF_Tunner' `
+            -PythonVersion $env:PDF_TUNNER_PYTHON_VERSION `
+            -PythonDownloadUrl $env:PDF_TUNNER_PYTHON_URL `
+            -PythonSha256 $env:PDF_TUNNER_PYTHON_SHA256 `
+            -OcrMyPdfVersion $env:PDF_TUNNER_OCRMYPDF_VERSION `
+            -OcrMyPdfWheelSha256 $env:PDF_TUNNER_OCRMYPDF_WHEEL_SHA256 `
+            -LauncherSource './.github/scripts/ocrmypdf-launcher.rs'
+
+      - name: Validate real OCRmyPDF operation and relocation
+        shell: pwsh
+        run: |
+          & './.github/scripts/validate-ocrmypdf.ps1' `
+            -PortableRoot './dist/PDF_Tunner' `
+            -PythonVersion $env:PDF_TUNNER_PYTHON_VERSION `
+            -PythonSha256 $env:PDF_TUNNER_PYTHON_SHA256 `
+            -OcrMyPdfVersion $env:PDF_TUNNER_OCRMYPDF_VERSION `
+            -OcrMyPdfWheelSha256 $env:PDF_TUNNER_OCRMYPDF_WHEEL_SHA256 `
+            -RequireRelocation
