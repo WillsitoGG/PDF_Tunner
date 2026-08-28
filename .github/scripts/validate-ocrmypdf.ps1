@@ -97,7 +97,10 @@ function Test-OcrRuntime {
         Remove-Item -LiteralPath $fixture, $outputPdf -Force -ErrorAction SilentlyContinue
         New-OcrFixture -Path $fixture
 
-        & ocrmypdf --output-type pdf --language eng --jobs 1 $fixture $outputPdf 2>&1 | Out-Host
+        # System.Drawing-generated PNG fixtures can inherit the runner display DPI
+        # (for example ~95 DPI). OCRmyPDF correctly rejects that as an implausible
+        # scan resolution, so declare the synthetic fixture's intended scan DPI.
+        & ocrmypdf --output-type pdf --language eng --jobs 1 --image-dpi 300 $fixture $outputPdf 2>&1 | Out-Host
         if ($LASTEXITCODE -ne 0) { throw "Real OCRmyPDF conversion failed with exit code $LASTEXITCODE." }
         if (-not (Test-Path -LiteralPath $outputPdf -PathType Leaf)) { throw 'OCRmyPDF did not produce output PDF.' }
         if ((Get-Item -LiteralPath $outputPdf).Length -lt 1000) { throw 'OCRmyPDF output PDF is unexpectedly small.' }

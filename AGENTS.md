@@ -189,6 +189,8 @@ Focused workflow `.github/workflows/pdf-tunner-ocrmypdf-candidate.yml` is an act
 
 Focused Run `33165240128` (#1), job `98828956888`, is diagnostic failure evidence only. Python 3.12.14 + OCRmyPDF 17.10.0 staged successfully, both pinned hashes matched and `pip check` was clean. It failed at the metadata gate before executing the OCR operation because `pip freeze` retained the temporary local-wheel `file://` install origin rather than emitting `ocrmypdf==17.10.0`. The preparation contract now uses `pip list --format=freeze` for the package inventory so installed package identity is reproducible and independent of build-temp paths.
 
+Focused Run `33166452974` (#2), job `98832912169`, advanced through the corrected metadata gate and reached the real OCR call. Package hashes, exact versions, canonical dependency inventory and `pip check` all passed. OCRmyPDF then rejected the System.Drawing PNG fixture because it carried roughly 95 DPI, below a credible scan resolution. The validator now declares `--image-dpi 300` for this synthetic fixture only; this does not change packaged runtime behavior.
+
 ## Primary workflow acceptance contract
 
 Primary path: `.github/workflows/pdf-tunner-windows-portable.yml`.
@@ -251,3 +253,4 @@ Next block only after OCRmyPDF acceptance: LibreOffice/UNO planning and packagin
 - **2026-08-27:** **Tesseract accepted by complete primary Run #70** with every prior gate still green.
 - **2026-08-28:** OCRmyPDF candidate designed around pinned relocatable Python standalone + native relative launcher + real searchable-PDF/relocation validation; focused candidate gate added before primary integration.
 - **2026-08-28:** focused OCRmyPDF Run #1 proved staging/hash/dependency consistency and exposed only a non-canonical `pip freeze` local-wheel record; dependency inventory switched to `pip list --format=freeze` before rerunning the real OCR/relocation gate.
+- **2026-08-28:** focused OCRmyPDF Run #2 reached real OCR; its only blocker was synthetic fixture DPI, corrected explicitly with `--image-dpi 300` before the next focused run.

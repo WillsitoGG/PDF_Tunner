@@ -51,6 +51,8 @@ A focused candidate workflow, `.github/workflows/pdf-tunner-ocrmypdf-candidate.y
 
 Focused Run `33165240128` (#1), job `98828956888`, is diagnostic failure evidence only. Python 3.12.14 and OCRmyPDF 17.10.0 staged successfully, the pinned Python archive and OCRmyPDF wheel hashes matched, and `pip check` reported no broken requirements. The run failed before the real OCR operation because `pip freeze` represented the locally installed verified wheel as a temporary `file://` origin instead of the validator's required `ocrmypdf==17.10.0`. The package inventory now uses `pip list --format=freeze`, which records installed packages canonically as `name==version` independent of installation origin.
 
+Focused Run `33166452974` (#2), job `98832912169`, is also diagnostic failure evidence only, but it advanced through the corrected metadata gate and reached the real OCR call. Package hashes, exact versions, canonical dependency inventory and `pip check` all passed. OCRmyPDF then correctly rejected the System.Drawing PNG fixture because the runner encoded it at roughly 95 DPI, which is not a credible scan resolution. The focused validator now passes `--image-dpi 300` explicitly for this synthetic image fixture; no packaged runtime or application behavior changes.
+
 This focused workflow is **diagnostic/candidate evidence only**. OCRmyPDF becomes accepted only after the same layer is integrated into `.github/workflows/pdf-tunner-windows-portable.yml` and the complete primary workflow passes with the real PDF_Tunner backend accepting `ocrmypdf`.
 
 ## Architecture
