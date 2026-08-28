@@ -33,7 +33,10 @@ function Get-KeyValueMetadata {
 function New-OcrFixture {
     param([Parameter(Mandatory = $true)][string]$Path)
     Add-Type -AssemblyName System.Drawing
-    $bitmap = New-Object System.Drawing.Bitmap 1800, 1000
+    # OCRmyPDF rejects image inputs with an alpha channel. Construct the
+    # synthetic scan explicitly as 24-bit RGB so the fixture represents a
+    # conventional opaque scanned page rather than a 32-bit ARGB bitmap.
+    $bitmap = [System.Drawing.Bitmap]::new(1800, 1000, [System.Drawing.Imaging.PixelFormat]::Format24bppRgb)
     $graphics = [System.Drawing.Graphics]::FromImage($bitmap)
     $font = New-Object System.Drawing.Font('Arial', 58, [System.Drawing.FontStyle]::Regular, [System.Drawing.GraphicsUnit]::Pixel)
     try {

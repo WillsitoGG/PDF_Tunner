@@ -64,7 +64,7 @@ Do **not** globally replace `APPDATA`, `LOCALAPPDATA`, `PROGRAMDATA`, `USERPROFI
 - Tesseract -> package-first `<portable>/tools/tesseract`, `TESSDATA_PREFIX=<portable>/tools/tesseract/tessdata`;
 - Python/OCRmyPDF -> `<portable>/tools/python`; OCRmyPDF child temp -> `<portable>/data/tmp/ocrmypdf`; Python cache -> `<portable>/data/python-cache`;
 - Calibre config -> `<portable>/data/calibre` when packaged;
-- skip `pdf-tunner://` protocol registration in portable mode.
+- skip `pdf-tunner://` deep-link registration in portable mode.
 
 The Windows keyring/Credential Manager may remain authentication's first path and is not claimed to be package-contained; Tauri Store fallback is package-local.
 
@@ -191,6 +191,8 @@ Focused Run `33165240128` (#1), job `98828956888`, is diagnostic failure evidenc
 
 Focused Run `33166452974` (#2), job `98832912169`, advanced through the corrected metadata gate and reached the real OCR call. Package hashes, exact versions, canonical dependency inventory and `pip check` all passed. OCRmyPDF then rejected the System.Drawing PNG fixture because it carried roughly 95 DPI, below a credible scan resolution. The validator now declares `--image-dpi 300` for this synthetic fixture only; this does not change packaged runtime behavior.
 
+Focused Run `33167136751` (#4), job `98835125870`, reached the real OCRmyPDF operation after all packaging/hash/version/dependency gates passed. The only blocker was the synthetic PNG's alpha channel: OCRmyPDF correctly rejects image inputs with alpha. The validator now constructs the scan as explicit 24-bit RGB (`Format24bppRgb`) while retaining `--image-dpi 300`. Primary Run `33167136777` (#75) remained green in parallel, so the accepted portable baseline has not regressed during this focused iteration.
+
 The focused searchable-text assertion uses `pdfminer-six`, already present because it is an OCRmyPDF 17.10.0 dependency. Do not add validation-only `pypdf` to the portable runtime.
 
 ## Primary workflow acceptance contract
@@ -243,7 +245,7 @@ OCRmyPDF E2E; Office -> PDF; supported PDF -> Office; HTML/URL -> PDF; WeasyPrin
 
 Accepted/closed: native portable/Tauri containment; Fixed WebView2; qpdf; ImageMagick; Ghostscript; **Tesseract via Run #70**.
 
-Active candidate: **portable Python 3.12.14 + OCRmyPDF 17.10.0**, first proven through the focused relocatability/E2E gate and then through the full primary workflow.
+Active candidate: **portable Python 3.12.14 + OCRmyPDF 17.10.0**, currently at the focused real-OCR/relocation gate. Run #4 proved the runtime reaches real OCRmyPDF execution; the synthetic alpha-channel fixture is the current corrected test-only blocker.
 
 Next block only after OCRmyPDF acceptance: LibreOffice/UNO planning and packaging, while the broader A/B/C roadmap remains mandatory.
 
@@ -257,3 +259,4 @@ Next block only after OCRmyPDF acceptance: LibreOffice/UNO planning and packagin
 - **2026-08-28:** focused OCRmyPDF Run #1 proved staging/hash/dependency consistency and exposed only a non-canonical `pip freeze` local-wheel record; dependency inventory switched to `pip list --format=freeze` before rerunning the real OCR/relocation gate.
 - **2026-08-28:** focused OCRmyPDF Run #2 reached real OCR; its only blocker was synthetic fixture DPI, corrected explicitly with `--image-dpi 300` before the next focused run.
 - **2026-08-28:** focused searchable-text validation now reuses bundled `pdfminer-six` rather than introducing an unrelated validation-only `pypdf` dependency.
+- **2026-08-28:** focused OCRmyPDF Run #4 reached real OCR with every package gate green; OCRmyPDF rejected only the alpha-bearing synthetic PNG, so the fixture was normalized to 24-bit RGB. Primary #75 stayed green concurrently.
