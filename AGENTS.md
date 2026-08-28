@@ -9,6 +9,7 @@ PDF_Tunner is the real fork `WillsitoGG/PDF_Tunner` of `Stirling-Tools/Stirling-
 - Pinned upstream version: `2.14.3`
 - Pinned upstream commit: `7fb29d002dbb8fa4b5945d1d1fe8dd164a9f7632`
 - Development branch: `pdf-tunner/windows-portable-v1`
+- Current focused branch: `pdf-tunner/libreoffice-candidate`
 - Target: Windows 10/11 x64 portable ZIP, extract and run.
 - Preserve Stirling non-Enterprise functionality unless explicitly removed.
 - Bundle required runtimes/dependencies whenever technically viable.
@@ -37,7 +38,7 @@ PDF_Tunner is the real fork `WillsitoGG/PDF_Tunner` of `Stirling-Tools/Stirling-
 Before writes in a resumed conversation:
 
 1. recover the most recent relevant PDF_Tunner handoff/conversation context;
-2. read the current project prompt/rules, README and AGENTS;
+2. read current project rules, README and AGENTS;
 3. verify live branch HEAD, latest primary Actions run, PR state and Release state;
 4. explicitly carry **accepted/closed**, **active candidate**, **next block** and **broader roadmap**;
 5. never treat one immediate next task as the only remaining work;
@@ -63,6 +64,7 @@ Do **not** globally replace `APPDATA`, `LOCALAPPDATA`, `PROGRAMDATA`, `USERPROFI
 - Ghostscript -> package-first `<portable>/tools/ghostscript/bin`;
 - Tesseract -> package-first `<portable>/tools/tesseract`, `TESSDATA_PREFIX=<portable>/tools/tesseract/tessdata`;
 - Python/OCRmyPDF -> `<portable>/tools/python`; OCRmyPDF child temp -> `<portable>/data/tmp/ocrmypdf`; Python cache -> `<portable>/data/python-cache`;
+- LibreOffice candidate -> `<portable>/tools/libreoffice`; Stirling-facing `soffice` shim -> `<portable>/tools/bin/soffice.exe`; LibreOffice `TEMP`/`TMP` -> `<portable>/data/tmp/libreoffice`;
 - Calibre config -> `<portable>/data/calibre` when packaged;
 - skip `pdf-tunner://` deep-link registration in portable mode.
 
@@ -97,7 +99,7 @@ Direct runtime probes include:
 
 Also audit Poppler `pdfinfo`/`pdfimages`, `unpaper`, `pngquant`, NumPy/OpenCV, WeasyPrint, LibreOffice/UNO, Calibre, conversion fonts, VeraPDF E2E, `jbig2enc` and any additional exact dependency exposed by pinned source.
 
-`ExternalAppDepConfig` disables the OCRmyPDF endpoint group when the configured `ocrmypdf` command cannot be resolved. Primary acceptance of OCRmyPDF therefore requires both an isolated real OCR operation and proof that the real PDF_Tunner backend does not log `Missing dependency: ocrmypdf` / disable the OCRmyPDF group.
+`ExternalAppDepConfig` disables the OCRmyPDF group if `ocrmypdf` is absent and disables the LibreOffice group if `soffice` is absent. `unoconvert` is an independent dependency check. Do not infer UNO support from LibreOffice support.
 
 ## Tool layout strategy
 
@@ -117,7 +119,7 @@ Package under one `tools/` subtree per dependency. Tauri prepends, when present:
 - `tools/rar`;
 - `tools/jbig2enc`.
 
-If Windows executable naming differs from Stirling's literal probe, provide a deterministic package-local alias/shim only after proving the exact probe. Never count runner-installed software as package evidence.
+If Windows executable naming or containment requires a wrapper, provide a deterministic package-local relative shim only after proving the exact Stirling probe. Never count runner-installed software as package evidence.
 
 ## Accepted layers and evidence
 
@@ -156,36 +158,45 @@ Real packaged startup/backend health, Java temp localization, WebView2 profile l
 - official Win64 installer SHA-256 `bee9e3434bd94fd65387d9be28cd467a41f61b1275383b55b0f59a1331270ae4`;
 - `tessdata_fast` commit `87416418657359cb625c412a48b6e1d6d41c29bd`;
 - models: `eng` blob `bbef4675053b5b468cdb477053e28b1c698ba08e`, `spa` `72e901f13ca52cfe34cf239a368b9ed3c0ddaf26`, `osd` `527457ca8f8fe1fda7c2f88bce3c0e4be12be9d0`;
-- validation includes isolated package-first PATH, real English/Spanish OCR, OSD and Stirling backend package-local tessdata acceptance;
 - acceptance Run `33122172947` (#70), job `98691480028`, commit `52429eb7812e8615ee39aab695641d495798c1ba`; artifact `9667429758`, digest `sha256:12943b1b38ac7660156667acbaf5a0d3ccae189d0f9d28be97fe32b0db8326aa`.
 
-Latest pre-OCRmyPDF primary baseline: Run `33169895113` (#76), job `98844184305`, commit `9f0dcb4cb35cb73a1ceadf2ebe105ec23c5fd3c8`, complete success.
-
-## Active integration: Python 3.12.14 + OCRmyPDF 17.10.0
+### Python 3.12.14 + OCRmyPDF 17.10.0 — accepted
 
 Pins:
 
-- Python `3.12.14` x64;
-- `astral-sh/python-build-standalone` release `20260825`, `x86_64-pc-windows-msvc-install_only_stripped`;
-- archive SHA-256 `8e6aad12ef6fc9685e67ce66253f8f72d6e8fa02cb7187e5850bd4db5ecd9e2a`;
-- OCRmyPDF `17.10.0` PyPI wheel;
-- wheel SHA-256 `34ba1b595ecacc94b6dc3c9d4fa51953de63082cd16cf8595251bd72120b930a`.
+- Python `3.12.14` x64, `astral-sh/python-build-standalone` release `20260825`, archive SHA-256 `8e6aad12ef6fc9685e67ce66253f8f72d6e8fa02cb7187e5850bd4db5ecd9e2a`;
+- OCRmyPDF `17.10.0`, wheel SHA-256 `34ba1b595ecacc94b6dc3c9d4fa51953de63082cd16cf8595251bd72120b930a`.
 
-The normal pip-generated Windows launcher is removed. `.github/scripts/ocrmypdf-launcher.rs` builds a native relative launcher under `tools/python/ocrmypdf.exe`, executing sibling `python.exe -m ocrmypdf` and localizing OCRmyPDF temp/Python cache to `data/`.
+The normal pip launcher is replaced by native relative `.github/scripts/ocrmypdf-launcher.rs` -> `tools/python/ocrmypdf.exe`, executing sibling Python and localizing OCRmyPDF temp/Python cache into `data/`.
 
-Permanent scripts:
+Primary acceptance: Run **`33201568275` (#77)**, job **`98952028665`**, commit **`54802c15427673c0e95738195947ab76239d6e31`**. The entire primary workflow passed with every earlier gate enabled, real searchable OCR, relocation, backend dependency acceptance, portable containment, final clean layout, ZIP/SHA and artifact upload.
 
-- `.github/scripts/prepare-ocrmypdf.ps1` — download/hash/extract Python standalone, verify/install exact OCRmyPDF, compile relative launcher, run `pip check`, write provenance/hashes/canonical dependency inventory;
-- `.github/scripts/validate-ocrmypdf.ps1` — PE/version/provenance checks, isolated PATH proof, real OCR searchable-text check and optional relocation proof;
-- `.github/scripts/ocrmypdf-launcher.rs` — native relative launcher.
+Artifact **`9710851673`**, `PDF_Tunner-Windows-x64-Portable-bootstrap`, Actions digest **`sha256:96d914e252505efa26327c16316903740b0e1216e526d0721efb448c3738ae2e`**.
 
-Focused Run `33169895080` (#5), job `98844184266`, commit `9f0dcb4cb35cb73a1ceadf2ebe105ec23c5fd3c8`, is green and proves exact versions/hashes, AMD64, package-only command resolution, clean `pip check`, real searchable-PDF OCR, `pdfminer-six` searchable-text extraction, package-local temp/cache and a second complete OCR after relocation to a path containing spaces.
+Focused OCR Run `33169895080` (#5), job `98844184266`, is superseded for acceptance by primary #77. Retire `.github/workflows/pdf-tunner-ocrmypdf-candidate.yml` when safe and document the removal.
 
-Runs #1, #2 and #4 remain diagnostic failure evidence only: they exposed and led to fixes for dependency inventory normalization, synthetic image DPI and alpha-channel fixture encoding respectively.
+## Active focused candidate: LibreOffice 26.8.0.3 x64
 
-**Focused green is not acceptance.** The active revision promotes the same Python/OCRmyPDF layer into the primary workflow. Accept only when the complete primary workflow is green with all previous gates enabled, backend dependency probing accepts `ocrmypdf`, the real OCR/relocation checks pass from the package, final layout contains the Python/OCRmyPDF provenance files, and the final ZIP/SHA is produced.
+Stirling's pinned `ConvertOfficeController` tries UNO/unoconvert when available and falls back to `soffice`; its direct `soffice` fallback already supplies a unique `-env:UserInstallation=...` profile under Java temp. Because PDF_Tunner localizes Java temp to `data/tmp`, the profile is already package-contained. LibreOffice is therefore gated independently before UNO/Unoconvert.
 
-After primary acceptance, remove `.github/workflows/pdf-tunner-ocrmypdf-candidate.yml` when it is no longer needed and document that removal in README + AGENTS in the same commit.
+Candidate pin:
+
+- LibreOffice `26.8.0.3` x64;
+- official The Document Foundation MSI `LibreOffice_26.8.0_Win_x86-64.msi`;
+- MSI SHA-256 `4AA6C6E1895F4055104EFFCB556BD3362D20C6AD707C149543304F395EF9DB95`;
+- vendor distribution declares Microsoft Visual C++ 2015+ x64 runtime dependency; this must be audited before clean-machine release claims.
+
+Focused implementation on `pdf-tunner/libreoffice-candidate`:
+
+- `.github/scripts/prepare-libreoffice.ps1` downloads/hash-checks/signature-checks the official MSI and creates an administrative image with `msiexec /a`, `VC_REDIST=0`, without installing LibreOffice or servicing the CI host VC runtime;
+- vendor tree -> `tools/libreoffice/`;
+- `.github/scripts/libreoffice-launcher.rs` -> native AMD64 `tools/bin/soffice.exe`, resolves canonical `tools/libreoffice/program/soffice.exe` relative to the package and sets child `TEMP`/`TMP` to `data/tmp/libreoffice/`;
+- `.github/scripts/validate-libreoffice.ps1` requires provenance/hash/PE checks, isolated PATH resolution to the package shim, real headless HTML -> PDF conversion, package-local temp/profile state, no new host `%APPDATA%/LibreOffice`, no orphan soffice process and full relocation proof to a path containing spaces;
+- `.github/workflows/pdf-tunner-libreoffice-candidate.yml` is focused evidence only. A green candidate is not acceptance.
+
+Acceptance will require promotion into `.github/workflows/pdf-tunner-windows-portable.yml`, a green **complete primary workflow**, real backend proof that Stirling does not report `Missing dependency: soffice` or disable the LibreOffice group, final layout/provenance checks and ZIP/SHA creation with all existing gates still green.
+
+UNO/`unoconvert` is deliberately excluded from this LibreOffice gate. The pinned server-oriented Stirling setup starts `unoserver` separately, while the Windows desktop lifecycle does not yet reproduce that process management. Treat UNO as the next independent block after LibreOffice acceptance.
 
 ## Primary workflow acceptance contract
 
@@ -193,14 +204,14 @@ Primary path: `.github/workflows/pdf-tunner-windows-portable.yml`.
 
 A dependency moves to accepted only when the **complete primary workflow** is green with every earlier accepted gate still enabled. Record commit SHA, Run/number, job ID, exact source/version/hash and artifact/digest when relevant.
 
-A green standalone preparation/focused workflow is not acceptance. `--version` alone is not acceptance. Require real operation and isolated package-first PATH/environment wherever technically practical.
+A green standalone/focused workflow is not acceptance. `--version` alone is not acceptance. Require a real operation and isolated package-first PATH/environment wherever technically practical.
 
 ## Remaining v1 roadmap — do not collapse
 
 ### A. External toolchain
 
-1. complete primary OCRmyPDF + Python acceptance and retire the focused gate when safe;
-2. LibreOffice;
+1. focused LibreOffice gate -> primary promotion -> primary acceptance;
+2. retire focused OCR/LibreOffice workflows when safe;
 3. UNO/`unoconvert` or source-compatible portable alternative;
 4. Poppler including `pdftohtml`, `pdfinfo`, `pdfimages`;
 5. consolidate portable Python dependency lock;
@@ -218,13 +229,13 @@ A green standalone preparation/focused workflow is not acceptance. `--version` a
 
 ### B. Functional validation
 
-OCRmyPDF E2E; Office -> PDF; supported PDF -> Office; HTML/URL -> PDF; WeasyPrint; Poppler; Calibre/EPUB; Python/NumPy/OpenCV; qpdf/Ghostscript/ImageMagick/Tesseract regressions; `pngquant`/`unpaper`; RAR/CBR and jbig2enc if integrated; representative Stirling API families; explicit proof runner software is not satisfying package tests.
+OCRmyPDF E2E; Office -> PDF; supported PDF -> Office; HTML/URL -> PDF; WeasyPrint; Poppler; Calibre/EPUB; Python/NumPy/OpenCV; accepted qpdf/Ghostscript/ImageMagick/Tesseract regressions; `pngquant`/`unpaper`; RAR/CBR and jbig2enc if integrated; representative Stirling API families; explicit proof runner software is not satisfying package tests.
 
 ### C. Release readiness
 
 1. non-Enterprise parity audit against pinned Stirling 2.14.3;
 2. final branding audit;
-3. final portability/state/process audit;
+3. final portability/state/process audit, including external-tool runtimes such as LibreOffice VC++ requirements;
 4. remove development push/status/focused diagnostic mechanisms;
 5. final downstream diff/output hygiene;
 6. final README/AGENTS/provenance/version/hash record;
@@ -234,20 +245,18 @@ OCRmyPDF E2E; Office -> PDF; supported PDF -> Office; HTML/URL -> PDF; WeasyPrin
 
 ## Current handoff — 2026-08-28
 
-Accepted/closed: native portable/Tauri containment; Fixed WebView2; qpdf; ImageMagick; Ghostscript; Tesseract.
+Accepted/closed: native portable/Tauri containment; Fixed WebView2; qpdf; ImageMagick; Ghostscript; Tesseract; **Python 3.12.14 + OCRmyPDF 17.10.0 via primary Run #77**.
 
-Latest fully green primary baseline: **Run #76** on commit `9f0dcb4cb35cb73a1ceadf2ebe105ec23c5fd3c8`.
+Latest fully green primary: **Run #77**, job `98952028665`, commit `54802c15427673c0e95738195947ab76239d6e31`, artifact `9710851673`, digest `sha256:96d914e252505efa26327c16316903740b0e1216e526d0721efb448c3738ae2e`.
 
-Focused OCRmyPDF/Python gate: **Run #5 green** on the same commit, including real searchable OCR and relocation.
+Active candidate: **LibreOffice 26.8.0.3 x64**, official MSI/hash, isolated focused gate on `pdf-tunner/libreoffice-candidate`.
 
-Active work: promote Python/OCRmyPDF into the complete primary workflow and require the real backend to accept the `ocrmypdf` dependency. OCRmyPDF is not accepted until that primary run is green.
-
-Next external block only after OCRmyPDF acceptance: LibreOffice/UNO, while the broader A/B/C roadmap remains mandatory.
+Next block after LibreOffice acceptance: UNO/Unoconvert lifecycle, then Poppler, while the broader A/B/C roadmap remains mandatory.
 
 ## Compact changelog
 
 - **2026-08-21–23:** real fork/base confirmed; Stirling Tauri + JLink architecture selected; portable state containment and two-launch window-state proof established.
 - **2026-08-27:** Fixed WebView2 accepted #62; qpdf #66; ImageMagick #67; Ghostscript #68; Tesseract #70.
 - **2026-08-28:** OCRmyPDF candidate built around pinned relocatable Python standalone + native relative launcher + real searchable-PDF/relocation validation.
-- **2026-08-28:** focused Runs #1/#2/#4 diagnosed and corrected package inventory, fixture DPI and alpha-channel test issues without changing Stirling behavior.
-- **2026-08-28:** focused OCRmyPDF Run #5 passed fully; primary Run #76 concurrently reconfirmed the previous accepted baseline. Primary integration is now the active gate.
+- **2026-08-28:** primary Run #77 passed completely; Python/OCRmyPDF accepted with backend probe, real OCR, relocation, containment and final ZIP artifact.
+- **2026-08-28:** LibreOffice 26.8.0.3 focused candidate opened with official MSI pin, native package-relative `soffice` shim and real conversion/relocation gate; UNO remains separate.

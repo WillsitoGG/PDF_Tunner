@@ -1,0 +1,70 @@
+name: PDF_Tunner LibreOffice Candidate
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - pdf-tunner/libreoffice-candidate
+
+concurrency:
+  group: pdf-tunner-libreoffice-candidate-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  PDF_TUNNER_LIBREOFFICE_VERSION: "26.8.0.3"
+  PDF_TUNNER_LIBREOFFICE_URL: "https://download.documentfoundation.org/libreoffice/stable/26.8.0/win/x86_64/LibreOffice_26.8.0_Win_x86-64.msi"
+  PDF_TUNNER_LIBREOFFICE_SHA256: "4AA6C6E1895F4055104EFFCB556BD3362D20C6AD707C149543304F395EF9DB95"
+
+jobs:
+  libreoffice-candidate:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout fork
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@4be9e76fd7c4901c61fb841f559994984270fce7 # stable
+        with:
+          toolchain: stable
+
+      - name: Create minimal portable candidate root
+        shell: pwsh
+        run: |
+          $portable = Join-Path $PWD 'dist/PDF_Tunner'
+          New-Item -ItemType Directory -Force -Path $portable | Out-Null
+          New-Item -ItemType Directory -Force -Path (Join-Path $portable 'data') | Out-Null
+          New-Item -ItemType File -Force -Path (Join-Path $portable 'PDF_TUNNER_PORTABLE') | Out-Null
+
+      - name: Stage official LibreOffice Windows x64 runtime
+        shell: pwsh
+        run: |
+          & './.github/scripts/prepare-libreoffice.ps1' `
+            -PortableRoot './dist/PDF_Tunner' `
+            -Version $env:PDF_TUNNER_LIBREOFFICE_VERSION `
+            -DownloadUrl $env:PDF_TUNNER_LIBREOFFICE_URL `
+            -ExpectedSha256 $env:PDF_TUNNER_LIBREOFFICE_SHA256 `
+            -LauncherSource './.github/scripts/libreoffice-launcher.rs'
+
+      - name: Validate package-only LibreOffice conversion and relocation
+        shell: pwsh
+        run: |
+          & './.github/scripts/validate-libreoffice.ps1' `
+            -PortableRoot './dist/PDF_Tunner' `
+            -Version $env:PDF_TUNNER_LIBREOFFICE_VERSION `
+            -ExpectedMsiSha256 $env:PDF_TUNNER_LIBREOFFICE_SHA256 `
+            -RequireRelocation
+
+      - name: Report candidate footprint
+        shell: pwsh
+        run: |
+          $root = Resolve-Path './dist/PDF_Tunner/tools/libreoffice'
+          $files = @(Get-ChildItem -LiteralPath $root -Recurse -Force -File)
+          $bytes = ($files | Measure-Object -Property Length -Sum).Sum
+          Write-Host "LibreOffice files: $($files.Count)"
+          Write-Host ("LibreOffice bytes: {0:N0}" -f $bytes)
+          Get-Content -LiteralPath (Join-Path $root 'PROVENANCE.txt')
+          Get-Content -LiteralPath (Join-Path $root 'SHA256SUMS.txt')
