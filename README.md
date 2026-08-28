@@ -49,6 +49,8 @@ A focused candidate workflow, `.github/workflows/pdf-tunner-ocrmypdf-candidate.y
 - package-local OCRmyPDF temp/Python cache;
 - a second full OCR run after copying the portable tree to a different path containing spaces.
 
+Focused Run `33165240128` (#1), job `98828956888`, is diagnostic failure evidence only. Python 3.12.14 and OCRmyPDF 17.10.0 staged successfully, the pinned Python archive and OCRmyPDF wheel hashes matched, and `pip check` reported no broken requirements. The run failed before the real OCR operation because `pip freeze` represented the locally installed verified wheel as a temporary `file://` origin instead of the validator's required `ocrmypdf==17.10.0`. The package inventory now uses `pip list --format=freeze`, which records installed packages canonically as `name==version` independent of installation origin.
+
 This focused workflow is **diagnostic/candidate evidence only**. OCRmyPDF becomes accepted only after the same layer is integrated into `.github/workflows/pdf-tunner-windows-portable.yml` and the complete primary workflow passes with the real PDF_Tunner backend accepting `ocrmypdf`.
 
 ## Architecture

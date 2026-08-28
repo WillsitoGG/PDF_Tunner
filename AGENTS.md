@@ -181,11 +181,13 @@ Rationale:
 
 Permanent candidate scripts:
 
-- `.github/scripts/prepare-ocrmypdf.ps1` — download/hash/extract Python standalone, verify/install exact OCRmyPDF, compile relative launcher, run `pip check`, write package provenance/hashes/frozen dependency inventory;
+- `.github/scripts/prepare-ocrmypdf.ps1` — download/hash/extract Python standalone, verify/install exact OCRmyPDF, compile relative launcher, run `pip check`, write package provenance/hashes/canonical dependency inventory;
 - `.github/scripts/validate-ocrmypdf.ps1` — PE/version/provenance checks, isolated PATH proof, real OCR searchable-text check and relocation proof;
 - `.github/scripts/ocrmypdf-launcher.rs` — native relative launcher.
 
 Focused workflow `.github/workflows/pdf-tunner-ocrmypdf-candidate.yml` is an active-development diagnostic gate. It reuses accepted Ghostscript/Tesseract staging and tests OCRmyPDF in a synthetic portable tree, including a second run after relocation to a path containing spaces. **A green focused workflow does not accept OCRmyPDF.** After it is green, integrate the same block into the primary workflow, require real PDF_Tunner backend dependency acceptance and a real backend/API OCR operation where source-compatible, then remove the focused workflow after that phase is complete.
+
+Focused Run `33165240128` (#1), job `98828956888`, is diagnostic failure evidence only. Python 3.12.14 + OCRmyPDF 17.10.0 staged successfully, both pinned hashes matched and `pip check` was clean. It failed at the metadata gate before executing the OCR operation because `pip freeze` retained the temporary local-wheel `file://` install origin rather than emitting `ocrmypdf==17.10.0`. The preparation contract now uses `pip list --format=freeze` for the package inventory so installed package identity is reproducible and independent of build-temp paths.
 
 ## Primary workflow acceptance contract
 
@@ -248,3 +250,4 @@ Next block only after OCRmyPDF acceptance: LibreOffice/UNO planning and packagin
 - **2026-08-27:** Tesseract diagnostic #69 exposed exact Windows CLI version and NSIS helper residue; both contracts corrected.
 - **2026-08-27:** **Tesseract accepted by complete primary Run #70** with every prior gate still green.
 - **2026-08-28:** OCRmyPDF candidate designed around pinned relocatable Python standalone + native relative launcher + real searchable-PDF/relocation validation; focused candidate gate added before primary integration.
+- **2026-08-28:** focused OCRmyPDF Run #1 proved staging/hash/dependency consistency and exposed only a non-canonical `pip freeze` local-wheel record; dependency inventory switched to `pip list --format=freeze` before rerunning the real OCR/relocation gate.

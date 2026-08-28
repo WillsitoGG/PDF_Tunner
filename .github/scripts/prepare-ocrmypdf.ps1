@@ -93,9 +93,13 @@ try {
         throw "OCRmyPDF version mismatch: expected '$OcrMyPdfVersion', got '$ocrVersionLine'."
     }
 
-    $freeze = @(& $python -m pip freeze --all)
-    if ($LASTEXITCODE -ne 0) { throw "pip freeze failed with exit code $LASTEXITCODE." }
-    Set-Content -LiteralPath (Join-Path $pythonRoot 'DEPENDENCIES.txt') -Encoding utf8 -Value ($freeze | Sort-Object)
+    # pip freeze preserves the direct local-wheel installation origin as a file://
+    # reference, which is intentionally temporary and therefore unsuitable for a
+    # reproducible package inventory. pip list --format=freeze reports the same
+    # installed environment canonically as name==version, independent of origin.
+    $inventory = @(& $python -m pip list --format=freeze --disable-pip-version-check)
+    if ($LASTEXITCODE -ne 0) { throw "pip list --format=freeze failed with exit code $LASTEXITCODE." }
+    Set-Content -LiteralPath (Join-Path $pythonRoot 'DEPENDENCIES.txt') -Encoding utf8 -Value ($inventory | Sort-Object)
     Set-Content -LiteralPath (Join-Path $pythonRoot 'PYTHON_VERSION.txt') -Encoding ascii -Value $PythonVersion
     Set-Content -LiteralPath (Join-Path $pythonRoot 'OCRMY_PDF_VERSION.txt') -Encoding ascii -Value $OcrMyPdfVersion
 
