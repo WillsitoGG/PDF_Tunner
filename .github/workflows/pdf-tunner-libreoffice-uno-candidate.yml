@@ -46,17 +46,22 @@ jobs:
             -UnoServerVersion $env:PDF_TUNNER_UNOSERVER_VERSION `
             -UnoServerWheelSha256 $env:PDF_TUNNER_UNOSERVER_WHEEL_SHA256
 
-      - name: Validate cold-relocated LibreOffice and real UNO conversions
+      - name: Validate copy-relocated LibreOffice and real UNO conversions
         shell: pwsh
         run: |
-          $portable = Join-Path $env:RUNNER_TEMP 'pdf-tunner-libreoffice-uno-candidate/PDF_Tunner'
+          $source = Join-Path $env:RUNNER_TEMP 'pdf-tunner-libreoffice-uno-candidate/PDF_Tunner'
+          $relocated = Join-Path $env:RUNNER_TEMP 'pdf-tunner-libreoffice-uno-candidate/PDF Tunner LibreOffice UNO Candidate - Relocated With Spaces'
+          Remove-Item -LiteralPath $relocated -Recurse -Force -ErrorAction SilentlyContinue
+          Copy-Item -LiteralPath $source -Destination $relocated -Recurse -Force
+          Remove-Item -LiteralPath $source -Recurse -Force
+          if (Test-Path -LiteralPath $source) { throw "Original candidate root still exists after copy-delete relocation: $source" }
+          if (-not (Test-Path -LiteralPath $relocated -PathType Container)) { throw "Relocated candidate root was not materialized: $relocated" }
           & './.github/scripts/validate-libreoffice-uno-candidate.ps1' `
-            -CandidateRoot $portable `
+            -CandidateRoot $relocated `
             -LibreOfficeVersion $env:PDF_TUNNER_LIBREOFFICE_VERSION `
             -LibreOfficeMsiSha256 $env:PDF_TUNNER_LIBREOFFICE_MSI_SHA256 `
             -UnoServerVersion $env:PDF_TUNNER_UNOSERVER_VERSION `
             -UnoServerWheelSha256 $env:PDF_TUNNER_UNOSERVER_WHEEL_SHA256 `
-            -RequireRelocation `
             -RequireUnoServer
 
       - name: Collect compact candidate evidence

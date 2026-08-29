@@ -39,40 +39,23 @@ When work launches or depends on a GitHub Actions workflow/job:
 - check again only when the user explicitly resumes/asks to continue;
 - while a primary workflow with `cancel-in-progress: true` is running, do not push another commit to the same triggering branch unless needed to correct that run.
 
-## Continuity protocol
-
-Before resumed writes: recover the latest project handoff; read project prompt/rules plus current README/AGENTS; verify live branch HEAD and relevant Actions run once; carry forward accepted/closed work, active candidate, next block and broader roadmap; record accepted commit/run/job/artifact/digest evidence; re-audit the original objective before final Release.
-
 ## Architecture and sandbox boundary
 
-Use Stirling's own Tauri desktop under `frontend/editor/src-tauri`; do not restore the old .NET/WebView2 wrapper architecture.
+Use Stirling's own Tauri desktop under `frontend/editor/src-tauri`; do not restore the old .NET/WebView2 wrapper architecture. Portable mode is enabled by `PDF_TUNNER_PORTABLE` beside the executable.
 
-Portable mode is enabled by `PDF_TUNNER_PORTABLE` beside the executable. Do **not** globally replace `APPDATA`, `LOCALAPPDATA`, `PROGRAMDATA`, `USERPROFILE`, `HOME`, `TEMP` or `TMP` before native Tauri/WebView2 initialization. Localize state per component.
+Do **not** globally replace `APPDATA`, `LOCALAPPDATA`, `PROGRAMDATA`, `USERPROFILE`, `HOME`, `TEMP` or `TMP` before native Tauri/WebView2 initialization. Localize state per component.
 
-Current boundaries:
+Current boundaries include: Stirling state under `<portable>/data`; Java temp under `<portable>/data/tmp`; WebView2 under `<portable>/data/webview2`; Tauri stores/logs/cookies under `<portable>/data/tauri`; ImageMagick temp under `<portable>/data/tmp/imagemagick`; Tesseract under `<portable>/tools/tesseract`; Ghostscript under `<portable>/tools/ghostscript/bin`; qpdf under `<portable>/tools/qpdf/bin`; Python/OCRmyPDF under `<portable>/tools/python` with OCR temp/cache package-local; LibreOffice under `<portable>/tools/libreoffice` with child-local profile/TEMP/TMP; UNO/unoserver under `<portable>/tools/unoserver` with server state under `<portable>/data`; skip `pdf-tunner://` registration in portable mode.
 
-- Stirling app data -> `<portable>/data`.
-- Java temp -> `<portable>/data/tmp`.
-- WebView2 profile -> `<portable>/data/webview2`.
-- Tauri logs/store/window-state/http cookies -> `<portable>/data/tauri/...`.
-- ImageMagick config/temp -> package-local tools / `<portable>/data/tmp/imagemagick`.
-- Ghostscript -> `<portable>/tools/ghostscript/bin`.
-- Tesseract -> `<portable>/tools/tesseract`, package-local tessdata.
-- Python/OCRmyPDF -> `<portable>/tools/python`, OCR temp `<portable>/data/tmp/ocrmypdf`, Python cache `<portable>/data/python-cache`.
-- LibreOffice -> `<portable>/tools/libreoffice`; TEMP/TMP/profile must be localized per child process.
-- UNO/unoserver -> `<portable>/tools/unoserver`; server profile/temp under `<portable>/data/...`.
-- Calibre config -> `<portable>/data/calibre` when packaged.
-- Skip `pdf-tunner://` protocol registration in portable mode.
-
-Portable Tauri prepends package tool directories including `tools/bin`, `tools/python`, `tools/python/Scripts`, `tools/libreoffice/program`, Tesseract, Ghostscript, qpdf, Poppler, ImageMagick, Calibre, pngquant, unpaper, rar and jbig2enc. If a Windows naming/launch mismatch conflicts with Stirling's literal probe, use a deterministic package-local native shim only after proving exact source behavior.
+Portable Tauri prepends package tool directories including `tools/bin`, `tools/python`, `tools/python/Scripts`, `tools/libreoffice/program`, Tesseract, Ghostscript, qpdf, Poppler, ImageMagick, Calibre, pngquant, unpaper, rar and jbig2enc. If Windows naming/launch semantics differ from Stirling's literal probe, use a deterministic package-local native shim only after proving exact source behavior.
 
 ## External dependency source of truth
 
 For Stirling 2.14.3 inspect at least `ExternalAppDepConfig.java`, `RuntimePathConfig.java`, `ProcessExecutor.java`, `PDFToFile.java`, `ConvertOfficeController.java`, Docker toolchain/startup scripts and feature controllers/services.
 
-Direct probes include: `gs`, `ocrmypdf`, `soffice`, `weasyprint`, `pdftohtml`, `unoconvert`, `qpdf`, `tesseract`, `rar`, `ebook-convert`, `magick`, Python and Python `import cv2`.
+Direct probes include `gs`, `ocrmypdf`, `soffice`, `weasyprint`, `pdftohtml`, `unoconvert`, `qpdf`, `tesseract`, `rar`, `ebook-convert`, `magick`, Python and Python `import cv2`.
 
-`ProcessExecutor` recognizes `unoconvert`/`unoconv` as UNO conversions and injects `--host`/`--port`. Auto XML-RPC endpoints start at `127.0.0.1:2003`; Docker pairs the first with LibreOffice UNO port `2004`. `ConvertOfficeController` and `PDFToFile` try `unoconvert` first and fall back to `soffice`, while `ExternalAppDepConfig` probes LibreOffice and Unoconvert independently. Full parity therefore requires both probes to be intentionally resolved.
+`ProcessExecutor` recognizes `unoconvert`/`unoconv` and injects `--host`/`--port`. Auto XML-RPC endpoints start at `127.0.0.1:2003`; Docker pairs the first with LibreOffice UNO port `2004`. `ConvertOfficeController` and `PDFToFile` try `unoconvert` first and fall back to `soffice`, while `ExternalAppDepConfig` probes LibreOffice and Unoconvert independently. Full parity therefore requires both probes to be intentionally resolved.
 
 ## Accepted layers and evidence
 
@@ -98,32 +81,30 @@ Focused branch/workflow: `pdf-tunner/libreoffice-uno-candidate`, `.github/workfl
 
 Current candidate contract:
 
-1. download official MSI and enforce SHA-256;
-2. administrative-extract without installing LibreOffice;
-3. copy suite to `tools/libreoffice` **without launching any LibreOffice binary**;
-4. resolve/download exact PyPI wheel and enforce SHA-256;
-5. extract unoserver under `tools/unoserver`;
-6. relocate the genuinely cold candidate to a path containing spaces before the first runtime version check or functional LibreOffice start;
-7. validate runtime version only after relocation;
-8. require two consecutive real DOCX -> PDF conversions with package-local profile/TEMP/TMP/I/O;
-9. require zero package-local LibreOffice residual processes after each conversion;
-10. require LibreOffice `program/python.exe` to import `uno` plus pinned unoserver;
-11. start real unoserver at XML-RPC `127.0.0.1:2003`, UNO `127.0.0.1:2004`, package-local profile/temp;
-12. execute a real unoconvert DOCX -> PDF conversion;
-13. emit compact provenance/feasibility evidence.
+1. Download official MSI and enforce SHA-256.
+2. Administrative-extract without installing LibreOffice.
+3. Copy suite to `tools/libreoffice` without launching any LibreOffice binary.
+4. Resolve/download exact PyPI wheel and enforce SHA-256; extract under `tools/unoserver`.
+5. Materialize the untouched cold candidate at a path containing spaces before the first runtime version check or functional LibreOffice start.
+6. The current focused gate uses **copy + delete source** for that relocation because same-volume in-place directory rename/move is still an unresolved blocker; copy success must never be presented as proof that rename is supported.
+7. Validate runtime version only at the destination.
+8. Require two consecutive real DOCX -> PDF conversions with package-local profile/TEMP/TMP/I/O and zero package-local residual LibreOffice processes.
+9. Require LibreOffice `program/python.exe` to import `uno` plus pinned unoserver.
+10. Start real unoserver at XML-RPC `127.0.0.1:2003`, UNO `127.0.0.1:2004`, with package-local profile/temp.
+11. Execute a real unoconvert DOCX -> PDF conversion and emit compact evidence.
 
 Focused green is candidate evidence only. Acceptance requires integration into `pdf-tunner/windows-portable-v1` and a complete primary workflow with every earlier gate still green.
 
 ### Candidate diagnostic history
 
-- Run `33252792182` (#1), job `99101259425`: harness `$LASTEXITCODE` defect after successful MSI download/hash/admin extraction; no product conclusion.
+- Run `33252792182` (#1), job `99101259425`: PowerShell harness `$LASTEXITCODE` defect after successful MSI download/hash/admin extraction; no product conclusion.
 - Run `33253632305` (#2), job `99103473257`: original DOCX -> PDF passed; relocated harness still used `soffice.exe` for CLI/headless.
-- Run `33254174353` (#3), job `99104896585`: `soffice.com` fixed launcher choice, but moving an already-used tree still failed.
+- Run `33254174353` (#3), job `99104896585`: `soffice.com` fixed launcher choice, but post-move conversion still failed.
 - Run `33254797382` (#4), job `99106520093`: zero residual LibreOffice processes before relocation; residual-process hypothesis rejected.
 - Run `33256042222` (#5), job `99109804816`, artifact `9715865060`, digest `sha256:f6711db687a6938b9c787fad7d1c95dd15a3b4ab1a28a217b45f2a459b611494`: decisive cold-copy matrix. `EXTERNAL_ALL`, `PACKAGE_PROFILE`, `PACKAGE_IO`, `PACKAGE_TEMP`, and `ALL_PACKAGE` all passed. Official Windows LibreOffice exposes `program/python.exe`; source and relocated interpreters returned `PYUNO_OK` and imported unoserver `3.7`.
-- Run `33256677474` (#6), job `99111522324`, artifact `9716045830`, digest `sha256:dd23b222a4910c588e9fa30e9b76621fb9dfb2a8453579a0ce637bc59cbc00ca`: matrix passed again, but strict `direct-first-use` failed because preparation had already run `soffice --version`; the source was therefore not genuinely cold before `Move-Item`. Run #7 removes all LibreOffice execution from preparation, defers runtime version validation until after relocation, and removes the already-proven matrix from the automatic pre-validation path so no earlier LibreOffice instance can contaminate the strict gate.
-
-Moving an already-used LibreOffice tree remains an explicit portability edge case for final v1 audit/mitigation; do not silently claim it is solved.
+- Run `33256677474` (#6), job `99111522324`, artifact `9716045830`, digest `sha256:dd23b222a4910c588e9fa30e9b76621fb9dfb2a8453579a0ce637bc59cbc00ca`: strict first-use failed because preparation had already run `soffice --version`; Run #7 removed all pre-relocation LibreOffice execution and the diagnostic matrix from the automatic path.
+- Run `33257922780` (#7), job `99114759528`, artifact `9716396378`, digest `sha256:20f20265845616fbe8ba0527889bb7dafc8947694d07b7deea0e03249373fab5`: even with genuinely cold preparation and no earlier diagnostic process, the first conversion still failed after same-volume `Move-Item`. This does **not** contradict Run #5: the cold-copy matrix is green. The unresolved behavior is now specifically narrowed to same-volume rename/move semantics rather than path spaces, profile, TEMP/TMP or package-local I/O.
+- Run #8 therefore materializes the untouched cold package at the space-containing destination via `Copy-Item`, deletes the source, and then runs the strict repeated-conversion + PyUNO + real unoserver/unoconvert gate. Same-volume in-place rename/move remains an explicit unresolved portability blocker for later root-cause analysis/mitigation and must be closed before final v1; do not treat a copy-relocation green result as rename support.
 
 ## Primary acceptance contract
 
@@ -153,7 +134,7 @@ Office -> PDF; supported PDF -> Office; OCR; HTML/URL -> PDF; Poppler; WeasyPrin
 
 1. Non-Enterprise parity audit against pinned Stirling 2.14.3.
 2. Final branding audit.
-3. Final sandbox/portability/state/process audit, including multiple folders, paths with spaces, restricted locations, post-use relocation behavior and Windows 10/11 x64.
+3. Final sandbox/portability/state/process audit, including same-volume post-extraction rename/move behavior, multiple folders, paths with spaces, restricted locations, and Windows 10/11 x64.
 4. Remove development-only push/status/focused mechanisms.
 5. Final downstream diff/output hygiene.
 6. Final README/AGENTS/provenance/version/hash record.
@@ -167,4 +148,4 @@ Accepted/closed: native portable/Tauri containment; Fixed WebView2; qpdf; ImageM
 
 Active work: focused Windows LibreOffice 26.2.5 + unoserver 3.7 feasibility on `pdf-tunner/libreoffice-uno-candidate`.
 
-Next after candidate proof: integrate the proven LibreOffice/UNO mechanism into the primary portable package without regressing the accepted sandbox boundary, then move to Poppler.
+Next after candidate proof: integrate the proven LibreOffice/UNO mechanism into the primary portable package without regressing the accepted sandbox boundary, while retaining the rename blocker for explicit closure before v1, then move to Poppler.
