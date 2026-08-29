@@ -1,0 +1,94 @@
+name: PDF_Tunner LibreOffice UNO Candidate
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - pdf-tunner/libreoffice-uno-candidate
+    paths:
+      - '.github/workflows/pdf-tunner-libreoffice-uno-candidate.yml'
+      - '.github/scripts/prepare-libreoffice-uno-candidate.ps1'
+      - '.github/scripts/validate-libreoffice-uno-candidate.ps1'
+      - 'README.md'
+      - 'AGENTS.md'
+
+concurrency:
+  group: pdf-tunner-libreoffice-uno-candidate-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  PDF_TUNNER_LIBREOFFICE_VERSION: '26.2.5'
+  PDF_TUNNER_LIBREOFFICE_MSI_URL: 'https://download.documentfoundation.org/libreoffice/stable/26.2.5/win/x86_64/LibreOffice_26.2.5_Win_x86-64.msi'
+  PDF_TUNNER_LIBREOFFICE_MSI_SHA256: 'f15ba07bfcb0186986cf3171063506f5d207c11f8cc051ba0d135209e9e915f9'
+  PDF_TUNNER_UNOSERVER_VERSION: '3.7'
+  PDF_TUNNER_UNOSERVER_WHEEL_SHA256: 'fc44e6808071c9d2957e705ecf1742cea8a582aa5d5cc23babf36bb332ec6e8e'
+
+jobs:
+  libreoffice-uno-candidate:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout candidate branch
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Prepare pinned LibreOffice and unoserver payload
+        shell: pwsh
+        run: |
+          $candidate = Join-Path $env:RUNNER_TEMP 'pdf-tunner-libreoffice-uno-candidate'
+          & './.github/scripts/prepare-libreoffice-uno-candidate.ps1' `
+            -CandidateRoot $candidate `
+            -LibreOfficeVersion $env:PDF_TUNNER_LIBREOFFICE_VERSION `
+            -LibreOfficeMsiUrl $env:PDF_TUNNER_LIBREOFFICE_MSI_URL `
+            -LibreOfficeMsiSha256 $env:PDF_TUNNER_LIBREOFFICE_MSI_SHA256 `
+            -UnoServerVersion $env:PDF_TUNNER_UNOSERVER_VERSION `
+            -UnoServerWheelSha256 $env:PDF_TUNNER_UNOSERVER_WHEEL_SHA256
+
+      - name: Validate real LibreOffice and UNO conversions after relocation
+        shell: pwsh
+        run: |
+          $portable = Join-Path $env:RUNNER_TEMP 'pdf-tunner-libreoffice-uno-candidate/PDF_Tunner'
+          & './.github/scripts/validate-libreoffice-uno-candidate.ps1' `
+            -CandidateRoot $portable `
+            -LibreOfficeVersion $env:PDF_TUNNER_LIBREOFFICE_VERSION `
+            -LibreOfficeMsiSha256 $env:PDF_TUNNER_LIBREOFFICE_MSI_SHA256 `
+            -UnoServerVersion $env:PDF_TUNNER_UNOSERVER_VERSION `
+            -UnoServerWheelSha256 $env:PDF_TUNNER_UNOSERVER_WHEEL_SHA256 `
+            -RequireRelocation `
+            -RequireUnoServer
+
+      - name: Collect compact candidate evidence
+        if: always()
+        shell: pwsh
+        run: |
+          $evidence = Join-Path $PWD 'candidate-evidence'
+          New-Item -ItemType Directory -Force -Path $evidence | Out-Null
+          $roots = @(
+            (Join-Path $env:RUNNER_TEMP 'pdf-tunner-libreoffice-uno-candidate/PDF_Tunner'),
+            (Join-Path $env:RUNNER_TEMP 'pdf-tunner-libreoffice-uno-candidate/PDF Tunner LibreOffice UNO Candidate - Relocated With Spaces'),
+            (Join-Path $env:RUNNER_TEMP 'PDF Tunner LibreOffice UNO Candidate - Relocated With Spaces')
+          )
+          $portable = $roots | Where-Object { Test-Path -LiteralPath $_ } | Select-Object -First 1
+          if ($portable) {
+            foreach ($relative in @('LIBREOFFICE_UNO_PROVENANCE.txt', 'data/validation-evidence/UNO_FEASIBILITY.txt')) {
+              $source = Join-Path $portable $relative
+              if (Test-Path -LiteralPath $source) {
+                Copy-Item -LiteralPath $source -Destination (Join-Path $evidence ([IO.Path]::GetFileName($source))) -Force
+              }
+            }
+            $soffice = Join-Path $portable 'tools/libreoffice/program/soffice.exe'
+            if (Test-Path -LiteralPath $soffice) {
+              (& $soffice --version 2>&1) | Set-Content -LiteralPath (Join-Path $evidence 'soffice-version.txt') -Encoding utf8
+            }
+          }
+
+      - name: Upload candidate evidence
+        if: always()
+        uses: actions/upload-artifact@v7.0.1
+        with:
+          name: PDF_Tunner-LibreOffice-UNO-candidate-evidence
+          path: candidate-evidence
+          if-no-files-found: warn
+          retention-days: 7

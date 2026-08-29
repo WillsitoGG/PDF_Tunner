@@ -1,78 +1,107 @@
 # PDF_Tunner
 
-**PDF_Tunner** is a Windows 10/11 x64 portable tuning of the real, complete [Stirling PDF](https://github.com/Stirling-Tools/Stirling-PDF) codebase. `WillsitoGG/PDF_Tunner` is a real GitHub fork: PDF_Tunner tunes Stirling directly rather than rebuilding it behind a separate wrapper.
+**PDF_Tunner** is a Windows 10/11 x64 portable/sandboxed tuning of the real, complete [Stirling PDF](https://github.com/Stirling-Tools/Stirling-PDF) codebase. `WillsitoGG/PDF_Tunner` is a real GitHub fork: PDF_Tunner modifies Stirling directly rather than rebuilding it behind a separate wrapper.
 
-## Base and current status
+## Base and target
 
 - Upstream: `Stirling-Tools/Stirling-PDF`
-- Upstream version: **2.14.3**
-- Pinned upstream snapshot: `7fb29d002dbb8fa4b5945d1d1fe8dd164a9f7632`
-- Development branch: `pdf-tunner/windows-portable-v1`
-- Target: **Windows 10/11 x64 portable ZIP**
-- No final PDF_Tunner v1 Release exists yet; `main` remains the clean upstream base during portable development.
+- Pinned upstream version: **2.14.3**
+- Pinned upstream commit: `7fb29d002dbb8fa4b5945d1d1fe8dd164a9f7632`
+- Main portable-development branch: `pdf-tunner/windows-portable-v1`
+- Current focused candidate branch: `pdf-tunner/libreoffice-uno-candidate`
+- Target: **Windows 10/11 x64 portable ZIP**, extract and run.
+- No final PDF_Tunner v1 Release exists yet. `main` remains the clean upstream base during v1 development.
+
+For this project, **portable means sandbox-like containment**: application, runtimes, external tools, configuration, caches, logs, temporary files and runtime state must remain inside the PDF_Tunner tree whenever the underlying Windows component allows it. The host must not be used as an undeclared dependency.
 
 ## Accepted portable layers
 
-The complete primary Windows workflow has accepted:
+The complete primary Windows workflow has accepted all of the following together:
 
-- native Tauri/JRE portable bootstrap, package-local backend state, Java temp, WebView2 profile, Tauri stores/logs/cookies/window state and shutdown containment;
+- Stirling's native Tauri desktop + bundled Java/JLink runtime;
+- package-local backend state, Java temp, Tauri logs/store/cookies/window state and clean shutdown;
 - Fixed WebView2 `151.0.4129.101` x64;
 - qpdf `12.4.0` MinGW64;
 - ImageMagick `7.1.2-30` portable Q16 x64;
 - Ghostscript `10.07.1` Win64;
-- Tesseract OCR release `5.5.3`, Windows CLI `5.5.3.20260724`, with pinned `eng`, `spa` and `osd` models;
-- Python `3.12.14` x64 portable runtime;
-- OCRmyPDF `17.10.0` with a package-relative native launcher.
+- Tesseract release `5.5.3`, Windows CLI `5.5.3.20260724`, with pinned `eng`, `spa` and `osd` models;
+- Python `3.12.14` x64 from `astral-sh/python-build-standalone`;
+- OCRmyPDF `17.10.0` with a native relocatable `tools/python/ocrmypdf.exe` launcher.
 
-### Python + OCRmyPDF — accepted
+### Key acceptance evidence
 
-Stirling 2.14.3 probes and executes the external command `ocrmypdf`. PDF_Tunner packages:
+| Layer | Primary acceptance evidence |
+| --- | --- |
+| Fixed WebView2 | Run `33058462619` (#62) |
+| qpdf | Run `33086404875` (#66) |
+| ImageMagick | Run `33092698357` (#67) |
+| Ghostscript | Run `33104114920` (#68) |
+| Tesseract | Run `33122172947` (#70) |
+| Python + OCRmyPDF | Run `33201568275` (#77), job `98952028665`, commit `54802c15427673c0e95738195947ab76239d6e31` |
+| Post-OCR full regression | Run `33251329173` (#78), job `99097401718`, commit `694c1a01ac495bb906a3257b9c499b90ebb8b5db` |
 
-- Python `3.12.14` x64 from `astral-sh/python-build-standalone`, release `20260825`, `install_only_stripped` Windows MSVC archive;
-- Python archive SHA-256 `8e6aad12ef6fc9685e67ce66253f8f72d6e8fa02cb7187e5850bd4db5ecd9e2a`;
-- OCRmyPDF `17.10.0` from PyPI;
-- OCRmyPDF wheel SHA-256 `34ba1b595ecacc94b6dc3c9d4fa51953de63082cd16cf8595251bd72120b930a`.
+Run #77 produced artifact `9698621272`, Actions digest `sha256:68f69bb0d4ed6b731aefee82abff3eba7b01d18c5b270051e2e546337cd6a164`.
 
-PDF_Tunner removes the pip-generated Windows console launcher and builds `tools/python/ocrmypdf.exe`, a native relative shim that resolves sibling `python.exe`, executes `python.exe -m ocrmypdf`, writes OCRmyPDF temp state to `data/tmp/ocrmypdf/`, and Python cache to `data/python-cache/`.
+Run #78 reconfirmed the complete accepted stack after OCRmyPDF candidate-gate retirement. Its artifact is `9714686816`, Actions digest `sha256:740054517fa9733ae9f40e8a8fe319535f6fda0f5d1b5839744f984b8d354fbc`.
 
-Primary Run **`33201568275` (#77)**, job **`98952028665`**, commit **`54802c15427673c0e95738195947ab76239d6e31`**, completed successfully with every prior gate enabled. It proved exact pinned versions/hashes, isolated package-only resolution, real searchable-PDF OCR, text extraction, package-local temp/cache, relocation to a path containing spaces, real backend acceptance of `ocrmypdf`, final layout cleanup, ZIP creation and SHA-256.
+## Portable boundary already implemented
 
-Run #77 artifact: **`9698621272`**, `PDF_Tunner-Windows-x64-Portable-bootstrap`, GitHub Actions digest **`sha256:68f69bb0d4ed6b731aefee82abff3eba7b01d18c5b270051e2e546337cd6a164`**. This is CI evidence only, not the final v1 Release.
+Portable mode activates when `PDF_TUNNER_PORTABLE` exists beside `PDF_Tunner.exe`.
 
-The temporary focused OCRmyPDF workflow has been retired from automatic execution after primary acceptance. It remains manual-only temporarily and must be physically removed during final CI cleanup.
-
-## Architecture
-
-PDF_Tunner uses Stirling's own Tauri desktop app in `frontend/editor/src-tauri`. Portable mode activates when `PDF_TUNNER_PORTABLE` exists beside `PDF_Tunner.exe`.
-
-State is localized component by component:
+Current component-local state strategy:
 
 - Stirling backend config/logs/working state -> `data/`;
 - Java temp -> `data/tmp/`;
 - WebView2 profile -> `data/webview2/`;
 - Tauri logs/store/cookies/window state -> `data/tauri/...`;
 - ImageMagick temp -> `data/tmp/imagemagick/`;
-- Tesseract models -> `tools/tesseract/tessdata/`;
+- Tesseract models -> `tools/tesseract/tessdata/` via `TESSDATA_PREFIX`;
 - Python/OCRmyPDF -> `tools/python/`;
 - OCRmyPDF temp -> `data/tmp/ocrmypdf/`;
 - Python cache -> `data/python-cache/`;
-- Calibre config -> `data/calibre/` when added.
+- Calibre config -> `data/calibre/` when Calibre is added.
 
-Portable mode also skips runtime `pdf-tunner://` protocol registration. Primary CI rejects new tracked host AppData/TEMP/registry state and package-local orphan processes.
+Portable mode does not globally replace Windows profile variables before native Tauri/WebView2 initialization. State is localized per component. Runtime `pdf-tunner://` protocol registration is also skipped in portable mode.
+
+## Active candidate: LibreOffice 26.2.5 + UNO/unoconvert
+
+The next source-backed Stirling dependencies are `soffice` and `unoconvert`.
+
+Pinned candidate inputs:
+
+- LibreOffice **26.2.5 Windows x86-64** official MSI from The Document Foundation;
+- MSI SHA-256: `f15ba07bfcb0186986cf3171063506f5d207c11f8cc051ba0d135209e9e915f9`;
+- unoserver **3.7** from PyPI;
+- `unoserver-3.7-py3-none-any.whl` SHA-256: `fc44e6808071c9d2957e705ecf1742cea8a582aa5d5cc23babf36bb332ec6e8e`.
+
+Focused workflow: `.github/workflows/pdf-tunner-libreoffice-uno-candidate.yml`.
+
+Candidate preparation performs an MSI **administrative extraction**, not a LibreOffice installation. The extracted suite is copied under `tools/libreoffice/`; the pure-Python unoserver wheel is extracted under `tools/unoserver/` with exact hash/provenance.
+
+The focused gate is designed to answer the Windows-specific questions before primary integration:
+
+1. Does official LibreOffice 26.2.5 run from an extracted, relocatable tree?
+2. Does real DOCX -> PDF conversion succeed with profile and TEMP/TMP inside candidate `data/`?
+3. Does the same operation still work after moving the complete candidate to a path containing spaces?
+4. Does the Windows LibreOffice package expose a compatible `program/python.exe`?
+5. Can that interpreter `import uno` and the pinned unoserver package?
+6. Can a real unoserver listener bind `127.0.0.1:2003` with UNO on `127.0.0.1:2004` and perform a real unoconvert DOCX -> PDF conversion?
+
+A focused green result is **candidate evidence only**. LibreOffice/UNO will not become accepted until the same layer is integrated into the complete primary portable workflow and all previously accepted gates remain green.
 
 ## External dependency source of truth
 
-The dependency inventory is source-backed from Stirling 2.14.3, especially `ExternalAppDepConfig`, `RuntimePathConfig`, the Docker toolchain and controllers/services that execute each feature.
+Stirling 2.14.3 directly probes or executes:
 
-| Capability | Stirling runtime probe |
+| Capability | Runtime probe |
 | --- | --- |
 | Ghostscript | `gs` |
 | OCRmyPDF | `ocrmypdf` |
 | LibreOffice | `soffice` |
-| WeasyPrint | `weasyprint` (minimum 58) |
+| WeasyPrint | `weasyprint` >= 58 |
 | Poppler HTML conversion | `pdftohtml` |
 | UNO conversion | `unoconvert` |
-| qpdf | `qpdf` (minimum 12) |
+| qpdf | `qpdf` >= 12 |
 | Tesseract | `tesseract` |
 | CBR/RAR | `rar` |
 | Calibre | `ebook-convert` |
@@ -80,27 +109,30 @@ The dependency inventory is source-backed from Stirling 2.14.3, especially `Exte
 | Python | `python3` or `python` |
 | OpenCV | Python `import cv2` |
 
-Also audit Poppler helpers (`pdfinfo`, `pdfimages`), `unpaper`, `pngquant`, NumPy/OpenCV, WeasyPrint, LibreOffice/UNO, Calibre, conversion fonts, VeraPDF E2E, `jbig2enc` and any additional exact dependency exposed by pinned source.
+The pinned source also uses or exposes Poppler helpers (`pdfinfo`, `pdfimages`), `unpaper`, `pngquant`, NumPy/OpenCV, conversion fonts, VeraPDF-related functionality and other utilities that remain subject to parity audit.
 
-## Validation contract
+## Acceptance contract
 
-Primary workflow: `.github/workflows/pdf-tunner-windows-portable.yml`.
-
-A dependency is accepted only when the **complete current primary workflow** is green with every earlier accepted gate enabled. `--version` alone is never sufficient.
+A dependency is accepted only when the **complete current primary workflow** is green with all earlier accepted gates still enabled. `--version` is never sufficient where a real operation is practical. Tests must use package-local executable paths/environment so runner-installed software cannot satisfy the gate accidentally.
 
 ## Remaining v1 roadmap
 
-1. **LibreOffice + UNO/unoconvert** portable integration and real Office conversion gate.
-2. Poppler (`pdftohtml`, `pdfinfo`, `pdfimages`).
-3. Consolidate portable Python dependency lock; NumPy; OpenCV; WeasyPrint.
-4. Calibre/`ebook-convert`; `unpaper`; `pngquant`; conversion fonts; explicit VeraPDF E2E; investigate `jbig2enc`; establish viable RAR/CBR support or document the limitation; add any further dependency found in exact pinned source.
-5. Representative E2E operations across OCR, Office, HTML/URL -> PDF, Poppler, WeasyPrint, Calibre/EPUB, Python/OpenCV and representative Stirling API families.
-6. Non-Enterprise parity audit against Stirling 2.14.3.
-7. Final branding and portability audits.
-8. CI/repository cleanup, including physical removal of the retired OCRmyPDF candidate workflow, and downstream diff hygiene review.
-9. Final docs/provenance/version/hash record.
-10. Integrate to `main` without reopening old PR #1.
-11. Publish the clean v1 portable ZIP only after all gates, then perform the manual clean-machine Windows 10/11 checklist.
+1. Finish LibreOffice focused candidate and integrate `soffice` into primary.
+2. Resolve and integrate real UNO/`unoconvert` support, preserving sandbox containment and child-process cleanup.
+3. Poppler: `pdftohtml`, `pdfinfo`, `pdfimages`.
+4. Portable Python dependency consolidation, NumPy and OpenCV.
+5. WeasyPrint.
+6. Calibre / `ebook-convert`.
+7. `unpaper`, `pngquant` and conversion fonts.
+8. Explicit VeraPDF E2E; investigate `jbig2enc`; establish viable RAR/CBR support or document the concrete technical limitation.
+9. Representative E2E operations across Stirling feature families.
+10. Non-Enterprise parity audit against pinned Stirling 2.14.3.
+11. Final PDF_Tunner branding audit.
+12. Final sandbox/portability audit on multiple folders, paths with spaces, restricted locations and Windows 10/11 x64.
+13. Remove development-only workflows/triggers/status bridges and review the complete downstream diff.
+14. Final provenance/docs/version/hash record.
+15. Integrate to `main` without reopening old PR #1.
+16. Publish the clean v1 ZIP only after all gates, then perform the manual clean-machine Windows 10/11 checklist.
 
 ## Mandatory documentation rule
 
