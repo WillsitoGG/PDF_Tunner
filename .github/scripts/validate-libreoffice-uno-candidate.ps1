@@ -95,8 +95,10 @@ function Wait-File {
 
 function Invoke-DirectLibreOfficeConversion {
   param([string]$Root, [string]$Label)
-  $soffice = Join-Path $Root 'tools\libreoffice\program\soffice.exe'
-  if (-not (Test-Path -LiteralPath $soffice -PathType Leaf)) { throw "Missing soffice.exe: $soffice" }
+  $sofficeCom = Join-Path $Root 'tools\libreoffice\program\soffice.com'
+  $sofficeExe = Join-Path $Root 'tools\libreoffice\program\soffice.exe'
+  $soffice = if (Test-Path -LiteralPath $sofficeCom -PathType Leaf) { $sofficeCom } else { $sofficeExe }
+  if (-not (Test-Path -LiteralPath $soffice -PathType Leaf)) { throw "Missing LibreOffice CLI launcher: $soffice" }
   $work = Join-Path $Root ("data\validation\" + $Label)
   $profile = Join-Path $work 'profile'
   $temp = Join-Path $work 'tmp'
