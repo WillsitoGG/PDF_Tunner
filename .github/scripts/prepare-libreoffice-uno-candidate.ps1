@@ -19,33 +19,6 @@ function Assert-Hash {
   return $actual
 }
 
-function Invoke-CapturedProcess {
-  param(
-    [Parameter(Mandatory = $true)][string]$FilePath,
-    [string[]]$Arguments = @()
-  )
-  $psi = [System.Diagnostics.ProcessStartInfo]::new()
-  $psi.FileName = $FilePath
-  $psi.UseShellExecute = $false
-  $psi.RedirectStandardOutput = $true
-  $psi.RedirectStandardError = $true
-  $psi.CreateNoWindow = $true
-  foreach ($arg in $Arguments) { [void]$psi.ArgumentList.Add($arg) }
-
-  $process = [System.Diagnostics.Process]::new()
-  $process.StartInfo = $psi
-  if (-not $process.Start()) { throw "Failed to start $FilePath" }
-  $stdoutTask = $process.StandardOutput.ReadToEndAsync()
-  $stderrTask = $process.StandardError.ReadToEndAsync()
-  $process.WaitForExit()
-  $stdout = $stdoutTask.GetAwaiter().GetResult()
-  $stderr = $stderrTask.GetAwaiter().GetResult()
-  return [pscustomobject]@{
-    ExitCode = $process.ExitCode
-    Output = (($stdout + [Environment]::NewLine + $stderr).Trim())
-  }
-}
-
 $root = [System.IO.Path]::GetFullPath($CandidateRoot)
 $downloads = Join-Path $root '_downloads'
 $adminExtract = Join-Path $root '_admin_extract'
@@ -103,21 +76,11 @@ $wheelZip = Join-Path $downloads 'unoserver-wheel.zip'
 Copy-Item -LiteralPath $wheelPath -Destination $wheelZip -Force
 Expand-Archive -LiteralPath $wheelZip -DestinationPath $unoTarget -Force
 
-$versionBinary = if (Test-Path -LiteralPath $packagedSofficeCom -PathType Leaf) { $packagedSofficeCom } else { $packagedSofficeExe }
-$versionResult = Invoke-CapturedProcess -FilePath $versionBinary -Arguments @('--version')
-if ($versionResult.ExitCode -ne 0) {
-  throw "Packaged soffice --version failed: $($versionResult.Output)"
-}
-$loVersionText = $versionResult.Output.Trim()
-if ($loVersionText -notmatch [regex]::Escape($LibreOfficeVersion)) {
-  throw "Packaged soffice version output does not contain pinned version $LibreOfficeVersion. Output: $loVersionText"
-}
-
 @(
   "LIBREOFFICE_VERSION=$LibreOfficeVersion",
   "LIBREOFFICE_MSI_URL=$LibreOfficeMsiUrl",
   "LIBREOFFICE_MSI_SHA256=$msiHash",
-  "LIBREOFFICE_VERSION_OUTPUT=$loVersionText",
+  "LIBREOFFICE_RUNTIME_VERSION_CHECK=deferred_until_after_cold_relocation",
   "UNOSERVER_VERSION=$UnoServerVersion",
   "UNOSERVER_WHEEL_FILENAME=$($wheel[0].filename)",
   "UNOSERVER_WHEEL_URL=$($wheel[0].url)",

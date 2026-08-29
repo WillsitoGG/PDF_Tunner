@@ -8,7 +8,6 @@ on:
     paths:
       - '.github/workflows/pdf-tunner-libreoffice-uno-candidate.yml'
       - '.github/scripts/prepare-libreoffice-uno-candidate.ps1'
-      - '.github/scripts/diagnose-libreoffice-relocation.ps1'
       - '.github/scripts/validate-libreoffice-uno-candidate.ps1'
       - 'README.md'
       - 'AGENTS.md'
@@ -35,7 +34,7 @@ jobs:
       - name: Checkout candidate branch
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
-      - name: Prepare pinned LibreOffice and unoserver payload
+      - name: Prepare pinned LibreOffice and unoserver payload without starting LibreOffice
         shell: pwsh
         run: |
           $candidate = Join-Path $env:RUNNER_TEMP 'pdf-tunner-libreoffice-uno-candidate'
@@ -47,17 +46,7 @@ jobs:
             -UnoServerVersion $env:PDF_TUNNER_UNOSERVER_VERSION `
             -UnoServerWheelSha256 $env:PDF_TUNNER_UNOSERVER_WHEEL_SHA256
 
-      - name: Diagnose cold-copy relocation path matrix and PyUNO availability
-        shell: pwsh
-        run: |
-          $portable = Join-Path $env:RUNNER_TEMP 'pdf-tunner-libreoffice-uno-candidate/PDF_Tunner'
-          $evidence = Join-Path $PWD 'candidate-evidence/RELOCATION_MATRIX.txt'
-          & './.github/scripts/diagnose-libreoffice-relocation.ps1' `
-            -CandidateRoot $portable `
-            -UnoServerVersion $env:PDF_TUNNER_UNOSERVER_VERSION `
-            -EvidencePath $evidence
-
-      - name: Validate real LibreOffice and UNO conversions after relocation
+      - name: Validate cold-relocated LibreOffice and real UNO conversions
         shell: pwsh
         run: |
           $portable = Join-Path $env:RUNNER_TEMP 'pdf-tunner-libreoffice-uno-candidate/PDF_Tunner'
