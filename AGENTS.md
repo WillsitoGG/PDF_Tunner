@@ -1,6 +1,6 @@
 # AGENTS.md
 
-Permanent technical context and operating contract for **PDF_Tunner**. Read this file before changing the repository. These rules override generic repository cleanup conventions when those conventions would make the Stirling fork harder to compare, synchronize or validate.
+Permanent technical context and operating contract for **PDF_Tunner**. Read this file before changing the repository.
 
 ## Identity, base and target
 
@@ -18,29 +18,28 @@ PDF_Tunner is the real fork `WillsitoGG/PDF_Tunner` of `Stirling-Tools/Stirling-
 
 ## Mandatory repository rules
 
-1. Preserve Stirling's root structure; do not reorganize the fork into generic `Archive/`, `Source/` or `Validation/` roots.
+1. Preserve Stirling's root structure; do not reorganize the fork into generic archive/source roots.
 2. Keep `main` clean: no generated builds, logs, abandoned experiments, one-shot triggers or temporary scripts.
-3. Preserve upstream behavior unless the user requests removal or the functionality is specifically outside the target.
+3. Preserve upstream behavior unless the user requests removal or functionality is outside target.
 4. Compilation alone is never validation. Validate the assembled portable app and real operations.
 5. Never archive failed/intermediate builds as release history.
 6. Keep SHA-256/provenance and exact dependency identity reproducible.
 7. **Every PDF_Tunner-specific change must update BOTH `README.md` and `AGENTS.md` in the same final commit.**
-8. Heavy repeated CI must use branch/workflow-specific `concurrency` with `cancel-in-progress: true`; obsolete runs must not pile up.
-9. During active development use at most one automatic trigger per heavy workflow unless duplicate events are technically necessary and deduplicated.
-10. Development-only workflows/status bridges/triggers must be removed when their phase is finished and before final `main`.
+8. Heavy CI must use branch/workflow-specific concurrency with `cancel-in-progress: true`.
+9. Use at most one automatic trigger per heavy workflow unless technically necessary.
+10. Remove development-only focused workflows/triggers when their phase is complete and before final `main`.
 11. Do not reopen old PR #1 as the v1 release integration vehicle.
 12. Do not publish a final Release until toolchain, E2E, parity, branding, portability, cleanup and documentation gates are complete.
-13. Licensing is not the center of this project; mention it only for concrete technical/distribution constraints.
 
 ## Continuity protocol
 
 Before writes in a resumed conversation:
 
-1. recover the most recent relevant PDF_Tunner handoff/conversation context;
-2. read the current project prompt/rules, README and AGENTS;
+1. recover the most recent PDF_Tunner handoff;
+2. read current project rules, README and AGENTS;
 3. verify live branch HEAD, latest primary Actions run, PR state and Release state;
-4. explicitly carry **accepted/closed**, **active candidate**, **next block** and **broader roadmap**;
-5. never treat one immediate next task as the only remaining work;
+4. carry accepted/closed, active candidate, next block and broader roadmap explicitly;
+5. never treat one immediate task as the only remaining work;
 6. at each accepted milestone record commit, Run/job, artifact/digest where relevant, next candidate and remaining roadmap in README + AGENTS;
 7. before final Release re-audit against the full original PDF_Tunner objective.
 
@@ -48,15 +47,13 @@ Before writes in a resumed conversation:
 
 Use Stirling's own Tauri desktop under `frontend/editor/src-tauri`. Do not restore the old `PDF_Tunner_Legacy` .NET/WebView2 launcher architecture.
 
-The pinned desktop build uses Java 25/JLink and Stirling's existing Tauri lifecycle. Preserve upstream single-instance, file-opening, drag/drop, dynamic backend-port discovery and backend cleanup unless a portable-specific defect is demonstrated.
-
 Portable mode is enabled by `PDF_TUNNER_PORTABLE` beside the executable.
 
 Do **not** globally replace `APPDATA`, `LOCALAPPDATA`, `PROGRAMDATA`, `USERPROFILE`, `HOME`, `TEMP` or `TMP` before Tauri/WebView2 initializes. Use component-specific localization:
 
 - `PDF_TUNNER_PORTABLE_ROOT` -> executable directory;
 - Stirling app data -> `<portable>/data`;
-- Java `java.io.tmpdir` -> `<portable>/data/tmp` through `JAVA_TOOL_OPTIONS`;
+- Java temp -> `<portable>/data/tmp` through `JAVA_TOOL_OPTIONS`;
 - WebView2 user data -> `<portable>/data/webview2`;
 - Tauri logs/store/window-state/http cookies -> `<portable>/data/tauri/...`;
 - ImageMagick config -> `<portable>/tools/imagemagick`, temp -> `<portable>/data/tmp/imagemagick`;
@@ -65,8 +62,6 @@ Do **not** globally replace `APPDATA`, `LOCALAPPDATA`, `PROGRAMDATA`, `USERPROFI
 - Python/OCRmyPDF -> `<portable>/tools/python`; OCRmyPDF child temp -> `<portable>/data/tmp/ocrmypdf`; Python cache -> `<portable>/data/python-cache`;
 - Calibre config -> `<portable>/data/calibre` when packaged;
 - skip `pdf-tunner://` deep-link registration in portable mode.
-
-The Windows keyring/Credential Manager may remain authentication's first path and is not claimed to be package-contained; Tauri Store fallback is package-local.
 
 ## External dependency source of truth
 
@@ -96,8 +91,6 @@ Direct runtime probes include:
 | OpenCV | Python `import cv2` |
 
 Also audit Poppler `pdfinfo`/`pdfimages`, `unpaper`, `pngquant`, NumPy/OpenCV, WeasyPrint, LibreOffice/UNO, Calibre, conversion fonts, VeraPDF E2E, `jbig2enc` and any additional exact dependency exposed by pinned source.
-
-`ExternalAppDepConfig` disables the OCRmyPDF endpoint group when the configured `ocrmypdf` command cannot be resolved. Primary acceptance of OCRmyPDF therefore requires both an isolated real OCR operation and proof that the real PDF_Tunner backend does not log `Missing dependency: ocrmypdf` / disable the OCRmyPDF group.
 
 ## Tool layout strategy
 
@@ -145,80 +138,67 @@ Real packaged startup/backend health, Java temp localization, WebView2 profile l
 
 ### Ghostscript — accepted
 
-- `10.07.1` Win64, official `gs10071w64.exe`;
+- `10.07.1` Win64;
 - SHA-256 `3a4c28d0aac47aa7cccd35a5932c55110376e9dbd966898dde388b7faba444a4`;
-- NSIS is archive-extracted, never installed; package-local byte-identical `gs.exe` satisfies Stirling's literal probe;
 - acceptance Run `33104114920` (#68), job `98629258424`, commit `84b2fb4a8dd1e69896abc7147442aabec68c3004`.
 
 ### Tesseract — accepted
 
 - release `5.5.3`, Windows CLI `5.5.3.20260724`;
-- official Win64 installer SHA-256 `bee9e3434bd94fd65387d9be28cd467a41f61b1275383b55b0f59a1331270ae4`;
+- installer SHA-256 `bee9e3434bd94fd65387d9be28cd467a41f61b1275383b55b0f59a1331270ae4`;
 - `tessdata_fast` commit `87416418657359cb625c412a48b6e1d6d41c29bd`;
-- models: `eng` blob `bbef4675053b5b468cdb477053e28b1c698ba08e`, `spa` `72e901f13ca52cfe34cf239a368b9ed3c0ddaf26`, `osd` `527457ca8f8fe1fda7c2f88bce3c0e4be12be9d0`;
-- validation includes isolated package-first PATH, real English/Spanish OCR, OSD and Stirling backend package-local tessdata acceptance;
 - acceptance Run `33122172947` (#70), job `98691480028`, commit `52429eb7812e8615ee39aab695641d495798c1ba`; artifact `9667429758`, digest `sha256:12943b1b38ac7660156667acbaf5a0d3ccae189d0f9d28be97fe32b0db8326aa`.
 
-Latest pre-OCRmyPDF primary baseline: Run `33169895113` (#76), job `98844184305`, commit `9f0dcb4cb35cb73a1ceadf2ebe105ec23c5fd3c8`, complete success.
-
-## Active integration: Python 3.12.14 + OCRmyPDF 17.10.0
+### Python 3.12.14 + OCRmyPDF 17.10.0 — accepted
 
 Pins:
 
-- Python `3.12.14` x64;
-- `astral-sh/python-build-standalone` release `20260825`, `x86_64-pc-windows-msvc-install_only_stripped`;
+- Python `3.12.14` x64 from `astral-sh/python-build-standalone` release `20260825`;
 - archive SHA-256 `8e6aad12ef6fc9685e67ce66253f8f72d6e8fa02cb7187e5850bd4db5ecd9e2a`;
 - OCRmyPDF `17.10.0` PyPI wheel;
 - wheel SHA-256 `34ba1b595ecacc94b6dc3c9d4fa51953de63082cd16cf8595251bd72120b930a`.
 
-The normal pip-generated Windows launcher is removed. `.github/scripts/ocrmypdf-launcher.rs` builds a native relative launcher under `tools/python/ocrmypdf.exe`, executing sibling `python.exe -m ocrmypdf` and localizing OCRmyPDF temp/Python cache to `data/`.
+`.github/scripts/ocrmypdf-launcher.rs` builds a native relative launcher under `tools/python/ocrmypdf.exe`, executing sibling `python.exe -m ocrmypdf` and localizing OCRmyPDF temp/Python cache to `data/`.
 
-Permanent scripts:
+Primary acceptance: Run **`33201568275` (#77)**, job **`98952028665`**, commit **`54802c15427673c0e95738195947ab76239d6e31`**, complete success with all earlier gates enabled.
 
-- `.github/scripts/prepare-ocrmypdf.ps1` — download/hash/extract Python standalone, verify/install exact OCRmyPDF, compile relative launcher, run `pip check`, write provenance/hashes/canonical dependency inventory;
-- `.github/scripts/validate-ocrmypdf.ps1` — PE/version/provenance checks, isolated PATH proof, real OCR searchable-text check and optional relocation proof;
-- `.github/scripts/ocrmypdf-launcher.rs` — native relative launcher.
+Run #77 proved exact pins/hashes, AMD64 Python, isolated package-only resolution, clean `pip check`, real searchable-PDF OCR, searchable-text extraction, package-local temp/cache, relocation to a path containing spaces, real backend acceptance of `ocrmypdf`, final layout validation, ZIP creation and SHA-256.
 
-Focused Run `33169895080` (#5), job `98844184266`, commit `9f0dcb4cb35cb73a1ceadf2ebe105ec23c5fd3c8`, is green and proves exact versions/hashes, AMD64, package-only command resolution, clean `pip check`, real searchable-PDF OCR, `pdfminer-six` searchable-text extraction, package-local temp/cache and a second complete OCR after relocation to a path containing spaces.
+Artifact **`9698621272`**, name `PDF_Tunner-Windows-x64-Portable-bootstrap`, Actions digest **`sha256:68f69bb0d4ed6b731aefee82abff3eba7b01d18c5b270051e2e546337cd6a164`**. CI evidence only; not a final Release.
 
-Runs #1, #2 and #4 remain diagnostic failure evidence only: they exposed and led to fixes for dependency inventory normalization, synthetic image DPI and alpha-channel fixture encoding respectively.
-
-**Focused green is not acceptance.** The active revision promotes the same Python/OCRmyPDF layer into the primary workflow. Accept only when the complete primary workflow is green with all previous gates enabled, backend dependency probing accepts `ocrmypdf`, the real OCR/relocation checks pass from the package, final layout contains the Python/OCRmyPDF provenance files, and the final ZIP/SHA is produced.
-
-After primary acceptance, remove `.github/workflows/pdf-tunner-ocrmypdf-candidate.yml` when it is no longer needed and document that removal in README + AGENTS in the same commit.
+The temporary focused OCRmyPDF workflow is retired after this primary acceptance; the permanent prepare/validate/launcher scripts remain part of the primary workflow.
 
 ## Primary workflow acceptance contract
 
 Primary path: `.github/workflows/pdf-tunner-windows-portable.yml`.
 
-A dependency moves to accepted only when the **complete primary workflow** is green with every earlier accepted gate still enabled. Record commit SHA, Run/number, job ID, exact source/version/hash and artifact/digest when relevant.
+A dependency moves to accepted only when the **complete primary workflow** is green with every earlier accepted gate enabled. Record commit SHA, Run/number, job ID, exact source/version/hash and artifact/digest when relevant.
 
-A green standalone preparation/focused workflow is not acceptance. `--version` alone is not acceptance. Require real operation and isolated package-first PATH/environment wherever technically practical.
+A standalone candidate workflow or `--version` alone is not acceptance. Require real operation and isolated package-first PATH/environment wherever practical.
 
 ## Remaining v1 roadmap — do not collapse
 
 ### A. External toolchain
 
-1. complete primary OCRmyPDF + Python acceptance and retire the focused gate when safe;
-2. LibreOffice;
-3. UNO/`unoconvert` or source-compatible portable alternative;
-4. Poppler including `pdftohtml`, `pdfinfo`, `pdfimages`;
-5. consolidate portable Python dependency lock;
-6. NumPy;
-7. OpenCV;
-8. WeasyPrint;
-9. Calibre/`ebook-convert`;
-10. `unpaper`;
-11. `pngquant`;
-12. conversion fonts;
-13. explicit VeraPDF E2E;
-14. investigate/build/package `jbig2enc` if viable;
-15. viable portable RAR/CBR or concrete documented limitation;
-16. any further exact dependency exposed during pinned-source parity audit.
+1. LibreOffice;
+2. UNO/`unoconvert` or source-compatible portable alternative;
+3. Poppler including `pdftohtml`, `pdfinfo`, `pdfimages`;
+4. consolidate portable Python dependency lock;
+5. NumPy;
+6. OpenCV;
+7. WeasyPrint;
+8. Calibre/`ebook-convert`;
+9. `unpaper`;
+10. `pngquant`;
+11. conversion fonts;
+12. explicit VeraPDF E2E;
+13. investigate/build/package `jbig2enc` if viable;
+14. viable portable RAR/CBR or concrete documented limitation;
+15. any further exact dependency exposed during pinned-source parity audit.
 
 ### B. Functional validation
 
-OCRmyPDF E2E; Office -> PDF; supported PDF -> Office; HTML/URL -> PDF; WeasyPrint; Poppler; Calibre/EPUB; Python/NumPy/OpenCV; qpdf/Ghostscript/ImageMagick/Tesseract regressions; `pngquant`/`unpaper`; RAR/CBR and jbig2enc if integrated; representative Stirling API families; explicit proof runner software is not satisfying package tests.
+Office -> PDF; supported PDF -> Office; HTML/URL -> PDF; WeasyPrint; Poppler; Calibre/EPUB; Python/NumPy/OpenCV; regressions across accepted qpdf/Ghostscript/ImageMagick/Tesseract/OCRmyPDF; `pngquant`/`unpaper`; RAR/CBR and jbig2enc if integrated; representative Stirling API families; explicit proof runner software is not satisfying package tests.
 
 ### C. Release readiness
 
@@ -232,22 +212,19 @@ OCRmyPDF E2E; Office -> PDF; supported PDF -> Office; HTML/URL -> PDF; WeasyPrin
 8. publish clean v1 ZIP only when all gates are complete;
 9. manual clean-machine Windows 10/11 checklist.
 
-## Current handoff — 2026-08-28
+## Current handoff — 2026-08-29
 
-Accepted/closed: native portable/Tauri containment; Fixed WebView2; qpdf; ImageMagick; Ghostscript; Tesseract.
+Accepted/closed: native portable/Tauri containment; Fixed WebView2; qpdf; ImageMagick; Ghostscript; Tesseract; Python 3.12.14 + OCRmyPDF 17.10.0.
 
-Latest fully green primary baseline: **Run #76** on commit `9f0dcb4cb35cb73a1ceadf2ebe105ec23c5fd3c8`.
+Latest fully green primary: **Run #77**, job `98952028665`, commit `54802c15427673c0e95738195947ab76239d6e31`.
 
-Focused OCRmyPDF/Python gate: **Run #5 green** on the same commit, including real searchable OCR and relocation.
-
-Active work: promote Python/OCRmyPDF into the complete primary workflow and require the real backend to accept the `ocrmypdf` dependency. OCRmyPDF is not accepted until that primary run is green.
-
-Next external block only after OCRmyPDF acceptance: LibreOffice/UNO, while the broader A/B/C roadmap remains mandatory.
+Active next block: **LibreOffice + UNO/unoconvert**, followed by Poppler. The broader A/B/C roadmap remains mandatory.
 
 ## Compact changelog
 
 - **2026-08-21–23:** real fork/base confirmed; Stirling Tauri + JLink architecture selected; portable state containment and two-launch window-state proof established.
 - **2026-08-27:** Fixed WebView2 accepted #62; qpdf #66; ImageMagick #67; Ghostscript #68; Tesseract #70.
 - **2026-08-28:** OCRmyPDF candidate built around pinned relocatable Python standalone + native relative launcher + real searchable-PDF/relocation validation.
-- **2026-08-28:** focused Runs #1/#2/#4 diagnosed and corrected package inventory, fixture DPI and alpha-channel test issues without changing Stirling behavior.
-- **2026-08-28:** focused OCRmyPDF Run #5 passed fully; primary Run #76 concurrently reconfirmed the previous accepted baseline. Primary integration is now the active gate.
+- **2026-08-28:** focused OCRmyPDF Run #5 passed fully; primary Run #76 reconfirmed the prior baseline.
+- **2026-08-28:** primary Run #77 passed with Python/OCRmyPDF integrated, real OCR, relocation, backend dependency acceptance, final ZIP and SHA-256. Python/OCRmyPDF accepted.
+- **2026-08-29:** temporary OCRmyPDF candidate workflow retired; next active block is LibreOffice + UNO/unoconvert.
