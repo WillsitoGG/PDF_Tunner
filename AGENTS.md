@@ -282,3 +282,10 @@ Accepted/closed: native portable/Tauri containment; Fixed WebView2; qpdf; ImageM
 Active work: focused Windows LibreOffice 26.2.5 + unoserver 3.7 feasibility on `pdf-tunner/libreoffice-uno-candidate`.
 
 Next after candidate proof: integrate the proven LibreOffice/UNO mechanism into the primary portable package without regressing the accepted sandbox boundary, then move to Poppler.
+
+### Run #10 profile-path finding and Run #11 contract
+
+- Run `33260616218` (#10), job `99121803242`, artifact `9717213692`, digest `sha256:530fc588a2c9713de5400a9e1518e2d0242dd0d8b54d40656c7b5ffd447be1ba`: independent cold copies proved `VERSION_EXTERNAL_ALL`, `VERSION_PACKAGE_IO`, and `VERSION_PACKAGE_TEMP` pass, while `VERSION_PACKAGE_PROFILE`, `VERSION_ALL_PACKAGE`, and `NO_VERSION_ALL_PACKAGE` fail. `--version` leaves zero residual processes. The active blocker is LibreOffice `UserInstallation` when supplied as the current deep package-local absolute file URI.
+- Run #11 must keep work and TEMP/TMP package-local and vary only the user-profile strategy on independent cold copies: deep absolute URI, shallow `<portable>/data/lo`, shallow `<portable>/p`, literal `$ORIGIN/../../../...` passed with `-env:UserInstallation`, `bootstrap.ini` with `$ORIGIN/../../../data/lo`, and a long external control. Record path lengths and do not infer that all package paths are broken.
+- Prefer a package-relative `$ORIGIN` solution if empirically green because it preserves relocatability without host junctions, drive-letter mappings, or global profile state. A shallow absolute package path may be used only if its path-length limitations are explicitly understood and tested.
+- Do not resume the full UNO acceptance gate until a package-contained LibreOffice profile strategy passes on a genuinely cold copy.

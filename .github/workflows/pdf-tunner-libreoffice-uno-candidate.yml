@@ -8,8 +8,7 @@ on:
     paths:
       - '.github/workflows/pdf-tunner-libreoffice-uno-candidate.yml'
       - '.github/scripts/prepare-libreoffice-uno-candidate.ps1'
-      - '.github/scripts/diagnose-libreoffice-cold-first-use.ps1'
-      - '.github/scripts/validate-libreoffice-uno-candidate.ps1'
+      - '.github/scripts/diagnose-libreoffice-profile-strategy.ps1'
       - 'README.md'
       - 'AGENTS.md'
 
@@ -47,42 +46,27 @@ jobs:
             -UnoServerVersion $env:PDF_TUNNER_UNOSERVER_VERSION `
             -UnoServerWheelSha256 $env:PDF_TUNNER_UNOSERVER_WHEEL_SHA256
 
-      - name: Diagnose independent cold first-use path matrix
+      - name: Diagnose package-local LibreOffice profile strategies
         shell: pwsh
         run: |
           $portable = Join-Path $env:RUNNER_TEMP 'pdf-tunner-libreoffice-uno-candidate/PDF_Tunner'
-          $evidence = Join-Path $PWD 'candidate-evidence/COLD_FIRST_USE_MATRIX.txt'
-          $warmMarker = Join-Path $PWD 'candidate-evidence/WARM_UNO_ROOT.txt'
+          $evidence = Join-Path $PWD 'candidate-evidence/PROFILE_STRATEGY_MATRIX.txt'
           New-Item -ItemType Directory -Force -Path (Split-Path -Parent $evidence) | Out-Null
-          & './.github/scripts/diagnose-libreoffice-cold-first-use.ps1' `
+          & './.github/scripts/diagnose-libreoffice-profile-strategy.ps1' `
             -CandidateRoot $portable `
             -LibreOfficeVersion $env:PDF_TUNNER_LIBREOFFICE_VERSION `
-            -EvidencePath $evidence `
-            -WarmRootMarkerPath $warmMarker
+            -EvidencePath $evidence
 
-      - name: Advance real UNO conversion after controlled external warm-up
+      - name: Enforce a relocatable package-local profile strategy
         shell: pwsh
         run: |
-          $warmRoot = (Get-Content -LiteralPath (Join-Path $PWD 'candidate-evidence/WARM_UNO_ROOT.txt') -Raw).Trim()
-          if (-not (Test-Path -LiteralPath $warmRoot -PathType Container)) { throw "Warm UNO diagnostic root missing: $warmRoot" }
-          & './.github/scripts/validate-libreoffice-uno-candidate.ps1' `
-            -CandidateRoot $warmRoot `
-            -LibreOfficeVersion $env:PDF_TUNNER_LIBREOFFICE_VERSION `
-            -LibreOfficeMsiSha256 $env:PDF_TUNNER_LIBREOFFICE_MSI_SHA256 `
-            -UnoServerVersion $env:PDF_TUNNER_UNOSERVER_VERSION `
-            -UnoServerWheelSha256 $env:PDF_TUNNER_UNOSERVER_WHEEL_SHA256 `
-            -RequireUnoServer
-          $unoEvidence = Join-Path $warmRoot 'data/validation-evidence/UNO_FEASIBILITY.txt'
-          if (-not (Test-Path -LiteralPath $unoEvidence -PathType Leaf)) { throw "UNO evidence missing after warmed diagnostic: $unoEvidence" }
-          Copy-Item -LiteralPath $unoEvidence -Destination (Join-Path $PWD 'candidate-evidence/UNO_AFTER_EXTERNAL_WARMUP.txt') -Force
-
-      - name: Enforce cold package-local first-use acceptance
-        shell: pwsh
-        run: |
-          $matrix = Get-Content -LiteralPath (Join-Path $PWD 'candidate-evidence/COLD_FIRST_USE_MATRIX.txt') -Raw
-          if ($matrix -notmatch '(?m)^PROBE_VERSION_ALL_PACKAGE=PASS\|') {
-            throw 'Cold VERSION_ALL_PACKAGE first use is still failing. Warmed UNO success is diagnostic only and does not satisfy portable acceptance.'
+          $matrix = Get-Content -LiteralPath (Join-Path $PWD 'candidate-evidence/PROFILE_STRATEGY_MATRIX.txt') -Raw
+          $relativePass = ($matrix -match '(?m)^PROBE_ORIGIN_ENV_DATA=PASS\|') -or ($matrix -match '(?m)^PROBE_ORIGIN_ENV_ROOT=PASS\|') -or ($matrix -match '(?m)^PROBE_BOOTSTRAP_ORIGIN_DATA=PASS\|')
+          $shallowPass = ($matrix -match '(?m)^PROBE_ABS_DATA_SHALLOW=PASS\|') -or ($matrix -match '(?m)^PROBE_ABS_ROOT_SHALLOW=PASS\|')
+          if (-not $relativePass -and -not $shallowPass) {
+            throw 'No package-local LibreOffice user-profile strategy passed. Profile-path portability remains blocked.'
           }
+          Write-Host "PASS: at least one package-local LibreOffice profile strategy works. RelativeBootstrap=$relativePass ShallowAbsolute=$shallowPass"
 
       - name: Collect compact candidate evidence
         if: always()
