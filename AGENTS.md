@@ -86,7 +86,7 @@ Current candidate contract:
 3. Copy suite to `tools/libreoffice` without launching any LibreOffice binary.
 4. Resolve/download exact PyPI wheel and enforce SHA-256; extract under `tools/unoserver`.
 5. Materialize the untouched cold candidate at a path containing spaces before the first runtime version check or functional LibreOffice start.
-6. The current focused gate uses **copy + delete source** for that relocation because same-volume in-place directory rename/move is still an unresolved blocker; copy success must never be presented as proof that rename is supported.
+6. Treat both same-volume rename and source-deleted copy as unresolved. Run #9 first validates a copied destination while the source still exists, records reparse/absolute-path evidence, then deletes the source and repeats; only source-independent behavior can qualify as portable.
 7. Validate runtime version only at the destination.
 8. Require two consecutive real DOCX -> PDF conversions with package-local profile/TEMP/TMP/I/O and zero package-local residual LibreOffice processes.
 9. Require LibreOffice `program/python.exe` to import `uno` plus pinned unoserver.
@@ -104,7 +104,8 @@ Focused green is candidate evidence only. Acceptance requires integration into `
 - Run `33256042222` (#5), job `99109804816`, artifact `9715865060`, digest `sha256:f6711db687a6938b9c787fad7d1c95dd15a3b4ab1a28a217b45f2a459b611494`: decisive cold-copy matrix. `EXTERNAL_ALL`, `PACKAGE_PROFILE`, `PACKAGE_IO`, `PACKAGE_TEMP`, and `ALL_PACKAGE` all passed. Official Windows LibreOffice exposes `program/python.exe`; source and relocated interpreters returned `PYUNO_OK` and imported unoserver `3.7`.
 - Run `33256677474` (#6), job `99111522324`, artifact `9716045830`, digest `sha256:dd23b222a4910c588e9fa30e9b76621fb9dfb2a8453579a0ce637bc59cbc00ca`: strict first-use failed because preparation had already run `soffice --version`; Run #7 removed all pre-relocation LibreOffice execution and the diagnostic matrix from the automatic path.
 - Run `33257922780` (#7), job `99114759528`, artifact `9716396378`, digest `sha256:20f20265845616fbe8ba0527889bb7dafc8947694d07b7deea0e03249373fab5`: even with genuinely cold preparation and no earlier diagnostic process, the first conversion still failed after same-volume `Move-Item`. This does **not** contradict Run #5: the cold-copy matrix is green. The unresolved behavior is now specifically narrowed to same-volume rename/move semantics rather than path spaces, profile, TEMP/TMP or package-local I/O.
-- Run #8 therefore materializes the untouched cold package at the space-containing destination via `Copy-Item`, deletes the source, and then runs the strict repeated-conversion + PyUNO + real unoserver/unoconvert gate. Same-volume in-place rename/move remains an explicit unresolved portability blocker for later root-cause analysis/mitigation and must be closed before final v1; do not treat a copy-relocation green result as rename support.
+- Run `33258650349` (#8), job `99116663366`, artifact `9716613454`, digest `sha256:bbb320446a3813104548e047f2e7a342ac1ff22d64517f956d63be2f34ad0913`: copy + source deletion still failed at the first real DOCX -> PDF conversion. Because Run #5's cold copy passed while its source remained present, source existence is now the differentiating variable; do not assume a copied destination is autonomous.
+- Run #9 contract: copy the untouched cold tree to the path-with-spaces destination while retaining the source; record reparse points and obvious absolute source-path references; run the full destination LibreOffice + PyUNO + pinned unoserver/unoconvert gate and preserve its evidence; then delete the source and rerun from clean per-conversion workspaces. Source-present success is diagnostic only. Portable acceptance requires the destination to remain fully functional after the source has been removed.
 
 ## Primary acceptance contract
 
@@ -134,7 +135,7 @@ Office -> PDF; supported PDF -> Office; OCR; HTML/URL -> PDF; Poppler; WeasyPrin
 
 1. Non-Enterprise parity audit against pinned Stirling 2.14.3.
 2. Final branding audit.
-3. Final sandbox/portability/state/process audit, including same-volume post-extraction rename/move behavior, multiple folders, paths with spaces, restricted locations, and Windows 10/11 x64.
+3. Final sandbox/portability/state/process audit, including same-volume post-extraction rename/move behavior, source-independent copied-tree behavior, multiple folders, paths with spaces, restricted locations, and Windows 10/11 x64.
 4. Remove development-only push/status/focused mechanisms.
 5. Final downstream diff/output hygiene.
 6. Final README/AGENTS/provenance/version/hash record.
@@ -148,4 +149,4 @@ Accepted/closed: native portable/Tauri containment; Fixed WebView2; qpdf; ImageM
 
 Active work: focused Windows LibreOffice 26.2.5 + unoserver 3.7 feasibility on `pdf-tunner/libreoffice-uno-candidate`.
 
-Next after candidate proof: integrate the proven LibreOffice/UNO mechanism into the primary portable package without regressing the accepted sandbox boundary, while retaining the rename blocker for explicit closure before v1, then move to Poppler.
+Next after candidate proof: integrate the proven LibreOffice/UNO mechanism into the primary portable package without regressing the accepted sandbox boundary, while retaining rename/source-independence blockers for explicit closure before v1, then move to Poppler.
