@@ -1,4 +1,4 @@
-name: PDF_Tunner LibreOffice UNO Candidate
+name: PDF_Tunner LibreOffice Windows Candidate
 
 on:
   workflow_dispatch:
@@ -8,12 +8,13 @@ on:
     paths:
       - '.github/workflows/pdf-tunner-libreoffice-uno-candidate.yml'
       - '.github/scripts/prepare-libreoffice-uno-candidate.ps1'
-      - '.github/scripts/validate-libreoffice-subst-profile.ps1'
+      - '.github/scripts/unoconvert-launcher.rs'
+      - '.github/scripts/validate-libreoffice-windows-shim.ps1'
       - 'README.md'
       - 'AGENTS.md'
 
 concurrency:
-  group: pdf-tunner-libreoffice-uno-candidate-${{ github.ref }}
+  group: pdf-tunner-libreoffice-windows-candidate-${{ github.ref }}
   cancel-in-progress: true
 
 permissions:
@@ -23,41 +24,74 @@ env:
   PDF_TUNNER_LIBREOFFICE_VERSION: '26.2.5'
   PDF_TUNNER_LIBREOFFICE_MSI_URL: 'https://download.documentfoundation.org/libreoffice/stable/26.2.5/win/x86_64/LibreOffice_26.2.5_Win_x86-64.msi'
   PDF_TUNNER_LIBREOFFICE_MSI_SHA256: 'f15ba07bfcb0186986cf3171063506f5d207c11f8cc051ba0d135209e9e915f9'
-  PDF_TUNNER_UNOSERVER_VERSION: '3.7'
-  PDF_TUNNER_UNOSERVER_WHEEL_SHA256: 'fc44e6808071c9d2957e705ecf1742cea8a582aa5d5cc23babf36bb332ec6e8e'
 
 jobs:
-  libreoffice-uno-candidate:
+  libreoffice-windows-candidate:
     runs-on: windows-latest
 
     steps:
       - name: Checkout candidate branch
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
-      - name: Prepare pinned LibreOffice and unoserver payload without starting LibreOffice
+      - name: Preflight candidate script syntax before heavy work
         shell: pwsh
         run: |
-          $candidate = Join-Path $env:RUNNER_TEMP 'pdf-tunner-libreoffice-uno-candidate'
+          $files = @(
+            '.github/scripts/prepare-libreoffice-uno-candidate.ps1',
+            '.github/scripts/validate-libreoffice-windows-shim.ps1'
+          )
+          foreach ($file in $files) {
+            $tokens = $null
+            $errors = $null
+            [System.Management.Automation.Language.Parser]::ParseFile(
+              (Resolve-Path -LiteralPath $file), [ref]$tokens, [ref]$errors
+            ) | Out-Null
+            if ($errors.Count -gt 0) {
+              foreach ($parseError in $errors) {
+                Write-Error ('{0}:{1}: {2}' -f $file, $parseError.Extent.StartLineNumber, $parseError.Message)
+              }
+              throw "PowerShell parse preflight failed: $file"
+            }
+          }
+          rustc --version
+          $preflightExe = Join-Path $env:RUNNER_TEMP 'unoconvert-preflight.exe'
+          rustc -O './.github/scripts/unoconvert-launcher.rs' -o $preflightExe
+          if (-not (Test-Path -LiteralPath $preflightExe -PathType Leaf)) { throw 'Rust preflight did not produce an executable.' }
+          Remove-Item -LiteralPath $preflightExe -Force
+          Write-Host 'PASS: candidate PowerShell syntax and Rust source compilation preflight.'
+
+      - name: Prepare pinned LibreOffice payload without installing or starting it
+        shell: pwsh
+        run: |
+          $candidate = Join-Path $env:RUNNER_TEMP 'pdf-tunner-libreoffice-windows-candidate'
           & './.github/scripts/prepare-libreoffice-uno-candidate.ps1' `
             -CandidateRoot $candidate `
             -LibreOfficeVersion $env:PDF_TUNNER_LIBREOFFICE_VERSION `
             -LibreOfficeMsiUrl $env:PDF_TUNNER_LIBREOFFICE_MSI_URL `
-            -LibreOfficeMsiSha256 $env:PDF_TUNNER_LIBREOFFICE_MSI_SHA256 `
-            -UnoServerVersion $env:PDF_TUNNER_UNOSERVER_VERSION `
-            -UnoServerWheelSha256 $env:PDF_TUNNER_UNOSERVER_WHEEL_SHA256
+            -LibreOfficeMsiSha256 $env:PDF_TUNNER_LIBREOFFICE_MSI_SHA256
 
-      - name: Validate SUBST-contained LibreOffice profile, relocation, and real UNO conversion
+      - name: Build package-local unoconvert compatibility shim
         shell: pwsh
         run: |
-          $portable = Join-Path $env:RUNNER_TEMP 'pdf-tunner-libreoffice-uno-candidate/PDF_Tunner'
-          $evidence = Join-Path $PWD 'candidate-evidence/SUBST_PROFILE_GATE.txt'
+          $portable = Join-Path $env:RUNNER_TEMP 'pdf-tunner-libreoffice-windows-candidate/PDF_Tunner'
+          $bin = Join-Path $portable 'tools/bin'
+          New-Item -ItemType Directory -Force -Path $bin | Out-Null
+          rustc -O './.github/scripts/unoconvert-launcher.rs' -o (Join-Path $bin 'unoconvert.exe')
+          if (-not (Test-Path -LiteralPath (Join-Path $bin 'unoconvert.exe') -PathType Leaf)) {
+            throw 'unoconvert.exe was not produced.'
+          }
+          Write-Host 'PASS: native package-local unoconvert compatibility shim built.'
+
+      - name: Validate real Stirling LibreOffice command shapes before and after relocation
+        shell: pwsh
+        run: |
+          $portable = Join-Path $env:RUNNER_TEMP 'pdf-tunner-libreoffice-windows-candidate/PDF_Tunner'
+          $evidence = Join-Path $PWD 'candidate-evidence/LIBREOFFICE_WINDOWS_SHIM_GATE.txt'
           New-Item -ItemType Directory -Force -Path (Split-Path -Parent $evidence) | Out-Null
-          & './.github/scripts/validate-libreoffice-subst-profile.ps1' `
+          & './.github/scripts/validate-libreoffice-windows-shim.ps1' `
             -CandidateRoot $portable `
             -LibreOfficeVersion $env:PDF_TUNNER_LIBREOFFICE_VERSION `
             -LibreOfficeMsiSha256 $env:PDF_TUNNER_LIBREOFFICE_MSI_SHA256 `
-            -UnoServerVersion $env:PDF_TUNNER_UNOSERVER_VERSION `
-            -UnoServerWheelSha256 $env:PDF_TUNNER_UNOSERVER_WHEEL_SHA256 `
             -EvidencePath $evidence
 
       - name: Collect compact candidate evidence
@@ -66,19 +100,17 @@ jobs:
         run: |
           $evidence = Join-Path $PWD 'candidate-evidence'
           New-Item -ItemType Directory -Force -Path $evidence | Out-Null
-          $portable = Join-Path $env:RUNNER_TEMP 'pdf-tunner-libreoffice-uno-candidate/PDF_Tunner'
-          if (Test-Path -LiteralPath $portable -PathType Container) {
-            $prov = Join-Path $portable 'LIBREOFFICE_UNO_PROVENANCE.txt'
-            if (Test-Path -LiteralPath $prov -PathType Leaf) {
-              Copy-Item -LiteralPath $prov -Destination (Join-Path $evidence 'LIBREOFFICE_UNO_PROVENANCE.txt') -Force
-            }
+          $portable = Join-Path $env:RUNNER_TEMP 'pdf-tunner-libreoffice-windows-candidate/PDF_Tunner'
+          $prov = Join-Path $portable 'LIBREOFFICE_WINDOWS_PROVENANCE.txt'
+          if (Test-Path -LiteralPath $prov -PathType Leaf) {
+            Copy-Item -LiteralPath $prov -Destination (Join-Path $evidence 'LIBREOFFICE_WINDOWS_PROVENANCE.txt') -Force
           }
 
       - name: Upload candidate evidence
         if: always()
         uses: actions/upload-artifact@v7.0.1
         with:
-          name: PDF_Tunner-LibreOffice-UNO-candidate-evidence
+          name: PDF_Tunner-LibreOffice-Windows-candidate-evidence
           path: candidate-evidence
           if-no-files-found: warn
           retention-days: 7

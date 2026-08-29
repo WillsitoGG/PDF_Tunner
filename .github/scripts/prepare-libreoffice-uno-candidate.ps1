@@ -2,9 +2,7 @@ param(
   [Parameter(Mandatory = $true)][string]$CandidateRoot,
   [Parameter(Mandatory = $true)][string]$LibreOfficeVersion,
   [Parameter(Mandatory = $true)][string]$LibreOfficeMsiUrl,
-  [Parameter(Mandatory = $true)][string]$LibreOfficeMsiSha256,
-  [Parameter(Mandatory = $true)][string]$UnoServerVersion,
-  [Parameter(Mandatory = $true)][string]$UnoServerWheelSha256
+  [Parameter(Mandatory = $true)][string]$LibreOfficeMsiSha256
 )
 
 Set-StrictMode -Version Latest
@@ -25,7 +23,6 @@ $adminExtract = Join-Path $root '_admin_extract'
 $portable = Join-Path $root 'PDF_Tunner'
 $tools = Join-Path $portable 'tools'
 $libreOfficeTarget = Join-Path $tools 'libreoffice'
-$unoTarget = Join-Path $tools 'unoserver'
 $data = Join-Path $portable 'data'
 
 Remove-Item -LiteralPath $root -Recurse -Force -ErrorAction SilentlyContinue
@@ -58,44 +55,24 @@ $packagedSofficeCom = Join-Path $libreOfficeTarget 'program\soffice.com'
 if (-not (Test-Path -LiteralPath $packagedSofficeExe -PathType Leaf)) {
   throw "Packaged LibreOffice is missing program\soffice.exe: $packagedSofficeExe"
 }
-
-Write-Host "Resolving unoserver $UnoServerVersion wheel metadata from PyPI..."
-$metadataUri = "https://pypi.org/pypi/unoserver/$UnoServerVersion/json"
-$metadata = Invoke-RestMethod -Uri $metadataUri
-$wheel = @($metadata.urls | Where-Object { $_.filename -eq "unoserver-$UnoServerVersion-py3-none-any.whl" })
-if ($wheel.Count -ne 1) { throw "Expected exactly one unoserver wheel, found $($wheel.Count)." }
-if ($wheel[0].digests.sha256.ToLowerInvariant() -ne $UnoServerWheelSha256.ToLowerInvariant()) {
-  throw 'PyPI metadata hash does not match pinned unoserver wheel SHA-256.'
+if (-not (Test-Path -LiteralPath $packagedSofficeCom -PathType Leaf)) {
+  throw "Packaged LibreOffice is missing program\soffice.com: $packagedSofficeCom"
 }
-$wheelPath = Join-Path $downloads $wheel[0].filename
-Invoke-WebRequest -Uri $wheel[0].url -OutFile $wheelPath -UseBasicParsing
-$wheelHash = Assert-Hash -Path $wheelPath -Expected $UnoServerWheelSha256
-
-New-Item -ItemType Directory -Force -Path $unoTarget | Out-Null
-$wheelZip = Join-Path $downloads 'unoserver-wheel.zip'
-Copy-Item -LiteralPath $wheelPath -Destination $wheelZip -Force
-Expand-Archive -LiteralPath $wheelZip -DestinationPath $unoTarget -Force
 
 @(
   "LIBREOFFICE_VERSION=$LibreOfficeVersion",
   "LIBREOFFICE_MSI_URL=$LibreOfficeMsiUrl",
   "LIBREOFFICE_MSI_SHA256=$msiHash",
-  "LIBREOFFICE_RUNTIME_VERSION_CHECK=deferred_until_after_cold_relocation",
-  "UNOSERVER_VERSION=$UnoServerVersion",
-  "UNOSERVER_WHEEL_FILENAME=$($wheel[0].filename)",
-  "UNOSERVER_WHEEL_URL=$($wheel[0].url)",
-  "UNOSERVER_WHEEL_SHA256=$wheelHash",
   'EXTRACTION_MODE=MSI administrative extraction; LibreOffice is not installed on the runner',
-  'TARGET_LAYOUT=tools/libreoffice + tools/unoserver'
-) | Set-Content -LiteralPath (Join-Path $portable 'LIBREOFFICE_UNO_PROVENANCE.txt') -Encoding utf8
+  'WINDOWS_UNOCONVERT_STRATEGY=package-local native CLI compatibility shim backed by bundled soffice',
+  'TARGET_LAYOUT=tools/libreoffice + tools/bin/unoconvert.exe'
+) | Set-Content -LiteralPath (Join-Path $portable 'LIBREOFFICE_WINDOWS_PROVENANCE.txt') -Encoding utf8
 
 $msiHash | Set-Content -LiteralPath (Join-Path $libreOfficeTarget 'MSI_SHA256.txt') -Encoding ascii
 $LibreOfficeVersion | Set-Content -LiteralPath (Join-Path $libreOfficeTarget 'VERSION.txt') -Encoding ascii
-$wheelHash | Set-Content -LiteralPath (Join-Path $unoTarget 'WHEEL_SHA256.txt') -Encoding ascii
-$UnoServerVersion | Set-Content -LiteralPath (Join-Path $unoTarget 'VERSION.txt') -Encoding ascii
 
 Remove-Item -LiteralPath $downloads -Recurse -Force
 Remove-Item -LiteralPath $adminExtract -Recurse -Force
 
-Write-Host 'PASS: LibreOffice and unoserver candidate payload prepared.'
+Write-Host 'PASS: LibreOffice Windows candidate payload prepared.'
 Write-Host "Candidate portable root: $portable"
