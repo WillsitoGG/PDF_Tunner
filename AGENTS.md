@@ -200,7 +200,6 @@ Focused branch/workflow:
 - branch `pdf-tunner/libreoffice-uno-candidate`;
 - `.github/workflows/pdf-tunner-libreoffice-uno-candidate.yml`;
 - `.github/scripts/prepare-libreoffice-uno-candidate.ps1`;
-- `.github/scripts/diagnose-libreoffice-relocation.ps1`;
 - `.github/scripts/validate-libreoffice-uno-candidate.ps1`.
 
 Candidate design:
@@ -211,7 +210,7 @@ Candidate design:
 4. resolve/download exact PyPI wheel and enforce SHA-256;
 5. extract unoserver under `tools/unoserver`;
 6. real DOCX -> PDF through package-local `soffice` with profile and TEMP/TMP in candidate `data/`;
-7. move the candidate to a path containing spaces and repeat the real conversion;
+7. relocate the cold candidate to a path containing spaces before its first functional LibreOffice start, then require repeated real conversions there;
 8. require LibreOffice's Windows `program/python.exe` to import `uno` plus pinned unoserver;
 9. start a real unoserver at `127.0.0.1:2003`, UNO port `2004`, package-local profile/temp;
 10. execute a real unoconvert DOCX -> PDF after relocation;
@@ -224,7 +223,9 @@ Focused green is not primary acceptance. After focused proof, integrate only the
 - Run `33252792182` (#1), job `99101259425`: failed in the PowerShell harness after successful official MSI download/hash validation/admin extraction because `$LASTEXITCODE` was read under `Set-StrictMode` after GUI-subsystem `soffice.exe`; no product conclusion.
 - Run `33253632305` (#2), job `99103473257`: candidate preparation succeeded and real DOCX -> PDF succeeded in the original location with package-local LibreOffice plus sandbox-local profile/TEMP/TMP. Relocated conversion failed only because the harness still used `soffice.exe` for a Windows headless CLI operation; it returned 0 but produced no PDF. LibreOffice's official Windows CLI guidance uses `soffice.com` for command-line/headless operations. The next revision must retain the path-with-spaces relocation gate and use package-local `soffice.com` for direct CLI conversions, with `.exe` only as fallback when `.com` is absent.
 - Run `33254174353` (#3), job `99104896585`: `soffice.com` was used as intended, original-location DOCX -> PDF passed again, but relocated conversion still returned success without a PDF. Next diagnostic/fix must preserve the relocation gate and explicitly detect/terminate only package-local LibreOffice residual processes (`soffice.bin`/related children) before moving the tree; record counts/process identities in candidate evidence and verify zero package-local LibreOffice processes remain before relocation.
-- Run `33254797382` (#4), job `99106520093`: candidate evidence proves `PRE_RELOCATION_RESIDUAL_COUNT=0` and `PRE_RELOCATION_REMAINING_COUNT=0`; the warm post-move conversion nevertheless still returned success without a PDF. Residual LibreOffice processes are therefore ruled out as the cause. The next focused run adds a pre-validation cold-copy diagnostic matrix on a path with spaces, independently varying executable placement versus package/external profile, TEMP/TMP and input/output paths, and records `program/python.exe`/PyUNO availability. The existing strict warm-relocation validator remains enabled afterward, so diagnostics cannot be mistaken for acceptance.
+- Run `33254797382` (#4), job `99106520093`: residual-process theory rejected. Evidence recorded `PRE_RELOCATION_RESIDUAL_COUNT=0` and `PRE_RELOCATION_REMAINING_COUNT=0`, yet the already-used-tree move still failed.
+- Run `33256042222` (#5), job `99109804816`, artifact `9715865060`, digest `sha256:f6711db687a6938b9c787fad7d1c95dd15a3b4ab1a28a217b45f2a459b611494`: decisive relocation matrix. A cold relocated copy passed `EXTERNAL_ALL`, `PACKAGE_PROFILE`, `PACKAGE_IO`, `PACKAGE_TEMP`, and `ALL_PACKAGE`; therefore path spaces, package-local profile, package-local TEMP/TMP, and package-local I/O are all viable. The official Windows package exposes `program/python.exe`; both source and relocated interpreters returned `PYUNO_OK` and imported pinned `unoserver 3.7`. The remaining failure is specifically the test sequence that converts once and then same-volume moves the already-initialized LibreOffice tree.
+- Next focused gate (#6): relocate before first functional start; validate two consecutive real DOCX -> PDF conversions in the relocated sandbox, zero package-local LibreOffice residual processes, PyUNO + unoserver import, and a real unoserver/unoconvert conversion on XML-RPC `127.0.0.1:2003` / UNO `127.0.0.1:2004`. Keep post-use tree relocation as an explicit open portability edge case for final v1 audit/mitigation; do not claim it is solved.
 
 ## Primary acceptance contract
 
@@ -272,6 +273,6 @@ Office -> PDF; supported PDF -> Office; OCR; HTML/URL -> PDF; Poppler; WeasyPrin
 
 Accepted/closed: native portable/Tauri containment; Fixed WebView2; qpdf; ImageMagick; Ghostscript; Tesseract; Python; OCRmyPDF. Post-OCR primary Run #78 is green.
 
-Active work: focused Windows LibreOffice 26.2.5 + unoserver 3.7 feasibility on `pdf-tunner/libreoffice-uno-candidate`. Run #4 ruled out residual package-local LibreOffice processes; Run #5 is designed to isolate relocation-path components and PyUNO availability before the strict warm-relocation gate.
+Active work: focused Windows LibreOffice 26.2.5 + unoserver 3.7 feasibility on `pdf-tunner/libreoffice-uno-candidate`.
 
 Next after candidate proof: integrate the proven LibreOffice/UNO mechanism into the primary portable package without regressing the accepted sandbox boundary, then move to Poppler.

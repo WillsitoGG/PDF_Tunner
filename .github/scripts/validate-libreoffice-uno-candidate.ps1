@@ -178,49 +178,57 @@ foreach ($required in @(
   }
 }
 
-$sofficeExe = Join-Path $root 'tools\libreoffice\program\soffice.exe'
-$sofficeCom = Join-Path $root 'tools\libreoffice\program\soffice.com'
-$versionBinary = if (Test-Path -LiteralPath $sofficeCom -PathType Leaf) { $sofficeCom } else { $sofficeExe }
-$versionResult = Invoke-CapturedProcess -FilePath $versionBinary -Arguments @('--version')
-if ($versionResult.ExitCode -ne 0 -or $versionResult.Output -notmatch [regex]::Escape($LibreOfficeVersion)) {
-  throw "LibreOffice version validation failed: $($versionResult.Output)"
-}
-
-$firstPdf = Invoke-DirectLibreOfficeConversion -Root $root -Label 'direct-original'
-Write-Host "PASS: direct DOCX -> PDF conversion: $firstPdf"
-
-$evidenceDir = Join-Path $root 'data\validation-evidence'
-New-Item -ItemType Directory -Force -Path $evidenceDir | Out-Null
-$evidencePath = Join-Path $evidenceDir 'UNO_FEASIBILITY.txt'
-$cleanup = Stop-LibreOfficeProcessesUnderRoot -Root $root
-@("PRE_RELOCATION_RESIDUAL_COUNT=$($cleanup.Before.Count)") +
-  @($cleanup.Before | ForEach-Object { "PRE_RELOCATION_PROCESS=$($_.ProcessId)|$($_.Name)|$($_.ExecutablePath)|$($_.CommandLine)" }) +
-  @("PRE_RELOCATION_REMAINING_COUNT=$($cleanup.Remaining.Count)") |
-  Set-Content -LiteralPath $evidencePath -Encoding utf8
-if ($cleanup.Before.Count -gt 0) {
-  Write-Host "Detected and stopped $($cleanup.Before.Count) package-local LibreOffice residual process(es) before relocation."
-}
-if ($cleanup.Remaining.Count -ne 0) {
-  throw "Package-local LibreOffice processes remained alive before relocation: $($cleanup.Remaining.ProcessId -join ', ')"
-}
-
+# The portable contract is validated from a cold package: relocate the complete tree
+# before the first functional LibreOffice start. Run #5 proved that an already-used
+# LibreOffice tree behaves differently when same-volume renamed, while a cold copy
+# works with executable, profile, TEMP/TMP and I/O all under a path containing spaces.
+$originalRoot = $root
 if ($RequireRelocation) {
-  $originalRoot = $root
   $parent = Split-Path -Parent $root
   $relocated = Join-Path $parent 'PDF Tunner LibreOffice UNO Candidate - Relocated With Spaces'
   Remove-Item -LiteralPath $relocated -Recurse -Force -ErrorAction SilentlyContinue
   Move-Item -LiteralPath $root -Destination $relocated
-  if (Test-Path -LiteralPath $originalRoot) { throw "Original candidate root still exists after relocation: $originalRoot" }
+  if (Test-Path -LiteralPath $originalRoot) { throw "Original candidate root still exists after cold relocation: $originalRoot" }
   $root = $relocated
-  $evidenceDir = Join-Path $root 'data\validation-evidence'
-  $evidencePath = Join-Path $evidenceDir 'UNO_FEASIBILITY.txt'
-  $secondPdf = Invoke-DirectLibreOfficeConversion -Root $root -Label 'direct-relocated'
-  Write-Host "PASS: relocated direct DOCX -> PDF conversion: $secondPdf"
-  $postRelocationCleanup = Stop-LibreOfficeProcessesUnderRoot -Root $root
-  Add-Content -LiteralPath $evidencePath -Encoding utf8 -Value "POST_RELOCATION_RESIDUAL_COUNT=$($postRelocationCleanup.Before.Count)"
-  if ($postRelocationCleanup.Remaining.Count -ne 0) {
-    throw "Package-local LibreOffice processes remained alive after relocated conversion: $($postRelocationCleanup.Remaining.ProcessId -join ', ')"
-  }
+}
+
+$evidenceDir = Join-Path $root 'data\\validation-evidence'
+New-Item -ItemType Directory -Force -Path $evidenceDir | Out-Null
+$evidencePath = Join-Path $evidenceDir 'UNO_FEASIBILITY.txt'
+@(
+  'COLD_RELOCATION_BEFORE_FUNCTIONAL_START=true',
+  ('ORIGINAL_ROOT=' + $originalRoot),
+  ('ACTIVE_ROOT=' + $root),
+  ('RELOCATION_REQUIRED=' + [bool]$RequireRelocation)
+) | Set-Content -LiteralPath $evidencePath -Encoding utf8
+
+$sofficeExe = Join-Path $root 'tools\\libreoffice\\program\\soffice.exe'
+$sofficeCom = Join-Path $root 'tools\\libreoffice\\program\\soffice.com'
+$versionBinary = if (Test-Path -LiteralPath $sofficeCom -PathType Leaf) { $sofficeCom } else { $sofficeExe }
+$versionResult = Invoke-CapturedProcess -FilePath $versionBinary -Arguments @('--version')
+if ($versionResult.ExitCode -ne 0 -or $versionResult.Output -notmatch [regex]::Escape($LibreOfficeVersion)) {
+  throw "LibreOffice version validation failed after cold relocation: $($versionResult.Output)"
+}
+Add-Content -LiteralPath $evidencePath -Encoding utf8 -Value ('LIBREOFFFICE_VERSION_OUTPUT=' + ($versionResult.Output -replace "`r|`n", ' '))
+
+$firstPdf = Invoke-DirectLibreOfficeConversion -Root $root -Label 'direct-first-use'
+Write-Host "PASS: first real DOCX -> PDF conversion after cold relocation: $firstPdf"
+Add-Content -LiteralPath $evidencePath -Encoding utf8 -Value 'DIRECT_FIRST_USE_OK=true'
+
+$cleanup1 = Stop-LibreOfficeProcessesUnderRoot -Root $root
+Add-Content -LiteralPath $evidencePath -Encoding utf8 -Value "DIRECT_FIRST_USE_RESIDUAL_COUNT=$($cleanup1.Before.Count)"
+if ($cleanup1.Remaining.Count -ne 0) {
+  throw "Package-local LibreOffice processes remained alive after first conversion: $($cleanup1.Remaining.ProcessId -join ', ')"
+}
+
+$secondPdf = Invoke-DirectLibreOfficeConversion -Root $root -Label 'direct-repeat-use'
+Write-Host "PASS: repeated DOCX -> PDF conversion from the relocated sandbox: $secondPdf"
+Add-Content -LiteralPath $evidencePath -Encoding utf8 -Value 'DIRECT_REPEAT_USE_OK=true'
+
+$cleanup2 = Stop-LibreOfficeProcessesUnderRoot -Root $root
+Add-Content -LiteralPath $evidencePath -Encoding utf8 -Value "DIRECT_REPEAT_USE_RESIDUAL_COUNT=$($cleanup2.Before.Count)"
+if ($cleanup2.Remaining.Count -ne 0) {
+  throw "Package-local LibreOffice processes remained alive after repeated conversion: $($cleanup2.Remaining.ProcessId -join ', ')"
 }
 
 $loPython = Join-Path $root 'tools\libreoffice\program\python.exe'
@@ -232,7 +240,7 @@ if (-not (Test-Path -LiteralPath $loPython -PathType Leaf)) {
     'UNO_IMPORT_OK=false',
     'UNOSERVER_OK=false',
     'DETAIL=LibreOffice Windows package does not expose program/python.exe at the expected path.'
-  ) | Set-Content -LiteralPath $evidencePath -Encoding utf8
+  ) | Add-Content -LiteralPath $evidencePath -Encoding utf8
   if ($RequireUnoServer) { throw 'LibreOffice package does not contain program\python.exe; UNO candidate cannot proceed.' }
   return
 }
@@ -249,7 +257,7 @@ if ($importResult.ExitCode -ne 0 -or $importResult.Output -notmatch 'PYUNO_OK') 
     'UNO_IMPORT_OK=false',
     'UNOSERVER_OK=false',
     ('DETAIL=' + ($importResult.Output -replace "`r|`n", ' '))
-  ) | Set-Content -LiteralPath $evidencePath -Encoding utf8
+  ) | Add-Content -LiteralPath $evidencePath -Encoding utf8
   if ($RequireUnoServer) { throw "LibreOffice Python could not import PyUNO/unoserver: $($importResult.Output)" }
   return
 }
@@ -299,10 +307,10 @@ try {
     'XMLRPC_ENDPOINT=127.0.0.1:2003',
     'UNO_ENDPOINT=127.0.0.1:2004',
     'DIRECT_CONVERSION_OK=true',
-    'RELOCATION_OK=true',
+    'COLD_RELOCATION_OK=true',
     'REAL_UNOCONVERT_OK=true',
     ('ROOT=' + $root)
-  ) | Set-Content -LiteralPath $evidencePath -Encoding utf8
+  ) | Add-Content -LiteralPath $evidencePath -Encoding utf8
   Write-Host 'PASS: LibreOffice Python imports PyUNO; real unoserver + unoconvert conversion succeeded.'
 } finally {
   if ($null -ne $server -and -not $server.HasExited) { Stop-ProcessTree -ProcessId $server.Id }
