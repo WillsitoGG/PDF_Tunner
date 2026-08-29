@@ -8,6 +8,7 @@ on:
     paths:
       - '.github/workflows/pdf-tunner-libreoffice-uno-candidate.yml'
       - '.github/scripts/prepare-libreoffice-uno-candidate.ps1'
+      - '.github/scripts/diagnose-libreoffice-cold-first-use.ps1'
       - '.github/scripts/validate-libreoffice-uno-candidate.ps1'
       - 'README.md'
       - 'AGENTS.md'
@@ -46,84 +47,42 @@ jobs:
             -UnoServerVersion $env:PDF_TUNNER_UNOSERVER_VERSION `
             -UnoServerWheelSha256 $env:PDF_TUNNER_UNOSERVER_WHEEL_SHA256
 
-      - name: Diagnose source dependency and advance real UNO conversion
+      - name: Diagnose independent cold first-use path matrix
         shell: pwsh
         run: |
-          $source = Join-Path $env:RUNNER_TEMP 'pdf-tunner-libreoffice-uno-candidate/PDF_Tunner'
-          $relocated = Join-Path $env:RUNNER_TEMP 'pdf-tunner-libreoffice-uno-candidate/PDF Tunner LibreOffice UNO Candidate - Relocated With Spaces'
-          $evidenceDir = Join-Path $PWD 'candidate-evidence'
-          $dependencyEvidence = Join-Path $evidenceDir 'SOURCE_DEPENDENCY.txt'
-          New-Item -ItemType Directory -Force -Path $evidenceDir | Out-Null
-          Remove-Item -LiteralPath $relocated -Recurse -Force -ErrorAction SilentlyContinue
-          Copy-Item -LiteralPath $source -Destination $relocated -Recurse -Force
-          if (-not (Test-Path -LiteralPath $source -PathType Container)) { throw "Source candidate unexpectedly missing before dependency test: $source" }
-          if (-not (Test-Path -LiteralPath $relocated -PathType Container)) { throw "Relocated candidate root was not materialized: $relocated" }
+          $portable = Join-Path $env:RUNNER_TEMP 'pdf-tunner-libreoffice-uno-candidate/PDF_Tunner'
+          $evidence = Join-Path $PWD 'candidate-evidence/COLD_FIRST_USE_MATRIX.txt'
+          $warmMarker = Join-Path $PWD 'candidate-evidence/WARM_UNO_ROOT.txt'
+          New-Item -ItemType Directory -Force -Path (Split-Path -Parent $evidence) | Out-Null
+          & './.github/scripts/diagnose-libreoffice-cold-first-use.ps1' `
+            -CandidateRoot $portable `
+            -LibreOfficeVersion $env:PDF_TUNNER_LIBREOFFICE_VERSION `
+            -EvidencePath $evidence `
+            -WarmRootMarkerPath $warmMarker
 
-          $lines = [System.Collections.Generic.List[string]]::new()
-          $lines.Add("SOURCE=$source")
-          $lines.Add("RELOCATED=$relocated")
-          foreach ($entry in @(@{Name='SOURCE'; Root=$source}, @{Name='RELOCATED'; Root=$relocated})) {
-            $reparse = @(Get-ChildItem -LiteralPath $entry.Root -Recurse -Force -ErrorAction SilentlyContinue | Where-Object {
-              ($_.Attributes -band [System.IO.FileAttributes]::ReparsePoint) -ne 0
-            })
-            $lines.Add("$($entry.Name)_REPARSE_COUNT=$($reparse.Count)")
-            foreach ($item in $reparse) {
-              $relative = [System.IO.Path]::GetRelativePath($entry.Root, $item.FullName)
-              $linkType = if ($item.PSObject.Properties.Name -contains 'LinkType') { [string]$item.LinkType } else { '' }
-              $target = if ($item.PSObject.Properties.Name -contains 'Target') { [string]($item.Target -join ';') } else { '' }
-              $lines.Add("$($entry.Name)_REPARSE=$relative|TYPE=$linkType|TARGET=$target")
-            }
-          }
-
-          foreach ($entry in @(@{Name='SOURCE'; Root=$source}, @{Name='RELOCATED'; Root=$relocated})) {
-            $program = Join-Path $entry.Root 'tools/libreoffice/program'
-            $configFiles = @(Get-ChildItem -LiteralPath $program -File -Force -ErrorAction SilentlyContinue | Where-Object {
-              $_.Extension -in @('.ini','.rc','.txt')
-            })
-            foreach ($config in $configFiles) {
-              $relative = [System.IO.Path]::GetRelativePath($entry.Root, $config.FullName)
-              $matches = @(Select-String -LiteralPath $config.FullName -SimpleMatch -Pattern $source -ErrorAction SilentlyContinue)
-              if ($matches.Count -gt 0) {
-                $lines.Add("$($entry.Name)_ABSOLUTE_SOURCE_REFERENCE=$relative|COUNT=$($matches.Count)")
-              }
-            }
-          }
-          $lines | Set-Content -LiteralPath $dependencyEvidence -Encoding utf8
-
-          # First prove the copied destination can run the complete LibreOffice + PyUNO +
-          # unoserver/unoconvert stack while the original tree still exists, matching
-          # the successful cold-copy boundary isolated by Run #5.
+      - name: Advance real UNO conversion after controlled external warm-up
+        shell: pwsh
+        run: |
+          $warmRoot = (Get-Content -LiteralPath (Join-Path $PWD 'candidate-evidence/WARM_UNO_ROOT.txt') -Raw).Trim()
+          if (-not (Test-Path -LiteralPath $warmRoot -PathType Container)) { throw "Warm UNO diagnostic root missing: $warmRoot" }
           & './.github/scripts/validate-libreoffice-uno-candidate.ps1' `
-            -CandidateRoot $relocated `
+            -CandidateRoot $warmRoot `
             -LibreOfficeVersion $env:PDF_TUNNER_LIBREOFFICE_VERSION `
             -LibreOfficeMsiSha256 $env:PDF_TUNNER_LIBREOFFICE_MSI_SHA256 `
             -UnoServerVersion $env:PDF_TUNNER_UNOSERVER_VERSION `
             -UnoServerWheelSha256 $env:PDF_TUNNER_UNOSERVER_WHEEL_SHA256 `
             -RequireUnoServer
+          $unoEvidence = Join-Path $warmRoot 'data/validation-evidence/UNO_FEASIBILITY.txt'
+          if (-not (Test-Path -LiteralPath $unoEvidence -PathType Leaf)) { throw "UNO evidence missing after warmed diagnostic: $unoEvidence" }
+          Copy-Item -LiteralPath $unoEvidence -Destination (Join-Path $PWD 'candidate-evidence/UNO_AFTER_EXTERNAL_WARMUP.txt') -Force
 
-          $firstEvidence = Join-Path $relocated 'data/validation-evidence/UNO_FEASIBILITY.txt'
-          if (-not (Test-Path -LiteralPath $firstEvidence -PathType Leaf)) { throw "UNO evidence missing after source-present validation: $firstEvidence" }
-          Copy-Item -LiteralPath $firstEvidence -Destination (Join-Path $evidenceDir 'UNO_WITH_SOURCE_PRESENT.txt') -Force
-          Add-Content -LiteralPath $dependencyEvidence -Encoding utf8 -Value 'SOURCE_PRESENT_FULL_STACK_OK=true'
-
-          # Then delete the original tree and repeat from fresh per-conversion workspaces.
-          # If this fails, the relocated copy is not autonomous and the evidence above
-          # preserves the successful source-present UNO result for diagnosis.
-          Remove-Item -LiteralPath $source -Recurse -Force
-          if (Test-Path -LiteralPath $source) { throw "Original candidate root still exists after dependency deletion test: $source" }
-          Add-Content -LiteralPath $dependencyEvidence -Encoding utf8 -Value 'SOURCE_DELETED=true'
-          Remove-Item -LiteralPath (Join-Path $relocated 'data/validation') -Recurse -Force -ErrorAction SilentlyContinue
-          Remove-Item -LiteralPath (Join-Path $relocated 'data/validation-evidence') -Recurse -Force -ErrorAction SilentlyContinue
-
-          & './.github/scripts/validate-libreoffice-uno-candidate.ps1' `
-            -CandidateRoot $relocated `
-            -LibreOfficeVersion $env:PDF_TUNNER_LIBREOFFICE_VERSION `
-            -LibreOfficeMsiSha256 $env:PDF_TUNNER_LIBREOFFICE_MSI_SHA256 `
-            -UnoServerVersion $env:PDF_TUNNER_UNOSERVER_VERSION `
-            -UnoServerWheelSha256 $env:PDF_TUNNER_UNOSERVER_WHEEL_SHA256 `
-            -RequireUnoServer
-
-          Add-Content -LiteralPath $dependencyEvidence -Encoding utf8 -Value 'SOURCE_DELETED_FULL_STACK_OK=true'
+      - name: Enforce cold package-local first-use acceptance
+        shell: pwsh
+        run: |
+          $matrix = Get-Content -LiteralPath (Join-Path $PWD 'candidate-evidence/COLD_FIRST_USE_MATRIX.txt') -Raw
+          if ($matrix -notmatch '(?m)^PROBE_VERSION_ALL_PACKAGE=PASS\|') {
+            throw 'Cold VERSION_ALL_PACKAGE first use is still failing. Warmed UNO success is diagnostic only and does not satisfy portable acceptance.'
+          }
 
       - name: Collect compact candidate evidence
         if: always()
@@ -131,24 +90,11 @@ jobs:
         run: |
           $evidence = Join-Path $PWD 'candidate-evidence'
           New-Item -ItemType Directory -Force -Path $evidence | Out-Null
-          $roots = @(
-            (Join-Path $env:RUNNER_TEMP 'pdf-tunner-libreoffice-uno-candidate/PDF_Tunner'),
-            (Join-Path $env:RUNNER_TEMP 'pdf-tunner-libreoffice-uno-candidate/PDF Tunner LibreOffice UNO Candidate - Relocated With Spaces'),
-            (Join-Path $env:RUNNER_TEMP 'PDF Tunner LibreOffice UNO Candidate - Relocated With Spaces')
-          )
-          $portable = $roots | Where-Object { Test-Path -LiteralPath $_ } | Select-Object -First 1
-          if ($portable) {
-            foreach ($relative in @('LIBREOFFICE_UNO_PROVENANCE.txt', 'data/validation-evidence/UNO_FEASIBILITY.txt')) {
-              $source = Join-Path $portable $relative
-              if (Test-Path -LiteralPath $source) {
-                Copy-Item -LiteralPath $source -Destination (Join-Path $evidence ([IO.Path]::GetFileName($source))) -Force
-              }
-            }
-            $sofficeCom = Join-Path $portable 'tools/libreoffice/program/soffice.com'
-            $sofficeExe = Join-Path $portable 'tools/libreoffice/program/soffice.exe'
-            $soffice = if (Test-Path -LiteralPath $sofficeCom) { $sofficeCom } else { $sofficeExe }
-            if (Test-Path -LiteralPath $soffice) {
-              (& $soffice --version 2>&1) | Set-Content -LiteralPath (Join-Path $evidence 'soffice-version.txt') -Encoding utf8
+          $portable = Join-Path $env:RUNNER_TEMP 'pdf-tunner-libreoffice-uno-candidate/PDF_Tunner'
+          if (Test-Path -LiteralPath $portable -PathType Container) {
+            $prov = Join-Path $portable 'LIBREOFFICE_UNO_PROVENANCE.txt'
+            if (Test-Path -LiteralPath $prov -PathType Leaf) {
+              Copy-Item -LiteralPath $prov -Destination (Join-Path $evidence 'LIBREOFFICE_UNO_PROVENANCE.txt') -Force
             }
           }
 
