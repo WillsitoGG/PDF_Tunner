@@ -218,10 +218,14 @@ Candidate design:
 
 Focused green is not primary acceptance. After focused proof, integrate only the proven mechanism into `pdf-tunner/windows-portable-v1`, including runtime launch/cleanup semantics as needed, and rerun the complete primary workflow.
 
+
+
 ### LibreOffice candidate diagnostic history
 
 - Run `33252792182` (#1), job `99101259425`: failed in the PowerShell harness after successful official MSI download/hash validation/admin extraction because `$LASTEXITCODE` was read under `Set-StrictMode` after GUI-subsystem `soffice.exe`; no product conclusion.
 - Run `33253632305` (#2), job `99103473257`: candidate preparation succeeded and real DOCX -> PDF succeeded in the original location with package-local LibreOffice plus sandbox-local profile/TEMP/TMP. Relocated conversion failed only because the harness still used `soffice.exe` for a Windows headless CLI operation; it returned 0 but produced no PDF. LibreOffice's official Windows CLI guidance uses `soffice.com` for command-line/headless operations. The next revision must retain the path-with-spaces relocation gate and use package-local `soffice.com` for direct CLI conversions, with `.exe` only as fallback when `.com` is absent.
+- Run `33254174353` (#3), job `99104896585`: `soffice.com` was used as intended, original-location DOCX -> PDF passed again, but relocated conversion still returned success without a PDF. Next diagnostic/fix must preserve the relocation gate and explicitly detect/terminate only package-local LibreOffice residual processes (`soffice.bin`/related children) before moving the tree; record counts/process identities in candidate evidence and verify zero package-local LibreOffice processes remain before relocation.
+
 
 ## Primary acceptance contract
 

@@ -124,6 +124,31 @@ function Stop-ProcessTree {
   Stop-Process -Id $ProcessId -Force -ErrorAction SilentlyContinue
 }
 
+function Get-LibreOfficeProcessesUnderRoot {
+  param([Parameter(Mandatory = $true)][string]$Root)
+  $programRoot = [System.IO.Path]::GetFullPath((Join-Path $Root 'tools\libreoffice\program')).TrimEnd('\') + '\'
+  return @(Get-CimInstance Win32_Process -ErrorAction SilentlyContinue | Where-Object {
+    if ($_.Name -notmatch '(?i)^soffice(?:\.bin|\.exe|\.com)?$') { return $false }
+    $exe = [string]$_.ExecutablePath
+    $cmd = [string]$_.CommandLine
+    return (($exe -and $exe.StartsWith($programRoot, [System.StringComparison]::OrdinalIgnoreCase)) -or
+            ($cmd -and $cmd.IndexOf($programRoot, [System.StringComparison]::OrdinalIgnoreCase) -ge 0))
+  })
+}
+
+function Stop-LibreOfficeProcessesUnderRoot {
+  param([Parameter(Mandatory = $true)][string]$Root, [int]$TimeoutSeconds = 15)
+  $before = @(Get-LibreOfficeProcessesUnderRoot -Root $Root)
+  foreach ($process in $before) { Stop-ProcessTree -ProcessId $process.ProcessId }
+  $deadline = [DateTime]::UtcNow.AddSeconds($TimeoutSeconds)
+  do {
+    $remaining = @(Get-LibreOfficeProcessesUnderRoot -Root $Root)
+    if ($remaining.Count -eq 0) { break }
+    Start-Sleep -Milliseconds 250
+  } while ([DateTime]::UtcNow -lt $deadline)
+  return [pscustomobject]@{ Before = $before; Remaining = $remaining }
+}
+
 function Wait-TcpPort {
   param([string]$HostName, [int]$Port, [int]$TimeoutSeconds = 30)
   $deadline = [DateTime]::UtcNow.AddSeconds($TimeoutSeconds)
@@ -164,21 +189,42 @@ if ($versionResult.ExitCode -ne 0 -or $versionResult.Output -notmatch [regex]::E
 $firstPdf = Invoke-DirectLibreOfficeConversion -Root $root -Label 'direct-original'
 Write-Host "PASS: direct DOCX -> PDF conversion: $firstPdf"
 
+$evidenceDir = Join-Path $root 'data\validation-evidence'
+New-Item -ItemType Directory -Force -Path $evidenceDir | Out-Null
+$evidencePath = Join-Path $evidenceDir 'UNO_FEASIBILITY.txt'
+$cleanup = Stop-LibreOfficeProcessesUnderRoot -Root $root
+@("PRE_RELOCATION_RESIDUAL_COUNT=$($cleanup.Before.Count)") +
+  @($cleanup.Before | ForEach-Object { "PRE_RELOCATION_PROCESS=$($_.ProcessId)|$($_.Name)|$($_.ExecutablePath)|$($_.CommandLine)" }) +
+  @("PRE_RELOCATION_REMAINING_COUNT=$($cleanup.Remaining.Count)") |
+  Set-Content -LiteralPath $evidencePath -Encoding utf8
+if ($cleanup.Before.Count -gt 0) {
+  Write-Host "Detected and stopped $($cleanup.Before.Count) package-local LibreOffice residual process(es) before relocation."
+}
+if ($cleanup.Remaining.Count -ne 0) {
+  throw "Package-local LibreOffice processes remained alive before relocation: $($cleanup.Remaining.ProcessId -join ', ')"
+}
+
 if ($RequireRelocation) {
+  $originalRoot = $root
   $parent = Split-Path -Parent $root
   $relocated = Join-Path $parent 'PDF Tunner LibreOffice UNO Candidate - Relocated With Spaces'
   Remove-Item -LiteralPath $relocated -Recurse -Force -ErrorAction SilentlyContinue
   Move-Item -LiteralPath $root -Destination $relocated
+  if (Test-Path -LiteralPath $originalRoot) { throw "Original candidate root still exists after relocation: $originalRoot" }
   $root = $relocated
+  $evidenceDir = Join-Path $root 'data\validation-evidence'
+  $evidencePath = Join-Path $evidenceDir 'UNO_FEASIBILITY.txt'
   $secondPdf = Invoke-DirectLibreOfficeConversion -Root $root -Label 'direct-relocated'
   Write-Host "PASS: relocated direct DOCX -> PDF conversion: $secondPdf"
+  $postRelocationCleanup = Stop-LibreOfficeProcessesUnderRoot -Root $root
+  Add-Content -LiteralPath $evidencePath -Encoding utf8 -Value "POST_RELOCATION_RESIDUAL_COUNT=$($postRelocationCleanup.Before.Count)"
+  if ($postRelocationCleanup.Remaining.Count -ne 0) {
+    throw "Package-local LibreOffice processes remained alive after relocated conversion: $($postRelocationCleanup.Remaining.ProcessId -join ', ')"
+  }
 }
 
 $loPython = Join-Path $root 'tools\libreoffice\program\python.exe'
 $unoRoot = Join-Path $root 'tools\unoserver'
-$evidenceDir = Join-Path $root 'data\validation-evidence'
-New-Item -ItemType Directory -Force -Path $evidenceDir | Out-Null
-$evidencePath = Join-Path $evidenceDir 'UNO_FEASIBILITY.txt'
 
 if (-not (Test-Path -LiteralPath $loPython -PathType Leaf)) {
   @(
