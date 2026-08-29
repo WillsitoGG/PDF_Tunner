@@ -8,6 +8,7 @@ on:
     paths:
       - '.github/workflows/pdf-tunner-libreoffice-uno-candidate.yml'
       - '.github/scripts/prepare-libreoffice-uno-candidate.ps1'
+      - '.github/scripts/diagnose-libreoffice-relocation.ps1'
       - '.github/scripts/validate-libreoffice-uno-candidate.ps1'
       - 'README.md'
       - 'AGENTS.md'
@@ -46,6 +47,16 @@ jobs:
             -UnoServerVersion $env:PDF_TUNNER_UNOSERVER_VERSION `
             -UnoServerWheelSha256 $env:PDF_TUNNER_UNOSERVER_WHEEL_SHA256
 
+      - name: Diagnose cold-copy relocation path matrix and PyUNO availability
+        shell: pwsh
+        run: |
+          $portable = Join-Path $env:RUNNER_TEMP 'pdf-tunner-libreoffice-uno-candidate/PDF_Tunner'
+          $evidence = Join-Path $PWD 'candidate-evidence/RELOCATION_MATRIX.txt'
+          & './.github/scripts/diagnose-libreoffice-relocation.ps1' `
+            -CandidateRoot $portable `
+            -UnoServerVersion $env:PDF_TUNNER_UNOSERVER_VERSION `
+            -EvidencePath $evidence
+
       - name: Validate real LibreOffice and UNO conversions after relocation
         shell: pwsh
         run: |
@@ -78,7 +89,9 @@ jobs:
                 Copy-Item -LiteralPath $source -Destination (Join-Path $evidence ([IO.Path]::GetFileName($source))) -Force
               }
             }
-            $soffice = Join-Path $portable 'tools/libreoffice/program/soffice.exe'
+            $sofficeCom = Join-Path $portable 'tools/libreoffice/program/soffice.com'
+            $sofficeExe = Join-Path $portable 'tools/libreoffice/program/soffice.exe'
+            $soffice = if (Test-Path -LiteralPath $sofficeCom) { $sofficeCom } else { $sofficeExe }
             if (Test-Path -LiteralPath $soffice) {
               (& $soffice --version 2>&1) | Set-Content -LiteralPath (Join-Path $evidence 'soffice-version.txt') -Encoding utf8
             }
