@@ -19,6 +19,33 @@ function Assert-Hash {
   return $actual
 }
 
+function Invoke-CapturedProcess {
+  param(
+    [Parameter(Mandatory = $true)][string]$FilePath,
+    [string[]]$Arguments = @()
+  )
+  $psi = [System.Diagnostics.ProcessStartInfo]::new()
+  $psi.FileName = $FilePath
+  $psi.UseShellExecute = $false
+  $psi.RedirectStandardOutput = $true
+  $psi.RedirectStandardError = $true
+  $psi.CreateNoWindow = $true
+  foreach ($arg in $Arguments) { [void]$psi.ArgumentList.Add($arg) }
+
+  $process = [System.Diagnostics.Process]::new()
+  $process.StartInfo = $psi
+  if (-not $process.Start()) { throw "Failed to start $FilePath" }
+  $stdoutTask = $process.StandardOutput.ReadToEndAsync()
+  $stderrTask = $process.StandardError.ReadToEndAsync()
+  $process.WaitForExit()
+  $stdout = $stdoutTask.GetAwaiter().GetResult()
+  $stderr = $stderrTask.GetAwaiter().GetResult()
+  return [pscustomobject]@{
+    ExitCode = $process.ExitCode
+    Output = (($stdout + [Environment]::NewLine + $stderr).Trim())
+  }
+}
+
 $root = [System.IO.Path]::GetFullPath($CandidateRoot)
 $downloads = Join-Path $root '_downloads'
 $adminExtract = Join-Path $root '_admin_extract'
@@ -37,22 +64,14 @@ Invoke-WebRequest -Uri $LibreOfficeMsiUrl -OutFile $msiPath -UseBasicParsing
 $msiHash = Assert-Hash -Path $msiPath -Expected $LibreOfficeMsiSha256
 
 Write-Host 'Performing MSI administrative extraction (no product installation)...'
-$msiArgs = @(
-  '/a',
-  ('"' + $msiPath + '"'),
-  '/qn',
-  ('TARGETDIR="' + $adminExtract + '"')
-)
+$msiArgs = @('/a', ('"' + $msiPath + '"'), '/qn', ('TARGETDIR="' + $adminExtract + '"'))
 $msi = Start-Process -FilePath 'msiexec.exe' -ArgumentList $msiArgs -Wait -PassThru
 if ($msi.ExitCode -notin @(0, 3010)) {
   throw "LibreOffice administrative extraction failed with msiexec exit code $($msi.ExitCode)."
 }
 
-$soffice = Get-ChildItem -LiteralPath $adminExtract -Filter 'soffice.exe' -File -Recurse |
-  Select-Object -First 1
-if ($null -eq $soffice) {
-  throw 'Administrative extraction completed but soffice.exe was not found.'
-}
+$soffice = Get-ChildItem -LiteralPath $adminExtract -Filter 'soffice.exe' -File -Recurse | Select-Object -First 1
+if ($null -eq $soffice) { throw 'Administrative extraction completed but soffice.exe was not found.' }
 if ($soffice.Directory.Name -ne 'program') {
   throw "Unexpected LibreOffice layout: soffice.exe parent is '$($soffice.Directory.FullName)'."
 }
@@ -61,20 +80,19 @@ Write-Host "Extracted LibreOffice root: $installRoot"
 New-Item -ItemType Directory -Force -Path $libreOfficeTarget | Out-Null
 Copy-Item -Path (Join-Path $installRoot '*') -Destination $libreOfficeTarget -Recurse -Force
 
-$packagedSoffice = Join-Path $libreOfficeTarget 'program\soffice.exe'
-if (-not (Test-Path -LiteralPath $packagedSoffice -PathType Leaf)) {
-  throw "Packaged LibreOffice is missing program\soffice.exe: $packagedSoffice"
+$packagedSofficeExe = Join-Path $libreOfficeTarget 'program\soffice.exe'
+$packagedSofficeCom = Join-Path $libreOfficeTarget 'program\soffice.com'
+if (-not (Test-Path -LiteralPath $packagedSofficeExe -PathType Leaf)) {
+  throw "Packaged LibreOffice is missing program\soffice.exe: $packagedSofficeExe"
 }
 
 Write-Host "Resolving unoserver $UnoServerVersion wheel metadata from PyPI..."
 $metadataUri = "https://pypi.org/pypi/unoserver/$UnoServerVersion/json"
 $metadata = Invoke-RestMethod -Uri $metadataUri
 $wheel = @($metadata.urls | Where-Object { $_.filename -eq "unoserver-$UnoServerVersion-py3-none-any.whl" })
-if ($wheel.Count -ne 1) {
-  throw "Expected exactly one unoserver wheel, found $($wheel.Count)."
-}
+if ($wheel.Count -ne 1) { throw "Expected exactly one unoserver wheel, found $($wheel.Count)." }
 if ($wheel[0].digests.sha256.ToLowerInvariant() -ne $UnoServerWheelSha256.ToLowerInvariant()) {
-  throw "PyPI metadata hash does not match pinned unoserver wheel SHA-256."
+  throw 'PyPI metadata hash does not match pinned unoserver wheel SHA-256.'
 }
 $wheelPath = Join-Path $downloads $wheel[0].filename
 Invoke-WebRequest -Uri $wheel[0].url -OutFile $wheelPath -UseBasicParsing
@@ -85,11 +103,12 @@ $wheelZip = Join-Path $downloads 'unoserver-wheel.zip'
 Copy-Item -LiteralPath $wheelPath -Destination $wheelZip -Force
 Expand-Archive -LiteralPath $wheelZip -DestinationPath $unoTarget -Force
 
-$loVersionOutput = & $packagedSoffice '--version' 2>&1
-if ($LASTEXITCODE -ne 0) {
-  throw "Packaged soffice --version failed: $($loVersionOutput -join [Environment]::NewLine)"
+$versionBinary = if (Test-Path -LiteralPath $packagedSofficeCom -PathType Leaf) { $packagedSofficeCom } else { $packagedSofficeExe }
+$versionResult = Invoke-CapturedProcess -FilePath $versionBinary -Arguments @('--version')
+if ($versionResult.ExitCode -ne 0) {
+  throw "Packaged soffice --version failed: $($versionResult.Output)"
 }
-$loVersionText = ($loVersionOutput -join "`n").Trim()
+$loVersionText = $versionResult.Output.Trim()
 if ($loVersionText -notmatch [regex]::Escape($LibreOfficeVersion)) {
   throw "Packaged soffice version output does not contain pinned version $LibreOfficeVersion. Output: $loVersionText"
 }
@@ -103,8 +122,8 @@ if ($loVersionText -notmatch [regex]::Escape($LibreOfficeVersion)) {
   "UNOSERVER_WHEEL_FILENAME=$($wheel[0].filename)",
   "UNOSERVER_WHEEL_URL=$($wheel[0].url)",
   "UNOSERVER_WHEEL_SHA256=$wheelHash",
-  "EXTRACTION_MODE=MSI administrative extraction; LibreOffice is not installed on the runner",
-  "TARGET_LAYOUT=tools/libreoffice + tools/unoserver"
+  'EXTRACTION_MODE=MSI administrative extraction; LibreOffice is not installed on the runner',
+  'TARGET_LAYOUT=tools/libreoffice + tools/unoserver'
 ) | Set-Content -LiteralPath (Join-Path $portable 'LIBREOFFICE_UNO_PROVENANCE.txt') -Encoding utf8
 
 $msiHash | Set-Content -LiteralPath (Join-Path $libreOfficeTarget 'MSI_SHA256.txt') -Encoding ascii
@@ -112,7 +131,6 @@ $LibreOfficeVersion | Set-Content -LiteralPath (Join-Path $libreOfficeTarget 'VE
 $wheelHash | Set-Content -LiteralPath (Join-Path $unoTarget 'WHEEL_SHA256.txt') -Encoding ascii
 $UnoServerVersion | Set-Content -LiteralPath (Join-Path $unoTarget 'VERSION.txt') -Encoding ascii
 
-# Download archives are build inputs only and must not become part of the portable candidate.
 Remove-Item -LiteralPath $downloads -Recurse -Force
 Remove-Item -LiteralPath $adminExtract -Recurse -Force
 

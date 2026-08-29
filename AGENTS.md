@@ -216,7 +216,7 @@ Candidate design:
 10. execute a real unoconvert DOCX -> PDF after relocation;
 11. emit compact provenance/feasibility evidence.
 
-Focused green is not primary acceptance. After focused proof, integrate only the proven LibreOffice/UNO mechanism into `pdf-tunner/windows-portable-v1`, including runtime launch/cleanup semantics as needed, and rerun the complete primary workflow.
+Focused green is not primary acceptance. After focused proof, integrate only the proven mechanism into `pdf-tunner/windows-portable-v1`, including runtime launch/cleanup semantics as needed, and rerun the complete primary workflow.
 
 ## Primary acceptance contract
 
@@ -267,3 +267,9 @@ Accepted/closed: native portable/Tauri containment; Fixed WebView2; qpdf; ImageM
 Active work: focused Windows LibreOffice 26.2.5 + unoserver 3.7 feasibility on `pdf-tunner/libreoffice-uno-candidate`.
 
 Next after candidate proof: integrate the proven LibreOffice/UNO mechanism into the primary portable package without regressing the accepted sandbox boundary, then move to Poppler.
+
+## LibreOffice/UNO candidate diagnostic history
+
+Focused Run `33252792182` (#1), job `99101259425`, commit `372e0e0864c93ccbda15fcae9fd7db36a2823647`, failed before functional validation. Confirmed before failure: official LibreOffice 26.2.5 MSI download, pinned SHA enforcement and MSI administrative extraction all succeeded. Root cause was test-harness-only: under `Set-StrictMode`, `$LASTEXITCODE` was read after `soffice.exe`; LibreOffice's Windows GUI-subsystem launcher does not reliably initialize that PowerShell variable. This run is diagnostic evidence only and does not reject LibreOffice or UNO.
+
+Correction rule for this candidate: use explicit `System.Diagnostics.Process` execution/captured ExitCode for `soffice.exe` and other cases where PowerShell GUI-native launch semantics make `$LASTEXITCODE` unreliable. Preserve the exact pins and all real-operation/relocation/sandbox gates.

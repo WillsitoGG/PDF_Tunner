@@ -11,33 +11,59 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
+function Invoke-CapturedProcess {
+  param(
+    [Parameter(Mandatory = $true)][string]$FilePath,
+    [string[]]$Arguments = @(),
+    [hashtable]$EnvironmentOverrides = @{}
+  )
+  $psi = [System.Diagnostics.ProcessStartInfo]::new()
+  $psi.FileName = $FilePath
+  $psi.UseShellExecute = $false
+  $psi.RedirectStandardOutput = $true
+  $psi.RedirectStandardError = $true
+  $psi.CreateNoWindow = $true
+  foreach ($arg in $Arguments) { [void]$psi.ArgumentList.Add($arg) }
+  foreach ($key in $EnvironmentOverrides.Keys) { $psi.Environment[$key] = [string]$EnvironmentOverrides[$key] }
+
+  $process = [System.Diagnostics.Process]::new()
+  $process.StartInfo = $psi
+  if (-not $process.Start()) { throw "Failed to start $FilePath" }
+  $stdoutTask = $process.StandardOutput.ReadToEndAsync()
+  $stderrTask = $process.StandardError.ReadToEndAsync()
+  $process.WaitForExit()
+  $stdout = $stdoutTask.GetAwaiter().GetResult()
+  $stderr = $stderrTask.GetAwaiter().GetResult()
+  return [pscustomobject]@{
+    ExitCode = $process.ExitCode
+    Output = (($stdout + [Environment]::NewLine + $stderr).Trim())
+  }
+}
+
 function New-MinimalDocx {
-  param([Parameter(Mandatory = $true)][string]$Path, [string]$Text = 'PDF_Tunner LibreOffice portable conversion')
+  param([Parameter(Mandatory = $true)][string]$Path, [string]$Text)
   Add-Type -AssemblyName System.IO.Compression.FileSystem
   $work = Join-Path ([System.IO.Path]::GetTempPath()) ("pdf-tunner-docx-" + [guid]::NewGuid().ToString('N'))
   New-Item -ItemType Directory -Force -Path (Join-Path $work '_rels'), (Join-Path $work 'word') | Out-Null
-  $contentTypes = @'
+  @'
 <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
   <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
   <Default Extension="xml" ContentType="application/xml"/>
   <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
 </Types>
-'@
-  $contentTypes.Trim() | Set-Content -LiteralPath (Join-Path $work '[Content_Types].xml') -Encoding utf8
-  $relationships = @'
+'@.Trim() | Set-Content -LiteralPath (Join-Path $work '[Content_Types].xml') -Encoding utf8
+  @'
 <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
   <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>
 </Relationships>
-'@
-  $relationships.Trim() | Set-Content -LiteralPath (Join-Path $work '_rels\.rels') -Encoding utf8
+'@.Trim() | Set-Content -LiteralPath (Join-Path $work '_rels\.rels') -Encoding utf8
   $escaped = [System.Security.SecurityElement]::Escape($Text)
-  $documentXml = @"
+  @"
 <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body><w:p><w:r><w:t>$escaped</w:t></w:r></w:p><w:sectPr/></w:body></w:document>
-"@
-  $documentXml.Trim() | Set-Content -LiteralPath (Join-Path $work 'word\document.xml') -Encoding utf8
+"@.Trim() | Set-Content -LiteralPath (Join-Path $work 'word\document.xml') -Encoding utf8
   Remove-Item -LiteralPath $Path -Force -ErrorAction SilentlyContinue
   [System.IO.Compression.ZipFile]::CreateFromDirectory($work, $Path)
   Remove-Item -LiteralPath $work -Recurse -Force
@@ -45,8 +71,7 @@ function New-MinimalDocx {
 
 function Get-FileUri {
   param([Parameter(Mandatory = $true)][string]$Path)
-  $full = [System.IO.Path]::GetFullPath($Path)
-  return ([System.Uri]$full).AbsoluteUri
+  return ([System.Uri][System.IO.Path]::GetFullPath($Path)).AbsoluteUri
 }
 
 function Assert-Pdf {
@@ -58,8 +83,18 @@ function Assert-Pdf {
   if ($header -ne '%PDF-') { throw "Output is not a PDF: $Path" }
 }
 
+function Wait-File {
+  param([string]$Path, [int]$TimeoutSeconds = 30)
+  $deadline = [DateTime]::UtcNow.AddSeconds($TimeoutSeconds)
+  while ([DateTime]::UtcNow -lt $deadline) {
+    if (Test-Path -LiteralPath $Path -PathType Leaf) { return $true }
+    Start-Sleep -Milliseconds 250
+  }
+  return $false
+}
+
 function Invoke-DirectLibreOfficeConversion {
-  param([Parameter(Mandatory = $true)][string]$Root, [Parameter(Mandatory = $true)][string]$Label)
+  param([string]$Root, [string]$Label)
   $soffice = Join-Path $Root 'tools\libreoffice\program\soffice.exe'
   if (-not (Test-Path -LiteralPath $soffice -PathType Leaf)) { throw "Missing soffice.exe: $soffice" }
   $work = Join-Path $Root ("data\validation\" + $Label)
@@ -69,22 +104,13 @@ function Invoke-DirectLibreOfficeConversion {
   New-Item -ItemType Directory -Force -Path $profile, $temp, $out | Out-Null
   $docx = Join-Path $work 'input.docx'
   New-MinimalDocx -Path $docx -Text "PDF_Tunner direct LibreOffice test: $Label"
-
-  $oldTemp = $env:TEMP
-  $oldTmp = $env:TMP
-  try {
-    $env:TEMP = $temp
-    $env:TMP = $temp
-    $profileUri = Get-FileUri -Path $profile
-    $output = & $soffice ("-env:UserInstallation=" + $profileUri) '--headless' '--nologo' '--convert-to' 'pdf' '--outdir' $out $docx 2>&1
-    if ($LASTEXITCODE -ne 0) {
-      throw "soffice conversion failed ($Label): $($output -join [Environment]::NewLine)"
-    }
-  } finally {
-    $env:TEMP = $oldTemp
-    $env:TMP = $oldTmp
-  }
+  $profileUri = Get-FileUri -Path $profile
+  $result = Invoke-CapturedProcess -FilePath $soffice -Arguments @(
+    ("-env:UserInstallation=" + $profileUri), '--headless', '--nologo', '--convert-to', 'pdf', '--outdir', $out, $docx
+  ) -EnvironmentOverrides @{ TEMP = $temp; TMP = $temp }
+  if ($result.ExitCode -ne 0) { throw "soffice conversion failed ($Label): $($result.Output)" }
   $pdf = Join-Path $out 'input.pdf'
+  if (-not (Wait-File -Path $pdf -TimeoutSeconds 30)) { throw "soffice returned success but PDF did not appear ($Label): $($result.Output)" }
   Assert-Pdf -Path $pdf
   return $pdf
 }
@@ -125,10 +151,12 @@ foreach ($required in @(
   }
 }
 
-$soffice = Join-Path $root 'tools\libreoffice\program\soffice.exe'
-$versionOutput = & $soffice '--version' 2>&1
-if ($LASTEXITCODE -ne 0 -or (($versionOutput -join "`n") -notmatch [regex]::Escape($LibreOfficeVersion))) {
-  throw "LibreOffice version validation failed: $($versionOutput -join [Environment]::NewLine)"
+$sofficeExe = Join-Path $root 'tools\libreoffice\program\soffice.exe'
+$sofficeCom = Join-Path $root 'tools\libreoffice\program\soffice.com'
+$versionBinary = if (Test-Path -LiteralPath $sofficeCom -PathType Leaf) { $sofficeCom } else { $sofficeExe }
+$versionResult = Invoke-CapturedProcess -FilePath $versionBinary -Arguments @('--version')
+if ($versionResult.ExitCode -ne 0 -or $versionResult.Output -notmatch [regex]::Escape($LibreOfficeVersion)) {
+  throw "LibreOffice version validation failed: $($versionResult.Output)"
 }
 
 $firstPdf = Invoke-DirectLibreOfficeConversion -Root $root -Label 'direct-original'
@@ -161,49 +189,46 @@ if (-not (Test-Path -LiteralPath $loPython -PathType Leaf)) {
   return
 }
 
-$oldPythonPath = $env:PYTHONPATH
-$oldTemp = $env:TEMP
-$oldTmp = $env:TMP
+$unoTemp = Join-Path $root 'data\tmp\libreoffice-uno'
+$unoProfile = Join-Path $root 'data\libreoffice\uno-profile-2003'
+New-Item -ItemType Directory -Force -Path $unoTemp, $unoProfile | Out-Null
+$pythonEnv = @{ PYTHONPATH = $unoRoot; TEMP = $unoTemp; TMP = $unoTemp }
+
+$importResult = Invoke-CapturedProcess -FilePath $loPython -Arguments @('-c', "import uno, importlib.metadata as m; print('PYUNO_OK'); print(m.version('unoserver'))") -EnvironmentOverrides $pythonEnv
+if ($importResult.ExitCode -ne 0 -or $importResult.Output -notmatch 'PYUNO_OK') {
+  @(
+    'UNO_PYTHON_PRESENT=true',
+    'UNO_IMPORT_OK=false',
+    'UNOSERVER_OK=false',
+    ('DETAIL=' + ($importResult.Output -replace "`r|`n", ' '))
+  ) | Set-Content -LiteralPath $evidencePath -Encoding utf8
+  if ($RequireUnoServer) { throw "LibreOffice Python could not import PyUNO/unoserver: $($importResult.Output)" }
+  return
+}
+if ($importResult.Output -notmatch [regex]::Escape($UnoServerVersion)) {
+  throw "LibreOffice Python imported unoserver, but version $UnoServerVersion was not reported."
+}
+
 $server = $null
 try {
-  $env:PYTHONPATH = $unoRoot
-  $unoTemp = Join-Path $root 'data\tmp\libreoffice-uno'
-  $unoProfile = Join-Path $root 'data\libreoffice\uno-profile-2003'
-  New-Item -ItemType Directory -Force -Path $unoTemp, $unoProfile | Out-Null
-  $env:TEMP = $unoTemp
-  $env:TMP = $unoTemp
-
-  $importOutput = & $loPython '-c' "import uno, importlib.metadata as m; print('PYUNO_OK'); print(m.version('unoserver'))" 2>&1
-  $importExit = $LASTEXITCODE
-  if ($importExit -ne 0 -or (($importOutput -join "`n") -notmatch 'PYUNO_OK')) {
-    @(
-      'UNO_PYTHON_PRESENT=true',
-      'UNO_IMPORT_OK=false',
-      'UNOSERVER_OK=false',
-      ('DETAIL=' + (($importOutput -join ' ') -replace "`r|`n", ' '))
-    ) | Set-Content -LiteralPath $evidencePath -Encoding utf8
-    if ($RequireUnoServer) { throw "LibreOffice Python could not import PyUNO/unoserver: $($importOutput -join [Environment]::NewLine)" }
-    return
-  }
-  if (($importOutput -join "`n") -notmatch [regex]::Escape($UnoServerVersion)) {
-    throw "LibreOffice Python imported unoserver, but version $UnoServerVersion was not reported."
-  }
-
-  $realSoffice = Join-Path $root 'tools\libreoffice\program\soffice.exe'
-  $serverArgs = @(
-    '-m', 'unoserver.server',
-    '--interface', '127.0.0.1',
-    '--port', '2003',
-    '--uno-interface', '127.0.0.1',
-    '--uno-port', '2004',
-    '--executable', ('"' + $realSoffice + '"'),
-    '--user-installation', ('"' + $unoProfile + '"'),
-    '--temp-dir', ('"' + $unoTemp + '"'),
-    '--conversion-timeout', '120'
-  )
-  $server = Start-Process -FilePath $loPython -ArgumentList $serverArgs -PassThru -WindowStyle Hidden
+  $psi = [System.Diagnostics.ProcessStartInfo]::new()
+  $psi.FileName = $loPython
+  $psi.UseShellExecute = $false
+  $psi.CreateNoWindow = $true
+  $psi.RedirectStandardOutput = $true
+  $psi.RedirectStandardError = $true
+  foreach ($arg in @(
+    '-m', 'unoserver.server', '--interface', '127.0.0.1', '--port', '2003', '--uno-interface', '127.0.0.1', '--uno-port', '2004',
+    '--executable', (Join-Path $root 'tools\libreoffice\program\soffice.exe'), '--user-installation', $unoProfile,
+    '--temp-dir', $unoTemp, '--conversion-timeout', '120'
+  )) { [void]$psi.ArgumentList.Add($arg) }
+  foreach ($key in $pythonEnv.Keys) { $psi.Environment[$key] = [string]$pythonEnv[$key] }
+  $server = [System.Diagnostics.Process]::new()
+  $server.StartInfo = $psi
+  if (-not $server.Start()) { throw 'Failed to start unoserver.' }
   if (-not (Wait-TcpPort -HostName '127.0.0.1' -Port 2003 -TimeoutSeconds 30)) {
-    throw 'unoserver did not bind 127.0.0.1:2003 within 30 seconds.'
+    $serverError = $server.StandardError.ReadToEnd()
+    throw "unoserver did not bind 127.0.0.1:2003 within 30 seconds. $serverError"
   }
 
   $work = Join-Path $root 'data\validation\uno-relocated'
@@ -212,10 +237,10 @@ try {
   $pdf = Join-Path $work 'uno-output.pdf'
   New-MinimalDocx -Path $docx -Text 'PDF_Tunner real unoserver/unoconvert conversion'
   $clientCode = 'from unoserver.client import converter_main; converter_main()'
-  $clientOutput = & $loPython '-c' $clientCode '--host' '127.0.0.1' '--port' '2003' '--convert-to' 'pdf' $docx $pdf 2>&1
-  if ($LASTEXITCODE -ne 0) {
-    throw "unoconvert client failed: $($clientOutput -join [Environment]::NewLine)"
-  }
+  $clientResult = Invoke-CapturedProcess -FilePath $loPython -Arguments @(
+    '-c', $clientCode, '--host', '127.0.0.1', '--port', '2003', '--convert-to', 'pdf', $docx, $pdf
+  ) -EnvironmentOverrides $pythonEnv
+  if ($clientResult.ExitCode -ne 0) { throw "unoconvert client failed: $($clientResult.Output)" }
   Assert-Pdf -Path $pdf
 
   @(
@@ -232,12 +257,7 @@ try {
   ) | Set-Content -LiteralPath $evidencePath -Encoding utf8
   Write-Host 'PASS: LibreOffice Python imports PyUNO; real unoserver + unoconvert conversion succeeded.'
 } finally {
-  if ($null -ne $server -and -not $server.HasExited) {
-    Stop-ProcessTree -ProcessId $server.Id
-  }
-  $env:PYTHONPATH = $oldPythonPath
-  $env:TEMP = $oldTemp
-  $env:TMP = $oldTmp
+  if ($null -ne $server -and -not $server.HasExited) { Stop-ProcessTree -ProcessId $server.Id }
 }
 
 Write-Host "Validation evidence: $evidencePath"

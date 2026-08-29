@@ -137,3 +137,9 @@ A dependency is accepted only when the **complete current primary workflow** is 
 ## Mandatory documentation rule
 
 **Every PDF_Tunner-specific repository change must update both `README.md` and `AGENTS.md` in the same final commit.**
+
+## LibreOffice/UNO candidate diagnostics
+
+Focused Run `33252792182` (#1), job `99101259425`, failed during candidate preparation after the official LibreOffice MSI had already downloaded, hash-validated and administrative-extracted successfully. The failure was a PowerShell harness defect: `Set-StrictMode` attempted to read an unset `$LASTEXITCODE` after launching `soffice.exe`, whose Windows GUI-subsystem launch semantics do not reliably populate that variable in this context. No LibreOffice/UNO functional conclusion is drawn from Run #1.
+
+The next candidate revision replaces those `soffice.exe` `$LASTEXITCODE` checks with explicit `System.Diagnostics.Process` execution/capture, while retaining the same pinned LibreOffice/unoserver inputs, real conversion tests, relocation test and sandbox-local profile/TEMP/TMP requirements.
