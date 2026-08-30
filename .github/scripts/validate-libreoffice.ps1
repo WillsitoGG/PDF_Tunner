@@ -155,7 +155,7 @@ function Assert-NoLibreOfficeProcesses {
         Start-Sleep -Milliseconds 300
     } while ([DateTime]::UtcNow -lt $deadline)
     $details = $remaining | ForEach-Object { "$($_.ProcessId):$($_.Name)" }
-    throw "Bundled LibreOffice processes remained after $Label: $($details -join ', ')"
+    throw "Bundled LibreOffice processes remained after ${Label}: $($details -join ', ')"
 }
 
 function Assert-CleanShimProfiles {
