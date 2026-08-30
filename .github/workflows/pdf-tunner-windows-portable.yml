@@ -47,6 +47,9 @@ env:
   PDF_TUNNER_PYTHON_SHA256: "8e6aad12ef6fc9685e67ce66253f8f72d6e8fa02cb7187e5850bd4db5ecd9e2a"
   PDF_TUNNER_OCRMYPDF_VERSION: "17.10.0"
   PDF_TUNNER_OCRMYPDF_WHEEL_SHA256: "34ba1b595ecacc94b6dc3c9d4fa51953de63082cd16cf8595251bd72120b930a"
+  PDF_TUNNER_LIBREOFFICE_VERSION: "26.2.5"
+  PDF_TUNNER_LIBREOFFICE_MSI_URL: "https://download.documentfoundation.org/libreoffice/stable/26.2.5/win/x86_64/LibreOffice_26.2.5_Win_x86-64.msi"
+  PDF_TUNNER_LIBREOFFICE_MSI_SHA256: "f15ba07bfcb0186986cf3171063506f5d207c11f8cc051ba0d135209e9e915f9"
   CI: "true"
 
 jobs:
@@ -87,6 +90,31 @@ jobs:
         uses: dtolnay/rust-toolchain@4be9e76fd7c4901c61fb841f559994984270fce7 # stable
         with:
           toolchain: stable
+
+      - name: Preflight LibreOffice portable scripts and native shim
+        shell: pwsh
+        run: |
+          $scripts = @(
+            './.github/scripts/prepare-libreoffice.ps1',
+            './.github/scripts/validate-libreoffice.ps1'
+          )
+          foreach ($script in $scripts) {
+            $tokens = $null
+            $errors = $null
+            [void][System.Management.Automation.Language.Parser]::ParseFile((Resolve-Path -LiteralPath $script).Path, [ref]$tokens, [ref]$errors)
+            if ($errors.Count -gt 0) {
+              $errors | Format-List | Out-Host
+              throw "PowerShell syntax preflight failed: $script"
+            }
+          }
+          $metadata = Join-Path $env:RUNNER_TEMP 'pdf-tunner-unoconvert-launcher.rmeta'
+          try {
+            & rustc.exe --edition 2021 --emit metadata './.github/scripts/unoconvert-launcher.rs' -o $metadata
+            if ($LASTEXITCODE -ne 0) { throw "Rust shim syntax preflight failed with exit code $LASTEXITCODE." }
+          }
+          finally {
+            Remove-Item -LiteralPath $metadata -Force -ErrorAction SilentlyContinue
+          }
 
       - name: Setup JDK 25
         uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5.7.0
@@ -270,6 +298,25 @@ jobs:
             -OcrMyPdfWheelSha256 $env:PDF_TUNNER_OCRMYPDF_WHEEL_SHA256 `
             -RequireRelocation
 
+      - name: Stage LibreOffice portable runtime and native unoconvert shim
+        shell: pwsh
+        run: |
+          & './.github/scripts/prepare-libreoffice.ps1' `
+            -PortableRoot './dist/PDF_Tunner' `
+            -LibreOfficeVersion $env:PDF_TUNNER_LIBREOFFICE_VERSION `
+            -LibreOfficeMsiUrl $env:PDF_TUNNER_LIBREOFFICE_MSI_URL `
+            -LibreOfficeMsiSha256 $env:PDF_TUNNER_LIBREOFFICE_MSI_SHA256 `
+            -LauncherSource './.github/scripts/unoconvert-launcher.rs'
+
+      - name: Validate bundled LibreOffice and unoconvert independently of runner PATH
+        shell: pwsh
+        run: |
+          & './.github/scripts/validate-libreoffice.ps1' `
+            -PortableRoot './dist/PDF_Tunner' `
+            -LibreOfficeVersion $env:PDF_TUNNER_LIBREOFFICE_VERSION `
+            -LibreOfficeMsiSha256 $env:PDF_TUNNER_LIBREOFFICE_MSI_SHA256 `
+            -RequireRelocation
+
       - name: Validate bundled Java runtime
         shell: pwsh
         run: |
@@ -313,6 +360,26 @@ jobs:
           Write-Host "  WebView2 EBWebView: $hostWebView (exists=$hostWebViewExisted)"
           Write-Host "  Tauri Roaming config: $hostTauriConfig (exists=$hostTauriConfigExisted)"
           Write-Host "  Protocol key: $protocolKey (exists=$protocolExisted)"
+
+          # Keep the backend's inherited PATH intentionally package-first and
+          # host-tool-free. Tauri prepends the same portable locations again;
+          # System32/SystemRoot remain only for ordinary Windows APIs.
+          $originalRuntimePath = $env:PATH
+          $system32 = Join-Path $env:SystemRoot 'System32'
+          $runtimePathSegments = @(
+            (Join-Path $portable 'tools/bin'),
+            (Join-Path $portable 'tools/python'),
+            (Join-Path $portable 'tools/python/Scripts'),
+            (Join-Path $portable 'tools/libreoffice/program'),
+            (Join-Path $portable 'tools/tesseract'),
+            (Join-Path $portable 'tools/ghostscript/bin'),
+            (Join-Path $portable 'tools/qpdf/bin'),
+            (Join-Path $portable 'tools/imagemagick'),
+            $system32,
+            $env:SystemRoot
+          ) | Where-Object { Test-Path -LiteralPath $_ }
+          $env:PATH = $runtimePathSegments -join ';'
+          Write-Host "Backend inherited package-only PATH: $env:PATH"
 
           $process = Start-Process -FilePath $exe -WorkingDirectory $portable -PassThru
           Write-Host "Started PDF_Tunner PID $($process.Id)"
@@ -406,6 +473,13 @@ jobs:
             -PythonSha256 $env:PDF_TUNNER_PYTHON_SHA256 `
             -OcrMyPdfVersion $env:PDF_TUNNER_OCRMYPDF_VERSION `
             -OcrMyPdfWheelSha256 $env:PDF_TUNNER_OCRMYPDF_WHEEL_SHA256
+
+          & './.github/scripts/validate-libreoffice.ps1' `
+            -PortableRoot './dist/PDF_Tunner' `
+            -LibreOfficeVersion $env:PDF_TUNNER_LIBREOFFICE_VERSION `
+            -LibreOfficeMsiSha256 $env:PDF_TUNNER_LIBREOFFICE_MSI_SHA256 `
+            -BackendBaseUrl "http://127.0.0.1:$port" `
+            -BackendLogRoot (Join-Path $portable 'data')
 
           $backendLogs = @(Get-ChildItem -LiteralPath (Join-Path $portable 'data') -Recurse -Force -File -Filter '*.log' -ErrorAction SilentlyContinue)
           if ($backendLogs.Count -eq 0) { throw 'No backend logs were available for OCRmyPDF dependency acceptance.' }
@@ -521,6 +595,8 @@ jobs:
           if (-not $protocolExisted -and (Test-Path -LiteralPath $protocolKey)) {
             throw "Portable shutdown left pdf-tunner protocol state in the host registry: $protocolKey"
           }
+
+          $env:PATH = $originalRuntimePath
 
       - name: Validate portable window-state persistence and second-launch restore
         shell: pwsh
@@ -706,6 +782,13 @@ jobs:
             'tools/python/PYTHON_VERSION.txt',
             'tools/python/OCRMY_PDF_VERSION.txt',
             'tools/python/DEPENDENCIES.txt',
+            'tools/libreoffice/program/soffice.com',
+            'tools/libreoffice/program/soffice.exe',
+            'tools/libreoffice/PROVENANCE.txt',
+            'tools/libreoffice/SHA256SUMS.txt',
+            'tools/libreoffice/VERSION.txt',
+            'tools/bin/unoconvert.exe',
+            'tools/bin/UNOCONVERT_PROVENANCE.txt',
             'data'
           )
           foreach ($relative in $required) {
@@ -744,6 +827,11 @@ jobs:
             -PythonSha256 $env:PDF_TUNNER_PYTHON_SHA256 `
             -OcrMyPdfVersion $env:PDF_TUNNER_OCRMYPDF_VERSION `
             -OcrMyPdfWheelSha256 $env:PDF_TUNNER_OCRMYPDF_WHEEL_SHA256
+
+          & './.github/scripts/validate-libreoffice.ps1' `
+            -PortableRoot './dist/PDF_Tunner' `
+            -LibreOfficeVersion $env:PDF_TUNNER_LIBREOFFICE_VERSION `
+            -LibreOfficeMsiSha256 $env:PDF_TUNNER_LIBREOFFICE_MSI_SHA256
 
           Remove-Item -LiteralPath $data -Recurse -Force -ErrorAction Stop
           New-Item -ItemType Directory -Force -Path $data | Out-Null

@@ -41,6 +41,22 @@ Run #77 artifact: **`9698621272`**, `PDF_Tunner-Windows-x64-Portable-bootstrap`,
 
 The temporary focused OCRmyPDF workflow has been retired from automatic execution after primary acceptance. It remains manual-only temporarily and must be physically removed during final CI cleanup.
 
+### LibreOffice 26.2.5 + native `unoconvert` — primary integration pending acceptance
+
+This block is implemented on the portable-development path but is **not accepted** until the complete primary workflow is green. It pins the official The Document Foundation Windows x86-64 MSI:
+
+- LibreOffice `26.2.5`;
+- source: `https://download.documentfoundation.org/libreoffice/stable/26.2.5/win/x86_64/LibreOffice_26.2.5_Win_x86-64.msi`;
+- MSI SHA-256 `f15ba07bfcb0186986cf3171063506f5d207c11f8cc051ba0d135209e9e915f9`.
+
+CI performs MSI **administrative extraction only**; it never installs LibreOffice on the runner. The resulting payload is `tools/libreoffice/`, including `program/soffice.com` and `program/soffice.exe`. It builds `tools/bin/unoconvert.exe` from `.github/scripts/unoconvert-launcher.rs`: a native, package-relative compatibility shim which invokes bundled `soffice.com` (with `soffice.exe` fallback), creates a unique temporary LibreOffice profile under `p/`, localizes child `TEMP`/`TMP` to `data/tmp/libreoffice/`, and cleans the profile after every operation.
+
+The shim intentionally does **not** run `unoserver`. It accepts Stirling's `--convert-to` and `--input-filter` split/equal forms, safely ignores the injected UNO endpoint metadata (`--host`, `--port`, `--host-location`, `--protocol` in both forms), translates the input filter to `--infilter`, and moves LibreOffice's output to Stirling's exact requested output path.
+
+The primary gate stages provenance and hashes, proves `where soffice` and `where unoconvert` resolve only inside the package with `tools/bin` first, runs direct `soffice` DOCX -> PDF plus shim DOCX -> PDF and PDF -> DOCX (`writer_pdf_import`), moves an already-used full portable tree between ordinary Windows paths containing spaces, and checks package-local temp/profile cleanup and no bundled LibreOffice process remains. It then starts the actual Tauri/Stirling backend with a package-only inherited `PATH`, verifies that `ExternalAppDepConfig` has not disabled either LibreOffice or Unoconvert, and exercises `/api/v1/convert/file/pdf` and `/api/v1/convert/pdf/word`.
+
+Focused candidate Run #13 (`33272788391`, job `99154179041`, commit `8dea43f511771f5483f6b038067cfd39ec7f68e3`) validated the isolated payload/shim design only. It is not acceptance evidence. LibreOffice is known to be sensitive to unusually extreme Windows path lengths; v1 acceptance requires normal relocation and spaces, not artificially extreme paths.
+
 ## Architecture
 
 PDF_Tunner uses Stirling's own Tauri desktop app in `frontend/editor/src-tauri`. Portable mode activates when `PDF_TUNNER_PORTABLE` exists beside `PDF_Tunner.exe`.
@@ -56,6 +72,8 @@ State is localized component by component:
 - Python/OCRmyPDF -> `tools/python/`;
 - OCRmyPDF temp -> `data/tmp/ocrmypdf/`;
 - Python cache -> `data/python-cache/`;
+- LibreOffice -> `tools/libreoffice/`; `unoconvert.exe` -> `tools/bin/`;
+- LibreOffice child temp -> `data/tmp/libreoffice/`; transient shim profiles -> `p/`;
 - Calibre config -> `data/calibre/` when added.
 
 Portable mode also skips runtime `pdf-tunner://` protocol registration. Primary CI rejects new tracked host AppData/TEMP/registry state and package-local orphan processes.
@@ -90,7 +108,7 @@ A dependency is accepted only when the **complete current primary workflow** is 
 
 ## Remaining v1 roadmap
 
-1. **LibreOffice + UNO/unoconvert** portable integration and real Office conversion gate.
+1. **Complete primary acceptance for LibreOffice + UNO/unoconvert** portable integration and real Office conversion gate.
 2. Poppler (`pdftohtml`, `pdfinfo`, `pdfimages`).
 3. Consolidate portable Python dependency lock; NumPy; OpenCV; WeasyPrint.
 4. Calibre/`ebook-convert`; `unpaper`; `pngquant`; conversion fonts; explicit VeraPDF E2E; investigate `jbig2enc`; establish viable RAR/CBR support or document the limitation; add any further dependency found in exact pinned source.

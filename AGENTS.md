@@ -60,6 +60,7 @@ Do **not** globally replace `APPDATA`, `LOCALAPPDATA`, `PROGRAMDATA`, `USERPROFI
 - Ghostscript -> package-first `<portable>/tools/ghostscript/bin`;
 - Tesseract -> package-first `<portable>/tools/tesseract`, `TESSDATA_PREFIX=<portable>/tools/tesseract/tessdata`;
 - Python/OCRmyPDF -> `<portable>/tools/python`; OCRmyPDF child temp -> `<portable>/data/tmp/ocrmypdf`; Python cache -> `<portable>/data/python-cache`;
+- LibreOffice -> `<portable>/tools/libreoffice`; native source-compatible `unoconvert.exe` -> `<portable>/tools/bin`; LibreOffice child temp -> `<portable>/data/tmp/libreoffice`; transient per-invocation shim profiles -> `<portable>/p/` and must be empty after each conversion;
 - Calibre config -> `<portable>/data/calibre` when packaged;
 - skip `pdf-tunner://` deep-link registration in portable mode.
 
@@ -168,6 +169,21 @@ Artifact **`9698621272`**, name `PDF_Tunner-Windows-x64-Portable-bootstrap`, Act
 
 The temporary focused OCRmyPDF workflow is retired after this primary acceptance; the permanent prepare/validate/launcher scripts remain part of the primary workflow.
 
+### LibreOffice 26.2.5 + native `unoconvert` — integrated, primary acceptance pending
+
+Do not restart this block from the old wrapper or from `unoserver`. The only architecture is the Stirling Tauri desktop plus bundled Windows LibreOffice and a native package-relative compatibility shim:
+
+- pinned payload: LibreOffice Windows x86-64 `26.2.5` from `https://download.documentfoundation.org/libreoffice/stable/26.2.5/win/x86_64/LibreOffice_26.2.5_Win_x86-64.msi`;
+- pinned MSI SHA-256: `f15ba07bfcb0186986cf3171063506f5d207c11f8cc051ba0d135209e9e915f9`;
+- preparation: `.github/scripts/prepare-libreoffice.ps1` verifies the MSI and uses `msiexec /a` administrative extraction only — never a runner installation — then stages `<portable>/tools/libreoffice/`;
+- required payload paths: `tools/libreoffice/program/soffice.com`, `tools/libreoffice/program/soffice.exe`, and `tools/bin/unoconvert.exe`;
+- shim source: `.github/scripts/unoconvert-launcher.rs`; it resolves the portable root from its own executable, uses `soffice.com` with `soffice.exe` fallback, provides `--version`, accepts split/equal `--convert-to` and `--input-filter`, ignores split/equal Stirling endpoint metadata (`--host`, `--port`, `--host-location`, `--protocol`), translates to `--infilter`, uses a unique `<portable>/p/` profile plus `<portable>/data/tmp/libreoffice/`, returns the exact requested output path, and removes its profile;
+- permanent validator: `.github/scripts/validate-libreoffice.ps1`; it verifies provenance/hash/AMD64, isolated `where` resolution, direct and shim conversions, normal relocation with spaces, package-local state and no package LibreOffice processes. It also owns the actual backend API proof when given the backend URL/log root.
+
+Stirling 2.14.3 facts that must remain preserved: `RuntimePathConfig` defaults to literal `soffice` and `unoconvert`; `ExternalAppDepConfig` probes and groups them independently as `LibreOffice` and `Unoconvert`; `ConvertOfficeController` first calls `unoconvert --convert-to pdf INPUT OUTPUT`; `PDFToFile` first calls `unoconvert --convert-to FORMAT --input-filter=writer_pdf_import INPUT OUTPUT`; and `ProcessExecutor` can inject the four UNO endpoint options. The primary validator therefore requires successful real routes `POST /api/v1/convert/file/pdf` and `POST /api/v1/convert/pdf/word` with field `fileInput` (and `outputFormat=docx` for the latter), backend logs with neither dependency/group disabled, and an actual `Running command: unoconvert` record. The Tauri child is started with package-only PATH entries plus Windows system directories, so a runner installation cannot satisfy this proof.
+
+Candidate history is not product input: `pdf-tunner/libreoffice-uno-candidate` at `8dea43f511771f5483f6b038067cfd39ec7f68e3` / focused Run #13 (`33272788391`, job `99154179041`) established that the shim works, but it is not acceptance. Only its final prepare/shim/validator design was consolidated. Historical diagnostic scripts/workflow from candidate runs #1–#12 are deliberately absent from the primary branch. The documented limitation is LibreOffice sensitivity to extreme Windows path lengths; test and accept ordinary relocation paths containing spaces, not synthetic extreme paths.
+
 ## Primary workflow acceptance contract
 
 Primary path: `.github/workflows/pdf-tunner-windows-portable.yml`.
@@ -216,7 +232,7 @@ Office -> PDF; supported PDF -> Office; HTML/URL -> PDF; WeasyPrint; Poppler; Ca
 
 Accepted/closed: native portable/Tauri containment; Fixed WebView2; qpdf; ImageMagick; Ghostscript; Tesseract; Python 3.12.14 + OCRmyPDF 17.10.0.
 
-Latest fully green primary: **Run #77**, job `98952028665`, commit `54802c15427673c0e95738195947ab76239d6e31`.
+Latest fully green primary baseline: **Run #78** (`33251329173`), job `99097401718`, commit `694c1a01ac495bb906a3257b9c499b90ebb8b5db`, artifact `9714686816`, Actions digest `sha256:740054517fa9733ae9f40e8a8fe319535f6fda0f5d1b5839744f984b8d354fbc`.
 
 Active next block: **LibreOffice + UNO/unoconvert**, followed by Poppler. The broader A/B/C roadmap remains mandatory.
 
@@ -227,4 +243,5 @@ Active next block: **LibreOffice + UNO/unoconvert**, followed by Poppler. The br
 - **2026-08-28:** OCRmyPDF candidate built around pinned relocatable Python standalone + native relative launcher + real searchable-PDF/relocation validation.
 - **2026-08-28:** focused OCRmyPDF Run #5 passed fully; primary Run #76 reconfirmed the prior baseline.
 - **2026-08-28:** primary Run #77 passed with Python/OCRmyPDF integrated, real OCR, relocation, backend dependency acceptance, final ZIP and SHA-256. Python/OCRmyPDF accepted.
-- **2026-08-29:** temporary OCRmyPDF candidate workflow retired; next active block is LibreOffice + UNO/unoconvert.
+- **2026-08-29:** temporary OCRmyPDF candidate workflow retired; primary Run #78 reconfirmed the accepted baseline.
+- **2026-08-29:** LibreOffice 26.2.5 focused candidate Run #13 passed isolated extraction/shim/relocation probes. Primary integration is pending its first complete primary run; do not mark it accepted yet.
