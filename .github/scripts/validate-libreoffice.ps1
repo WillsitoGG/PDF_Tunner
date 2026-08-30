@@ -52,8 +52,44 @@ function Invoke-CapturedProcess {
     $process.WaitForExit()
     return [pscustomobject]@{
         ExitCode = $process.ExitCode
+        StdOut = $stdoutTask.GetAwaiter().GetResult().Trim()
+        StdErr = $stderrTask.GetAwaiter().GetResult().Trim()
         Output = (($stdoutTask.GetAwaiter().GetResult() + [Environment]::NewLine + $stderrTask.GetAwaiter().GetResult()).Trim())
     }
+}
+
+function Invoke-StirlingMultipart {
+    param(
+        [Parameter(Mandatory = $true)][string]$Uri,
+        [Parameter(Mandatory = $true)][string]$InputFile,
+        [Parameter(Mandatory = $true)][string]$InputContentType,
+        [Parameter(Mandatory = $true)][string]$OutputFile,
+        [hashtable]$Fields = @{}
+    )
+
+    $systemRoot = [System.Environment]::GetEnvironmentVariable('SystemRoot')
+    if ([string]::IsNullOrWhiteSpace($systemRoot)) { throw 'SystemRoot is unavailable for the real Stirling API probe.' }
+    $curl = Join-Path $systemRoot 'System32\curl.exe'
+    if (-not (Test-Path -LiteralPath $curl -PathType Leaf)) { throw "Windows curl.exe is unavailable for the real Stirling API probe: $curl" }
+
+    $headers = "$OutputFile.headers"
+    Remove-Item -LiteralPath $headers -Force -ErrorAction SilentlyContinue
+    $arguments = @(
+        '--silent', '--show-error', '--fail-with-body',
+        '--connect-timeout', '15', '--max-time', '180',
+        '--request', 'POST',
+        '--form', ("fileInput=@{0};type={1}" -f $InputFile, $InputContentType)
+    )
+    foreach ($key in @($Fields.Keys | Sort-Object)) {
+        $arguments += @('--form', ("{0}={1}" -f $key, [string]($Fields[$key])))
+    }
+    $arguments += @('--output', $OutputFile, '--dump-header', $headers, '--write-out', '%{http_code}', $Uri)
+    $result = Invoke-CapturedProcess -FilePath $curl -Arguments $arguments
+    $headerText = if (Test-Path -LiteralPath $headers -PathType Leaf) { Get-Content -LiteralPath $headers -Raw -ErrorAction SilentlyContinue } else { '' }
+    if ($result.ExitCode -ne 0 -or $result.StdOut -ne '200') {
+        throw "Stirling API POST failed for $Uri (curl exit $($result.ExitCode), HTTP '$($result.StdOut)'). curl stderr: $($result.StdErr). Response headers: $headerText"
+    }
+    Remove-Item -LiteralPath $headers -Force -ErrorAction SilentlyContinue
 }
 
 function Get-FileUri {
@@ -307,14 +343,17 @@ function Invoke-BackendConversionContract {
     New-Item -ItemType Directory -Force -Path $work | Out-Null
     New-MinimalDocx -Path $input -ScratchRoot $work -Text 'PDF_Tunner real Stirling backend LibreOffice contract.'
 
-    $inputItem = Get-Item -LiteralPath $input
-    $officeResponse = Invoke-WebRequest -Uri ($BaseUrl.TrimEnd('/') + '/api/v1/convert/file/pdf') -Method Post -Form @{ fileInput = $inputItem } -OutFile $pdf -PassThru -TimeoutSec 180
-    if ($officeResponse.StatusCode -ne 200) { throw "Stirling Office to PDF endpoint returned HTTP $($officeResponse.StatusCode)." }
+    Invoke-StirlingMultipart -Uri ($BaseUrl.TrimEnd('/') + '/api/v1/convert/file/pdf') `
+        -InputFile $input `
+        -InputContentType 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' `
+        -OutputFile $pdf
     Assert-Pdf -Path $pdf
 
-    $pdfItem = Get-Item -LiteralPath $pdf
-    $wordResponse = Invoke-WebRequest -Uri ($BaseUrl.TrimEnd('/') + '/api/v1/convert/pdf/word') -Method Post -Form @{ fileInput = $pdfItem; outputFormat = 'docx' } -OutFile $docx -PassThru -TimeoutSec 180
-    if ($wordResponse.StatusCode -ne 200) { throw "Stirling PDF to Word endpoint returned HTTP $($wordResponse.StatusCode)." }
+    Invoke-StirlingMultipart -Uri ($BaseUrl.TrimEnd('/') + '/api/v1/convert/pdf/word') `
+        -InputFile $pdf `
+        -InputContentType 'application/pdf' `
+        -OutputFile $docx `
+        -Fields @{ outputFormat = 'docx' }
     Assert-Docx -Path $docx
 
     $logs = @(Get-ChildItem -LiteralPath $LogRoot -Recurse -Force -File -Filter '*.log' -ErrorAction SilentlyContinue)
