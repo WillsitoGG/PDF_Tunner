@@ -192,6 +192,12 @@ A dependency moves to accepted only when the **complete primary workflow** is gr
 
 A standalone candidate workflow or `--version` alone is not acceptance. Require real operation and isolated package-first PATH/environment wherever practical.
 
+## CI artifact storage policy
+
+The primary workflow must always build the portable ZIP and execute all acceptance gates. It records the ZIP SHA-256, size, package provenance and layout summary, then uploads only that lightweight CI evidence by default; it must not upload the portable ZIP itself on ordinary runs.
+
+This policy saves GitHub Actions storage without weakening validation. A large artifact is exceptional, requires a concrete evidence need plus quota/retention review, and must never be retained merely as an archive. The final portable ZIP is a GitHub Release asset only after final v1 acceptance; do not create a Release early.
+
 ## Remaining v1 roadmap — do not collapse
 
 ### A. External toolchain
