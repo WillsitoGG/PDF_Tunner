@@ -851,13 +851,40 @@ jobs:
           "$($hash.Hash)  $name" | Set-Content -LiteralPath "$zip.sha256" -Encoding ascii
           Write-Host "SHA-256: $($hash.Hash)"
           "zip=$name" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+          "sha256=$($hash.Hash)" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+          "size_bytes=$((Get-Item -LiteralPath $zip).Length)" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
 
-      - name: Upload validated bootstrap artifact
+      - name: Create lightweight CI evidence
+        shell: pwsh
+        env:
+          PACKAGE_ZIP: ${{ steps.package.outputs.zip }}
+          PACKAGE_SHA256: ${{ steps.package.outputs.sha256 }}
+          PACKAGE_SIZE_BYTES: ${{ steps.package.outputs.size_bytes }}
+        run: |
+          $evidence = Join-Path $PWD 'dist/ci-evidence'
+          New-Item -ItemType Directory -Force -Path $evidence | Out-Null
+          @(
+            "WORKFLOW=$env:GITHUB_WORKFLOW",
+            "RUN_ID=$env:GITHUB_RUN_ID",
+            "RUN_ATTEMPT=$env:GITHUB_RUN_ATTEMPT",
+            "COMMIT=$env:GITHUB_SHA",
+            "UPSTREAM_VERSION=$env:PDF_TUNNER_UPSTREAM_VERSION",
+            "UPSTREAM_COMMIT=$env:PDF_TUNNER_UPSTREAM_COMMIT",
+            "ZIP_NAME=$env:PACKAGE_ZIP",
+            "ZIP_SHA256=$env:PACKAGE_SHA256",
+            "ZIP_SIZE_BYTES=$env:PACKAGE_SIZE_BYTES"
+          ) | Set-Content -LiteralPath (Join-Path $evidence 'PACKAGE_EVIDENCE.txt') -Encoding ascii
+          Copy-Item -LiteralPath "dist/$env:PACKAGE_ZIP.sha256" -Destination (Join-Path $evidence "$env:PACKAGE_ZIP.sha256") -Force
+          $layout = Get-ChildItem -LiteralPath './dist/PDF_Tunner' -Recurse -File | Measure-Object -Property Length -Sum
+          @(
+            "PORTABLE_FILE_COUNT=$($layout.Count)",
+            "PORTABLE_PAYLOAD_BYTES=$($layout.Sum)"
+          ) | Set-Content -LiteralPath (Join-Path $evidence 'PORTABLE_LAYOUT_SUMMARY.txt') -Encoding ascii
+
+      - name: Upload lightweight CI evidence
         uses: actions/upload-artifact@v7.0.1
         with:
-          name: PDF_Tunner-Windows-x64-Portable-bootstrap
-          path: |
-            dist/${{ steps.package.outputs.zip }}
-            dist/${{ steps.package.outputs.zip }}.sha256
+          name: PDF_Tunner-Windows-x64-CI-evidence
+          path: dist/ci-evidence
           if-no-files-found: error
           retention-days: 7
