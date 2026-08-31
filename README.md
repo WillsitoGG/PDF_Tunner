@@ -106,6 +106,12 @@ Primary workflow: `.github/workflows/pdf-tunner-windows-portable.yml`.
 
 A dependency is accepted only when the **complete current primary workflow** is green with every earlier accepted gate enabled. `--version` alone is never sufficient.
 
+## CI artifact storage policy
+
+The primary workflow always builds the portable ZIP and verifies its layout, functional gates, size and SHA-256. Ordinary CI retains only a small evidence artifact containing the package hash, size, provenance and layout summary; it does not upload the multi-gigabyte ZIP itself.
+
+This preserves full regression coverage without consuming GitHub Actions storage for every iteration. Large ZIP retention is exceptional and must be justified before upload. The final user-deliverable ZIP will be attached to the GitHub Release only after the complete v1 acceptance process; no Release exists yet.
+
 ## Remaining v1 roadmap
 
 1. **Complete primary acceptance for LibreOffice + UNO/unoconvert** portable integration and real Office conversion gate.
