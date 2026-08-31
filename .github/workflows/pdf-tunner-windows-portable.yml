@@ -874,7 +874,7 @@ jobs:
             "ZIP_SHA256=$env:PACKAGE_SHA256",
             "ZIP_SIZE_BYTES=$env:PACKAGE_SIZE_BYTES"
           ) | Set-Content -LiteralPath (Join-Path $evidence 'PACKAGE_EVIDENCE.txt') -Encoding ascii
-          Copy-Item -LiteralPath "dist/$env:PACKAGE_ZIP.sha256" -Destination (Join-Path $evidence "$env:PACKAGE_ZIP.sha256") -Force
+          Copy-Item -LiteralPath "dist/$($env:PACKAGE_ZIP).sha256" -Destination (Join-Path $evidence "$($env:PACKAGE_ZIP).sha256") -Force
           $layout = Get-ChildItem -LiteralPath './dist/PDF_Tunner' -Recurse -File | Measure-Object -Property Length -Sum
           @(
             "PORTABLE_FILE_COUNT=$($layout.Count)",
