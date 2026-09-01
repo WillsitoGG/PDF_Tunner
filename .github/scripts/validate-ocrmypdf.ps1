@@ -19,6 +19,7 @@ $openCvSourceLock = (Resolve-Path -LiteralPath '.github/config/opencv-py312-wind
 $expectedOpenCvDependencyLockSha256 = 'ec341586a884015445d4e28debbdd00b57ac903a36405bc7e0b9020e12dfd6c6'
 $expectedOpenCvPackageName = 'opencv-python-headless'
 $expectedOpenCvVersion = '4.14.0.94'
+$expectedOpenCvRuntimeVersion = '4.14.0'
 $expectedOpenCvWheelSha256 = 'cbed65415b8f6a9541c705afe3e64795840524d0ff3bc58f507826284a1dc64b'
 $splitPhotosScript = (Resolve-Path -LiteralPath './app/core/src/main/resources/static/python/split_photos.py').Path
 
@@ -96,6 +97,7 @@ function Test-OcrRuntime {
         [Parameter(Mandatory = $true)][array]$ExpectedPackages,
         [Parameter(Mandatory = $true)][string]$ExpectedNumPyVersion,
         [Parameter(Mandatory = $true)][string]$ExpectedOpenCvVersion,
+        [Parameter(Mandatory = $true)][string]$ExpectedOpenCvRuntimeVersion,
         [Parameter(Mandatory = $true)][string]$SplitPhotosScript
     )
 
@@ -187,7 +189,10 @@ function Test-OcrRuntime {
         }
         Write-Host "PASS: NumPy $ExpectedNumPyVersion package-local AMD64 import and deterministic matrix multiplication succeeded."
 
-        $openCvProbeOutput = @(& python -c "import json, pathlib, cv2; print(json.dumps({'version':cv2.__version__,'package':str(pathlib.Path(cv2.__file__).resolve())}))" 2>&1)
+        # opencv-python's distribution version includes a wheel-build component
+        # (for example 4.14.0.94), while cv2.__version__ reports the OpenCV
+        # runtime/core version (4.14.0). Validate both identities independently.
+        $openCvProbeOutput = @(& python -c "import json, pathlib, cv2; from importlib import metadata; print(json.dumps({'distribution_version':metadata.version('opencv-python-headless'),'runtime_version':cv2.__version__,'package':str(pathlib.Path(cv2.__file__).resolve())}))" 2>&1)
         if ($LASTEXITCODE -ne 0) {
             $openCvProbeOutput | Out-Host
             throw "OpenCV import probe failed with exit code $LASTEXITCODE."
@@ -199,8 +204,11 @@ function Test-OcrRuntime {
             $openCvProbeOutput | Out-Host
             throw 'OpenCV import probe did not emit valid JSON.'
         }
-        if ($openCvProbe.version -ne $ExpectedOpenCvVersion) {
-            throw "OpenCV version mismatch: expected '$ExpectedOpenCvVersion', got '$($openCvProbe.version)'."
+        if ($openCvProbe.distribution_version -ne $ExpectedOpenCvVersion) {
+            throw "OpenCV distribution version mismatch: expected '$ExpectedOpenCvVersion', got '$($openCvProbe.distribution_version)'."
+        }
+        if ($openCvProbe.runtime_version -ne $ExpectedOpenCvRuntimeVersion) {
+            throw "OpenCV runtime version mismatch: expected '$ExpectedOpenCvRuntimeVersion', got '$($openCvProbe.runtime_version)'."
         }
         $openCvPackagePath = [System.IO.Path]::GetFullPath([string]$openCvProbe.package)
         if (-not $openCvPackagePath.StartsWith($pythonRootPrefix, [System.StringComparison]::OrdinalIgnoreCase)) {
@@ -236,7 +244,7 @@ function Test-OcrRuntime {
             throw "Stirling split_photos.py output validation failed with exit code $LASTEXITCODE."
         }
         Remove-Item -LiteralPath $openCvFixture, $openCvOutputDir -Recurse -Force -ErrorAction SilentlyContinue
-        Write-Host "PASS: OpenCV $ExpectedOpenCvVersion package-local AMD64 import and Stirling split_photos.py E2E succeeded."
+        Write-Host "PASS: OpenCV distribution $ExpectedOpenCvVersion / runtime $ExpectedOpenCvRuntimeVersion package-local AMD64 import and Stirling split_photos.py E2E succeeded."
 
         $fixture = Join-Path $Root 'ocrmypdf-fixture.png'
         $outputPdf = Join-Path $Root 'ocrmypdf-output.pdf'
@@ -360,7 +368,7 @@ if ($inventoryDiff.Count -gt 0) {
     throw 'DEPENDENCIES.txt does not exactly match the authenticated dependency lock.'
 }
 
-Test-OcrRuntime -Root $portable -ExpectedPackages $expectedRuntimeEntries -ExpectedNumPyVersion $NumPyVersion -ExpectedOpenCvVersion $expectedOpenCvVersion -SplitPhotosScript $splitPhotosScript
+Test-OcrRuntime -Root $portable -ExpectedPackages $expectedRuntimeEntries -ExpectedNumPyVersion $NumPyVersion -ExpectedOpenCvVersion $expectedOpenCvVersion -ExpectedOpenCvRuntimeVersion $expectedOpenCvRuntimeVersion -SplitPhotosScript $splitPhotosScript
 
 if ($RequireRelocation) {
     $tempRoot = Join-Path ([System.IO.Path]::GetTempPath()) ("pdf-tunner-ocr-relocation-" + [Guid]::NewGuid().ToString('N'))
@@ -369,7 +377,7 @@ if ($RequireRelocation) {
         New-Item -ItemType Directory -Force -Path $relocated | Out-Null
         Copy-Item -LiteralPath (Join-Path $portable 'tools') -Destination $relocated -Recurse -Force
         New-Item -ItemType Directory -Force -Path (Join-Path $relocated 'data') | Out-Null
-        Test-OcrRuntime -Root $relocated -ExpectedPackages $expectedRuntimeEntries -ExpectedNumPyVersion $NumPyVersion -ExpectedOpenCvVersion $expectedOpenCvVersion -SplitPhotosScript $splitPhotosScript
+        Test-OcrRuntime -Root $relocated -ExpectedPackages $expectedRuntimeEntries -ExpectedNumPyVersion $NumPyVersion -ExpectedOpenCvVersion $expectedOpenCvVersion -ExpectedOpenCvRuntimeVersion $expectedOpenCvRuntimeVersion -SplitPhotosScript $splitPhotosScript
         Write-Host "PASS: OCRmyPDF + NumPy + OpenCV runtime remains functional after relocation to '$relocated'."
     }
     finally {
@@ -390,4 +398,4 @@ if ($backendLogs.Count -gt 0) {
     Write-Host 'PASS: Stirling backend did not disable the OpenCV dependency group.'
 }
 
-Write-Host "PASS: Python $PythonVersion + OCRmyPDF $OcrMyPdfVersion + NumPy $NumPyVersion + OpenCV $expectedOpenCvVersion functional validation succeeded."
+Write-Host "PASS: Python $PythonVersion + OCRmyPDF $OcrMyPdfVersion + NumPy $NumPyVersion + OpenCV distribution $expectedOpenCvVersion / runtime $expectedOpenCvRuntimeVersion functional validation succeeded."
