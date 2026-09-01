@@ -178,15 +178,17 @@ Do not return to unconstrained `pip install` dependency resolution. Run #87 acce
 
 Complete primary Run #87 (`33521994024`), job `99903300606`, commit `b18ff6d5b6cc1ebc22a142f970e5d221f66485ed`, passed every earlier gate plus exact lock/hash checks, authenticated download of all 27 wheels, offline installation, rejection of packages outside the lock, repeated clean `pip check`, real OCR/searchable-text validation and relocation with spaces. The generated ZIP was `1,463,925,596` bytes, SHA-256 `9F1BA2BCF2452C47D864ECE91AB4FBA876D4567502A1D398C6DE69A77C704E5C`, and was not uploaded. Artifact `9807333187`, `PDF_Tunner-Windows-x64-CI-evidence`, is `4,545` bytes with Actions digest `sha256:33151eacdedd60fafe84e34fbeeb947716b651d35aee7dac0704dee172ea68cd`, expires 2026-09-08, and contains eight lightweight files including Python provenance, exact lock and inventory. Its layout summary records 28,579 files / 3,367,817,902 payload bytes. The portable Python dependency lock is formally accepted.
 
-### NumPy 2.5.2 — active candidate
+### NumPy 2.5.2 — accepted
 
-The current candidate extends the accepted lock baseline to 28 packages. It pins NumPy `2.5.2` to the CPython 3.12 Windows AMD64 wheel SHA-256 `28ac63476ec7651484215ee7fa15a1f78b57c14621f01e392afe17b9a1390ce4`; the complete candidate lock SHA-256 is `ededb999049d81b85527f4d4aa679179e747669df300083d91bc2dd4e14e430f`. Pinned Stirling source imports NumPy in `app/core/src/main/resources/static/python/split_photos.py` together with `cv2`; there is no standalone Java NumPy probe, so this block establishes the compiled numerical base before OpenCV.
+The accepted lock now contains 28 packages. It pins NumPy `2.5.2` to the CPython 3.12 Windows AMD64 wheel SHA-256 `28ac63476ec7651484215ee7fa15a1f78b57c14621f01e392afe17b9a1390ce4`; the complete lock SHA-256 is `ededb999049d81b85527f4d4aa679179e747669df300083d91bc2dd4e14e430f`. Pinned Stirling source imports NumPy in `app/core/src/main/resources/static/python/split_photos.py` together with `cv2`; there is no standalone Java NumPy probe, so this block establishes the compiled numerical base before OpenCV.
 
 Keep every accepted lock/OCR gate. In addition, preparation must verify the exact NumPy lock entry and wheel hash and record them in package provenance. Validation must prove the exact live version; package-local resolution of `numpy` and `_multiarray_umath`; AMD64 PE identity for the compiled core and every packaged `numpy.libs` DLL; deterministic matrix multiplication; and the same checks after relocation with spaces. The wheelhouse and ZIP remain prohibited as ordinary artifacts. Formal acceptance requires one complete primary regression with all earlier gates enabled.
 
 Primary Run #88 (`33528451159`), job `99925173576`, commit `b02b7f89a38f370c2102e4aea61aabe9e259ef67`, failed before every functional gate because the auxiliary connector-status bridge replayed historical statuses until GitHub forcibly closed the transport connection. The subsequent bounded diagnostic artifact upload also timed out; no artifact exists and no portable ZIP was built. This is infrastructure failure, not NumPy evidence. The bridge must publish at most the current run and latest completed predecessor, with short timeouts/retries and a two-minute workflow bound; it is best-effort and must never weaken or block functional gates.
 
-Corrective primary Run #89 (`33529648123`), job `99929237590`, commit `92edd653e62cdd6d6e04f59889eac2c90e1b9ed9`, failed in the PowerShell preflight before every functional gate because the bridge warning string contained the parser-invalid interpolation `$RunId:`. No ZIP or payload was built. Its only retained output is text-only diagnostic artifact `9809195211`, `PDF_Tunner-startup-diagnostics`, at `1,309` bytes with digest `sha256:8e89549f40c874137c13db9a741f48d5eb16607a851e7f8aa21fad2a4fb0e792`, expiring 2026-09-04. Use `${RunId}:` so the colon is outside the variable name. This run is not NumPy evidence; complete primary acceptance remains mandatory.
+Corrective primary Run #89 (`33529648123`), job `99929237590`, commit `92edd653e62cdd6d6e04f59889eac2c90e1b9ed9`, failed in the PowerShell preflight before every functional gate because the bridge warning string contained the parser-invalid interpolation `$RunId:`. No ZIP or payload was built. Its only retained output is text-only diagnostic artifact `9809195211`, `PDF_Tunner-startup-diagnostics`, at `1,309` bytes with digest `sha256:8e89549f40c874137c13db9a741f48d5eb16607a851e7f8aa21fad2a4fb0e792`, expiring 2026-09-04. Use `${RunId}:` so the colon is outside the variable name. This run did not count as NumPy acceptance evidence.
+
+Complete primary Run #90 (`33530454097`), job `99931980241`, commit `c32fb84eb2c0f7b157ef3217c59e57eee20b895b`, passed all earlier gates plus the exact 28-package lock/inventory, package-local NumPy module and compiled core, AMD64 core/DLL identity, deterministic matrix multiplication and repeated relocation with spaces. The generated ZIP was `1,480,791,164` bytes with SHA-256 `B1E7FB8E38DA90992FCBDC63118B7E8BEDE644EA434693AA2F1062B38709F473` and was not uploaded. Artifact `9810633011`, `PDF_Tunner-Windows-x64-CI-evidence`, is `4,727` bytes with Actions digest `sha256:d47a3e77de6788a32a6b9287452d53507b7c6ab04ba5e5aad15b259f4b72d0f9`, expires 2026-09-08, and contains exactly eight lightweight evidence files; its layout summary records 29,936 files / 3,421,683,208 payload bytes. NumPy 2.5.2 is formally accepted. OpenCV is the active block.
 
 ### LibreOffice 26.2.5 + native `unoconvert` — accepted
 
@@ -233,17 +235,16 @@ The primary workflow must keep npm/Gradle Actions caches disabled; ordinary runs
 
 ### A. External toolchain
 
-1. NumPy;
-2. OpenCV;
-3. WeasyPrint;
-4. Calibre/`ebook-convert`;
-5. `unpaper`;
-6. `pngquant`;
-7. conversion fonts;
-8. explicit VeraPDF E2E;
-9. investigate/build/package `jbig2enc` if viable;
-10. viable portable RAR/CBR or concrete documented limitation;
-11. any further exact dependency exposed during pinned-source parity audit.
+1. OpenCV;
+2. WeasyPrint;
+3. Calibre/`ebook-convert`;
+4. `unpaper`;
+5. `pngquant`;
+6. conversion fonts;
+7. explicit VeraPDF E2E;
+8. investigate/build/package `jbig2enc` if viable;
+9. viable portable RAR/CBR or concrete documented limitation;
+10. any further exact dependency exposed during pinned-source parity audit.
 
 ### B. Functional validation
 
@@ -263,13 +264,13 @@ Office -> PDF; supported PDF -> Office; HTML/URL -> PDF; WeasyPrint; Poppler; Ca
 
 ## Current handoff — 2026-09-01
 
-Accepted/closed: native portable/Tauri containment; Fixed WebView2; qpdf; ImageMagick; Ghostscript; Tesseract; Python 3.12.14 + OCRmyPDF 17.10.0; authenticated 27-package portable Python dependency lock; LibreOffice 26.2.5 + native `unoconvert`; Poppler 26.02.0.
+Accepted/closed: native portable/Tauri containment; Fixed WebView2; qpdf; ImageMagick; Ghostscript; Tesseract; Python 3.12.14 + OCRmyPDF 17.10.0; authenticated 28-package portable Python dependency lock with NumPy 2.5.2; LibreOffice 26.2.5 + native `unoconvert`; Poppler 26.02.0.
 
-Latest green primary regression: **Run #87** (`33521994024`), job `99903300606`, commit `b18ff6d5b6cc1ebc22a142f970e5d221f66485ed`; ZIP SHA-256 `9F1BA2BCF2452C47D864ECE91AB4FBA876D4567502A1D398C6DE69A77C704E5C`, size `1,463,925,596` bytes; evidence artifact `9807333187` (`4,545` bytes), Actions digest `sha256:33151eacdedd60fafe84e34fbeeb947716b651d35aee7dac0704dee172ea68cd`, expires 2026-09-08.
+Latest green primary regression: **Run #90** (`33530454097`), job `99931980241`, commit `c32fb84eb2c0f7b157ef3217c59e57eee20b895b`; ZIP SHA-256 `B1E7FB8E38DA90992FCBDC63118B7E8BEDE644EA434693AA2F1062B38709F473`, size `1,480,791,164` bytes; evidence artifact `9810633011` (`4,727` bytes), Actions digest `sha256:d47a3e77de6788a32a6b9287452d53507b7c6ab04ba5e5aad15b259f4b72d0f9`, expires 2026-09-08.
 
-Run #87 passed all earlier gates plus the authenticated 27-package Python lock, exact live inventory, offline wheelhouse installation, repeated clean `pip check`, real OCR/searchable-text and relocation. The ZIP and wheelhouse were not uploaded; the retained artifact contains only eight small evidence files and records 28,579 package files / 3,367,817,902 payload bytes.
+Run #90 passed all earlier gates plus the authenticated 28-package Python lock, exact live inventory, NumPy package-local AMD64 compiled-core/DLL checks, deterministic matrix multiplication, real OCR/searchable-text and relocation with spaces. The ZIP and wheelhouse were not uploaded; the retained artifact contains only eight small evidence files and records 29,936 package files / 3,421,683,208 payload bytes.
 
-The portable Python dependency lock baseline is formally accepted. NumPy 2.5.2 remains the active candidate with a 28-package authenticated lock, package-local compiled AMD64 and relocation gates. Runs #88 and #89 are recorded only as pre-gate infrastructure/preflight failures; the corrected primary regression is still required.
+The 28-package portable Python dependency lock and NumPy 2.5.2 are formally accepted. Runs #88 and #89 remain recorded only as pre-gate infrastructure/preflight failures. OpenCV is the active block.
 
 ## Compact changelog
 
@@ -291,3 +292,4 @@ The portable Python dependency lock baseline is formally accepted. NumPy 2.5.2 r
 - **2026-09-01:** integrated the NumPy 2.5.2 CPython 3.12 Windows AMD64 wheel into a 28-package authenticated lock with package-local compiled-core/DLL, deterministic matrix and relocation gates; complete primary acceptance pending.
 - **2026-09-01:** primary Run #88 stopped before functional gates on a transient connector-status transport closure; bounded the auxiliary bridge to two useful statuses with short retry/time limits, preserving every acceptance gate and lightweight-storage rule.
 - **2026-09-01:** corrective primary Run #89 exposed `$RunId:` as invalid PowerShell interpolation during preflight; retained only a 1,309-byte text diagnostic, built no ZIP, and corrected the expression to `${RunId}:` without changing any functional gate.
+- **2026-09-01:** complete primary Run #90 passed every prior gate plus authenticated NumPy 2.5.2 package-local AMD64, deterministic matrix and relocation validation; generated ZIP SHA-256 `B1E7FB8E38DA90992FCBDC63118B7E8BEDE644EA434693AA2F1062B38709F473`; retained evidence is 4,727 bytes. NumPy is formally accepted; OpenCV is next.

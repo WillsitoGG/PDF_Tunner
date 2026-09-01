@@ -21,7 +21,7 @@ The complete primary Windows workflow has accepted:
 - ImageMagick `7.1.2-30` portable Q16 x64;
 - Ghostscript `10.07.1` Win64;
 - Tesseract OCR release `5.5.3`, Windows CLI `5.5.3.20260724`, with pinned `eng`, `spa` and `osd` models;
-- Python `3.12.14` x64 portable runtime with an authenticated 27-package dependency lock;
+- Python `3.12.14` x64 portable runtime with an authenticated 28-package dependency lock including NumPy `2.5.2`;
 - OCRmyPDF `17.10.0` with a package-relative native launcher;
 - LibreOffice `26.2.5` with package-relative native `unoconvert.exe`;
 - Poppler `26.02.0` Windows x64 with package-local `pdftohtml`, `pdfinfo` and `pdfimages`.
@@ -47,15 +47,17 @@ Run #77 artifact: **`9698621272`**, `PDF_Tunner-Windows-x64-Portable-bootstrap`,
 
 The temporary focused OCRmyPDF workflow has been retired from automatic execution after primary acceptance. It remains manual-only temporarily and must be physically removed during final CI cleanup.
 
-### NumPy 2.5.2 — active candidate
+### NumPy 2.5.2 — accepted
 
-The current candidate extends the accepted Python lock to 28 packages with NumPy `2.5.2`. The exact CPython 3.12 Windows AMD64 wheel is authenticated by SHA-256 `28ac63476ec7651484215ee7fa15a1f78b57c14621f01e392afe17b9a1390ce4`; the resulting complete lock SHA-256 is `ededb999049d81b85527f4d4aa679179e747669df300083d91bc2dd4e14e430f`. Stirling's `split_photos.py` imports NumPy together with OpenCV, so NumPy is being established first as the compiled numerical base for the next OpenCV block.
+The accepted Python lock now contains 28 packages including NumPy `2.5.2`. The exact CPython 3.12 Windows AMD64 wheel is authenticated by SHA-256 `28ac63476ec7651484215ee7fa15a1f78b57c14621f01e392afe17b9a1390ce4`; the resulting complete lock SHA-256 is `ededb999049d81b85527f4d4aa679179e747669df300083d91bc2dd4e14e430f`. Stirling's `split_photos.py` imports NumPy together with OpenCV, so NumPy establishes the compiled numerical base for the next OpenCV block.
 
-Preparation retains the same authenticated download and offline installation model. Validation proves the exact live version, package-local module and compiled core paths, AMD64 identity of the core extension and bundled native DLLs, and deterministic matrix multiplication. The complete probe repeats after relocation to a path containing spaces, while every prior OCR and portable gate remains enabled. Ordinary CI still retains only the small lock, inventory and provenance evidence; it does not upload the wheelhouse or portable ZIP. NumPy remains unaccepted until one complete primary regression is green.
+Preparation retains the same authenticated download and offline installation model. Validation proves the exact live version, package-local module and compiled core paths, AMD64 identity of the core extension and bundled native DLLs, and deterministic matrix multiplication. The complete probe repeats after relocation to a path containing spaces, while every prior OCR and portable gate remains enabled. Ordinary CI still retains only the small lock, inventory and provenance evidence; it does not upload the wheelhouse or portable ZIP.
 
 Primary Run #88 (`33528451159`), job `99925173576`, commit `b02b7f89a38f370c2102e4aea61aabe9e259ef67`, stopped before every functional gate when the auxiliary connector-status bridge replayed historical status writes and GitHub closed the transport connection. No portable payload or evidence artifact was produced; this is not NumPy evidence. The bridge is now bounded to the current run plus the latest completed predecessor, uses short timeouts/retries, and remains explicitly auxiliary so a status-publication outage cannot replace or block the functional acceptance gates.
 
-Corrective primary Run #89 (`33529648123`), job `99929237590`, commit `92edd653e62cdd6d6e04f59889eac2c90e1b9ed9`, then failed deterministically in the PowerShell preflight because the bridge warning string used the invalid interpolation `$RunId:`. It therefore still ran no functional gate and built no ZIP or payload. The only retained output is text-only diagnostic artifact `9809195211`, `PDF_Tunner-startup-diagnostics`, at `1,309` bytes with digest `sha256:8e89549f40c874137c13db9a741f48d5eb16607a851e7f8aa21fad2a4fb0e792`, expiring 2026-09-04. The interpolation is corrected to `${RunId}:`; NumPy remains unaccepted pending one complete green primary regression.
+Corrective primary Run #89 (`33529648123`), job `99929237590`, commit `92edd653e62cdd6d6e04f59889eac2c90e1b9ed9`, then failed deterministically in the PowerShell preflight because the bridge warning string used the invalid interpolation `$RunId:`. It therefore ran no functional gate and built no ZIP or payload. The only retained output is text-only diagnostic artifact `9809195211`, `PDF_Tunner-startup-diagnostics`, at `1,309` bytes with digest `sha256:8e89549f40c874137c13db9a741f48d5eb16607a851e7f8aa21fad2a4fb0e792`, expiring 2026-09-04. The interpolation was corrected to `${RunId}:`; this run did not count as NumPy acceptance evidence.
+
+Complete primary Run #90 (`33530454097`), job `99931980241`, commit `c32fb84eb2c0f7b157ef3217c59e57eee20b895b`, passed every earlier gate plus exact 28-package lock/inventory checks, package-local NumPy compiled-core/DLL AMD64 validation, deterministic matrix multiplication and the repeated relocation probe with spaces. It generated and validated a `1,480,791,164`-byte ZIP with SHA-256 `B1E7FB8E38DA90992FCBDC63118B7E8BEDE644EA434693AA2F1062B38709F473`; the ZIP and wheelhouse were not uploaded. Retained artifact `9810633011`, `PDF_Tunner-Windows-x64-CI-evidence`, is only `4,727` bytes, digest `sha256:d47a3e77de6788a32a6b9287452d53507b7c6ab04ba5e5aad15b259f4b72d0f9`, expires 2026-09-08, and contains eight lightweight evidence files. Its layout summary records 29,936 files / 3,421,683,208 payload bytes. NumPy 2.5.2 is formally accepted; OpenCV is the next block.
 
 ### LibreOffice 26.2.5 + native `unoconvert` — accepted
 
@@ -147,7 +149,7 @@ The primary workflow also leaves npm/Gradle Actions caches disabled, so ordinary
 
 ## Remaining v1 roadmap
 
-1. Validate and accept NumPy; then OpenCV; WeasyPrint.
+1. Validate and accept OpenCV; then WeasyPrint.
 2. Calibre/`ebook-convert`; `unpaper`; `pngquant`; conversion fonts; explicit VeraPDF E2E; investigate `jbig2enc`; establish viable RAR/CBR support or document the limitation; add any further dependency found in exact pinned source.
 3. Representative E2E operations across OCR, Office, HTML/URL -> PDF, accepted Poppler, WeasyPrint, Calibre/EPUB, Python/OpenCV and representative Stirling API families.
 4. Non-Enterprise parity audit against Stirling 2.14.3.
