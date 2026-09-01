@@ -134,7 +134,28 @@ jobs:
         env:
           DISABLE_ADDITIONAL_FEATURES: "true"
           JPDFIUM_PLATFORMS: "windows-x64"
-        run: task desktop:prepare
+        run: |
+          $maxAttempts = 3
+          for ($attempt = 1; $attempt -le $maxAttempts; $attempt++) {
+            $attemptLog = Join-Path $env:RUNNER_TEMP ("desktop-prepare-attempt-{0}.log" -f $attempt)
+            Write-Host "Running desktop preparation attempt $attempt of $maxAttempts."
+            & task desktop:prepare 2>&1 | Tee-Object -FilePath $attemptLog
+            $exitCode = $LASTEXITCODE
+            if ($exitCode -eq 0) {
+              Write-Host "Desktop preparation succeeded on attempt $attempt."
+              break
+            }
+
+            $attemptText = Get-Content -LiteralPath $attemptLog -Raw -ErrorAction SilentlyContinue
+            $isMavenRateLimit = $attemptText -match '(?i)(HTTP\s+429|status code\s+429|Too Many Requests)'
+            if (-not $isMavenRateLimit -or $attempt -eq $maxAttempts) {
+              throw "Desktop preparation failed with exit code $exitCode on attempt $attempt. Retryable Maven HTTP 429 detected: $isMavenRateLimit"
+            }
+
+            $delaySeconds = 45 * $attempt
+            Write-Warning "Maven repository rate-limited dependency resolution. Retrying in $delaySeconds seconds using only this runner's temporary Gradle state."
+            Start-Sleep -Seconds $delaySeconds
+          }
 
       - name: Run official Tauri/Cargo tests
         shell: pwsh
