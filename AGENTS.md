@@ -172,11 +172,17 @@ The temporary focused OCRmyPDF workflow is retired after this primary acceptance
 
 ### Portable Python dependency lock — accepted
 
-Do not return to unconstrained `pip install` dependency resolution. The accepted lock is `.github/config/ocrmypdf-py312-windows-x64.lock.txt`, SHA-256 `d58c07e22837967fbbefb1f9f5168c100bfe47535c88445ccbad156f7fcd1374`, with 27 exact requirements and one authenticated CPython 3.12 Windows x64/universal wheel hash per requirement.
+Do not return to unconstrained `pip install` dependency resolution. Run #87 accepted the 27-package baseline of `.github/config/ocrmypdf-py312-windows-x64.lock.txt`, SHA-256 `d58c07e22837967fbbefb1f9f5168c100bfe47535c88445ccbad156f7fcd1374`, with one authenticated CPython 3.12 Windows x64/universal wheel hash per exact requirement.
 
 `.github/scripts/prepare-ocrmypdf.ps1` must verify the repository lock hash and OCRmyPDF pin, download exactly the locked wheelhouse with `--require-hashes`, reject unknown/count-mismatched wheels, and install offline from that wheelhouse with no dependency resolution. It packages the lock as `tools/python/DEPENDENCY_LOCK.txt`, emits deterministic `DEPENDENCIES.txt`, records lock hash/count in provenance, and rejects any installed non-bootstrap package outside the lock. `.github/scripts/validate-ocrmypdf.ps1` must independently recheck source/packaged lock hashes, exact inventory and live installed versions before preserving all existing OCR, searchable-text, isolation and relocation gates. The lightweight artifact may retain the small Python provenance, lock and inventory files; it must never retain the wheelhouse.
 
 Complete primary Run #87 (`33521994024`), job `99903300606`, commit `b18ff6d5b6cc1ebc22a142f970e5d221f66485ed`, passed every earlier gate plus exact lock/hash checks, authenticated download of all 27 wheels, offline installation, rejection of packages outside the lock, repeated clean `pip check`, real OCR/searchable-text validation and relocation with spaces. The generated ZIP was `1,463,925,596` bytes, SHA-256 `9F1BA2BCF2452C47D864ECE91AB4FBA876D4567502A1D398C6DE69A77C704E5C`, and was not uploaded. Artifact `9807333187`, `PDF_Tunner-Windows-x64-CI-evidence`, is `4,545` bytes with Actions digest `sha256:33151eacdedd60fafe84e34fbeeb947716b651d35aee7dac0704dee172ea68cd`, expires 2026-09-08, and contains eight lightweight files including Python provenance, exact lock and inventory. Its layout summary records 28,579 files / 3,367,817,902 payload bytes. The portable Python dependency lock is formally accepted.
+
+### NumPy 2.5.2 — active candidate
+
+The current candidate extends the accepted lock baseline to 28 packages. It pins NumPy `2.5.2` to the CPython 3.12 Windows AMD64 wheel SHA-256 `28ac63476ec7651484215ee7fa15a1f78b57c14621f01e392afe17b9a1390ce4`; the complete candidate lock SHA-256 is `ededb999049d81b85527f4d4aa679179e747669df300083d91bc2dd4e14e430f`. Pinned Stirling source imports NumPy in `app/core/src/main/resources/static/python/split_photos.py` together with `cv2`; there is no standalone Java NumPy probe, so this block establishes the compiled numerical base before OpenCV.
+
+Keep every accepted lock/OCR gate. In addition, preparation must verify the exact NumPy lock entry and wheel hash and record them in package provenance. Validation must prove the exact live version; package-local resolution of `numpy` and `_multiarray_umath`; AMD64 PE identity for the compiled core and every packaged `numpy.libs` DLL; deterministic matrix multiplication; and the same checks after relocation with spaces. The wheelhouse and ZIP remain prohibited as ordinary artifacts. Formal acceptance requires one complete primary regression with all earlier gates enabled.
 
 ### LibreOffice 26.2.5 + native `unoconvert` — accepted
 
@@ -259,7 +265,7 @@ Latest green primary regression: **Run #87** (`33521994024`), job `99903300606`,
 
 Run #87 passed all earlier gates plus the authenticated 27-package Python lock, exact live inventory, offline wheelhouse installation, repeated clean `pip check`, real OCR/searchable-text and relocation. The ZIP and wheelhouse were not uploaded; the retained artifact contains only eight small evidence files and records 28,579 package files / 3,367,817,902 payload bytes.
 
-The portable Python dependency lock is formally accepted. NumPy is the next active dependency block; the broader A/B/C roadmap remains mandatory.
+The portable Python dependency lock baseline is formally accepted. NumPy 2.5.2 is the active candidate with a 28-package authenticated lock, package-local compiled AMD64 and relocation gates; the broader A/B/C roadmap remains mandatory.
 
 ## Compact changelog
 
@@ -278,3 +284,4 @@ The portable Python dependency lock is formally accepted. NumPy is the next acti
 - **2026-09-01:** corrected post-documentation primary Run #86 passed every gate; the ZIP was generated, validated and hashed but not uploaded, retained evidence is 1,732 bytes, and Poppler 26.02.0 is formally accepted.
 - **2026-09-01:** replaced open-ended OCRmyPDF transitive resolution with a 27-package CPython 3.12 Windows x64 lock, per-wheel hashes, authenticated wheelhouse download, offline installation and exact runtime inventory gates; primary acceptance pending.
 - **2026-09-01:** complete primary Run #87 passed every prior and Python-lock gate; generated ZIP SHA-256 `9F1BA2BCF2452C47D864ECE91AB4FBA876D4567502A1D398C6DE69A77C704E5C`; retained evidence is 4,545 bytes. The authenticated portable Python dependency lock is formally accepted; NumPy is next.
+- **2026-09-01:** integrated the NumPy 2.5.2 CPython 3.12 Windows AMD64 wheel into a 28-package authenticated lock with package-local compiled-core/DLL, deterministic matrix and relocation gates; complete primary acceptance pending.

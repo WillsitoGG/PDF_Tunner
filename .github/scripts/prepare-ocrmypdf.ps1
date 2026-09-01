@@ -6,6 +6,8 @@ param(
     [Parameter(Mandatory = $true)][ValidatePattern('^[0-9a-fA-F]{64}$')][string]$PythonSha256,
     [Parameter(Mandatory = $true)][string]$OcrMyPdfVersion,
     [Parameter(Mandatory = $true)][ValidatePattern('^[0-9a-fA-F]{64}$')][string]$OcrMyPdfWheelSha256,
+    [Parameter(Mandatory = $true)][string]$NumPyVersion,
+    [Parameter(Mandatory = $true)][ValidatePattern('^[0-9a-fA-F]{64}$')][string]$NumPyWheelSha256,
     [Parameter(Mandatory = $true)][string]$DependencyLockPath,
     [Parameter(Mandatory = $true)][ValidatePattern('^[0-9a-fA-F]{64}$')][string]$DependencyLockSha256,
     [Parameter(Mandatory = $true)][string]$LauncherSource
@@ -62,6 +64,13 @@ if ($ocrLockEntry.Count -ne 1 -or $ocrLockEntry[0].Version -ne $OcrMyPdfVersion)
 }
 if ($ocrLockEntry[0].Hash -ne $OcrMyPdfWheelSha256.ToLowerInvariant()) {
     throw 'Dependency lock OCRmyPDF wheel hash does not match the workflow pin.'
+}
+$numpyLockEntry = @($lockEntries | Where-Object { $_.Name -eq 'numpy' })
+if ($numpyLockEntry.Count -ne 1 -or $numpyLockEntry[0].Version -ne $NumPyVersion) {
+    throw "Dependency lock must contain exactly NumPy $NumPyVersion."
+}
+if ($numpyLockEntry[0].Hash -ne $NumPyWheelSha256.ToLowerInvariant()) {
+    throw 'Dependency lock NumPy wheel hash does not match the workflow pin.'
 }
 
 try {
@@ -126,6 +135,12 @@ try {
     if ($wheelHash -ne $OcrMyPdfWheelSha256.ToLowerInvariant()) {
         throw "OCRmyPDF wheel SHA-256 mismatch: expected $($OcrMyPdfWheelSha256.ToLowerInvariant()), got $wheelHash."
     }
+    $numpyWheel = Get-ChildItem -LiteralPath $wheelRoot -File -Filter "numpy-$NumPyVersion-*.whl" | Select-Object -First 1
+    if (-not $numpyWheel) { throw 'Pinned NumPy wheel was not downloaded.' }
+    $numpyWheelHash = (Get-FileHash -LiteralPath $numpyWheel.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
+    if ($numpyWheelHash -ne $NumPyWheelSha256.ToLowerInvariant()) {
+        throw "NumPy wheel SHA-256 mismatch: expected $($NumPyWheelSha256.ToLowerInvariant()), got $numpyWheelHash."
+    }
 
     & $python -m pip install --disable-pip-version-check --no-cache-dir --no-index --find-links $wheelRoot --only-binary=:all: --require-hashes --no-deps --requirement $dependencyLock | Out-Host
     if ($LASTEXITCODE -ne 0) { throw "Offline pip install from dependency lock failed with exit code $LASTEXITCODE." }
@@ -173,7 +188,7 @@ try {
     $pythonExeHash = (Get-FileHash -LiteralPath $python -Algorithm SHA256).Hash.ToLowerInvariant()
     $launcherHash = (Get-FileHash -LiteralPath $launcher -Algorithm SHA256).Hash.ToLowerInvariant()
     Set-Content -LiteralPath (Join-Path $pythonRoot 'PROVENANCE.txt') -Encoding ascii -Value @(
-        'NAME=PDF_Tunner Python + OCRmyPDF runtime',
+        'NAME=PDF_Tunner Python + OCRmyPDF + NumPy runtime',
         "PYTHON_VERSION=$PythonVersion",
         'PYTHON_DISTRIBUTION=astral-sh/python-build-standalone install_only_stripped x86_64-pc-windows-msvc',
         "PYTHON_SOURCE_URL=$PythonDownloadUrl",
@@ -181,6 +196,9 @@ try {
         "OCRMY_PDF_VERSION=$OcrMyPdfVersion",
         "OCRMY_PDF_PYPI=https://pypi.org/project/ocrmypdf/$OcrMyPdfVersion/",
         "OCRMY_PDF_WHEEL_SHA256=$wheelHash",
+        "NUMPY_VERSION=$NumPyVersion",
+        "NUMPY_PYPI=https://pypi.org/project/numpy/$NumPyVersion/",
+        "NUMPY_WHEEL_SHA256=$numpyWheelHash",
         "PYTHON_DEPENDENCY_LOCK_SHA256=$dependencyLockHash",
         "PYTHON_DEPENDENCY_LOCK_PACKAGE_COUNT=$($lockEntries.Count)",
         'OCRMY_PDF_LAUNCHER=package-local native relative launcher -> python.exe -m ocrmypdf'
@@ -191,9 +209,10 @@ try {
         "$dependencyLockHash  DEPENDENCY_LOCK.txt"
     )
 
-    Write-Host "Staged Python $PythonVersion + OCRmyPDF $OcrMyPdfVersion at $pythonRoot"
+    Write-Host "Staged Python $PythonVersion + OCRmyPDF $OcrMyPdfVersion + NumPy $NumPyVersion at $pythonRoot"
     Write-Host "Python archive SHA-256: $archiveHash"
     Write-Host "OCRmyPDF wheel SHA-256: $wheelHash"
+    Write-Host "NumPy wheel SHA-256: $numpyWheelHash"
     Write-Host "Python dependency lock SHA-256: $dependencyLockHash ($($lockEntries.Count) packages)"
 }
 finally {

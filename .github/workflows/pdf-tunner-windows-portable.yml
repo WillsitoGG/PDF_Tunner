@@ -51,7 +51,9 @@ env:
   PDF_TUNNER_PYTHON_SHA256: "8e6aad12ef6fc9685e67ce66253f8f72d6e8fa02cb7187e5850bd4db5ecd9e2a"
   PDF_TUNNER_OCRMYPDF_VERSION: "17.10.0"
   PDF_TUNNER_OCRMYPDF_WHEEL_SHA256: "34ba1b595ecacc94b6dc3c9d4fa51953de63082cd16cf8595251bd72120b930a"
-  PDF_TUNNER_PYTHON_DEPENDENCY_LOCK_SHA256: "d58c07e22837967fbbefb1f9f5168c100bfe47535c88445ccbad156f7fcd1374"
+  PDF_TUNNER_NUMPY_VERSION: "2.5.2"
+  PDF_TUNNER_NUMPY_WHEEL_SHA256: "28ac63476ec7651484215ee7fa15a1f78b57c14621f01e392afe17b9a1390ce4"
+  PDF_TUNNER_PYTHON_DEPENDENCY_LOCK_SHA256: "ededb999049d81b85527f4d4aa679179e747669df300083d91bc2dd4e14e430f"
   PDF_TUNNER_LIBREOFFICE_VERSION: "26.2.5"
   PDF_TUNNER_LIBREOFFICE_MSI_URL: "https://download.documentfoundation.org/libreoffice/stable/26.2.5/win/x86_64/LibreOffice_26.2.5_Win_x86-64.msi"
   PDF_TUNNER_LIBREOFFICE_MSI_SHA256: "f15ba07bfcb0186986cf3171063506f5d207c11f8cc051ba0d135209e9e915f9"
@@ -321,7 +323,7 @@ jobs:
             -SpaBlobSha $env:PDF_TUNNER_TESSDATA_SPA_BLOB `
             -OsdBlobSha $env:PDF_TUNNER_TESSDATA_OSD_BLOB
 
-      - name: Stage portable Python and OCRmyPDF
+      - name: Stage portable Python, OCRmyPDF and NumPy
         shell: pwsh
         run: |
           & './.github/scripts/prepare-ocrmypdf.ps1' `
@@ -331,11 +333,13 @@ jobs:
             -PythonSha256 $env:PDF_TUNNER_PYTHON_SHA256 `
             -OcrMyPdfVersion $env:PDF_TUNNER_OCRMYPDF_VERSION `
             -OcrMyPdfWheelSha256 $env:PDF_TUNNER_OCRMYPDF_WHEEL_SHA256 `
+            -NumPyVersion $env:PDF_TUNNER_NUMPY_VERSION `
+            -NumPyWheelSha256 $env:PDF_TUNNER_NUMPY_WHEEL_SHA256 `
             -DependencyLockPath './.github/config/ocrmypdf-py312-windows-x64.lock.txt' `
             -DependencyLockSha256 $env:PDF_TUNNER_PYTHON_DEPENDENCY_LOCK_SHA256 `
             -LauncherSource './.github/scripts/ocrmypdf-launcher.rs'
 
-      - name: Validate packaged Python and OCRmyPDF independently of runner PATH
+      - name: Validate packaged Python, OCRmyPDF and NumPy independently of runner PATH
         shell: pwsh
         run: |
           & './.github/scripts/validate-ocrmypdf.ps1' `
@@ -344,6 +348,8 @@ jobs:
             -PythonSha256 $env:PDF_TUNNER_PYTHON_SHA256 `
             -OcrMyPdfVersion $env:PDF_TUNNER_OCRMYPDF_VERSION `
             -OcrMyPdfWheelSha256 $env:PDF_TUNNER_OCRMYPDF_WHEEL_SHA256 `
+            -NumPyVersion $env:PDF_TUNNER_NUMPY_VERSION `
+            -NumPyWheelSha256 $env:PDF_TUNNER_NUMPY_WHEEL_SHA256 `
             -DependencyLockPath './.github/config/ocrmypdf-py312-windows-x64.lock.txt' `
             -DependencyLockSha256 $env:PDF_TUNNER_PYTHON_DEPENDENCY_LOCK_SHA256 `
             -RequireRelocation
@@ -524,6 +530,8 @@ jobs:
             -PythonSha256 $env:PDF_TUNNER_PYTHON_SHA256 `
             -OcrMyPdfVersion $env:PDF_TUNNER_OCRMYPDF_VERSION `
             -OcrMyPdfWheelSha256 $env:PDF_TUNNER_OCRMYPDF_WHEEL_SHA256 `
+            -NumPyVersion $env:PDF_TUNNER_NUMPY_VERSION `
+            -NumPyWheelSha256 $env:PDF_TUNNER_NUMPY_WHEEL_SHA256 `
             -DependencyLockPath './.github/config/ocrmypdf-py312-windows-x64.lock.txt' `
             -DependencyLockSha256 $env:PDF_TUNNER_PYTHON_DEPENDENCY_LOCK_SHA256
 
@@ -901,6 +909,8 @@ jobs:
             -PythonSha256 $env:PDF_TUNNER_PYTHON_SHA256 `
             -OcrMyPdfVersion $env:PDF_TUNNER_OCRMYPDF_VERSION `
             -OcrMyPdfWheelSha256 $env:PDF_TUNNER_OCRMYPDF_WHEEL_SHA256 `
+            -NumPyVersion $env:PDF_TUNNER_NUMPY_VERSION `
+            -NumPyWheelSha256 $env:PDF_TUNNER_NUMPY_WHEEL_SHA256 `
             -DependencyLockPath './.github/config/ocrmypdf-py312-windows-x64.lock.txt' `
             -DependencyLockSha256 $env:PDF_TUNNER_PYTHON_DEPENDENCY_LOCK_SHA256
 
@@ -948,6 +958,8 @@ jobs:
             "UPSTREAM_COMMIT=$env:PDF_TUNNER_UPSTREAM_COMMIT",
             "POPPLER_VERSION=$env:PDF_TUNNER_POPPLER_VERSION",
             "POPPLER_ARCHIVE_SHA256=$env:PDF_TUNNER_POPPLER_SHA256",
+            "NUMPY_VERSION=$env:PDF_TUNNER_NUMPY_VERSION",
+            "NUMPY_WHEEL_SHA256=$env:PDF_TUNNER_NUMPY_WHEEL_SHA256",
             "PYTHON_DEPENDENCY_LOCK_SHA256=$env:PDF_TUNNER_PYTHON_DEPENDENCY_LOCK_SHA256",
             "ZIP_NAME=$env:PACKAGE_ZIP",
             "ZIP_SHA256=$env:PACKAGE_SHA256",

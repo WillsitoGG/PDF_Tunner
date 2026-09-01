@@ -35,7 +35,7 @@ Stirling 2.14.3 probes and executes the external command `ocrmypdf`. PDF_Tunner 
 - OCRmyPDF `17.10.0` from PyPI;
 - OCRmyPDF wheel SHA-256 `34ba1b595ecacc94b6dc3c9d4fa51953de63082cd16cf8595251bd72120b930a`.
 
-The accepted dependency lock is `.github/config/ocrmypdf-py312-windows-x64.lock.txt`, SHA-256 `d58c07e22837967fbbefb1f9f5168c100bfe47535c88445ccbad156f7fcd1374`. It pins all 27 OCRmyPDF/runtime packages to exact versions and authenticates the selected CPython 3.12 Windows x64/universal wheel for each package. Preparation downloads only that hash-locked wheelhouse, verifies its exact count and hashes, then installs from the local wheelhouse with network access disabled. Validation rejects missing, changed or unexpected non-bootstrap packages, compares the installed inventory with the packaged lock, runs `pip check`, and preserves the existing real OCR, searchable-text and relocation gates.
+Run #87 accepted the 27-package baseline of `.github/config/ocrmypdf-py312-windows-x64.lock.txt` at SHA-256 `d58c07e22837967fbbefb1f9f5168c100bfe47535c88445ccbad156f7fcd1374`. It pins every OCRmyPDF/runtime package to an exact version and authenticates the selected CPython 3.12 Windows x64/universal wheel for each package. Preparation downloads only that hash-locked wheelhouse, verifies its exact count and hashes, then installs from the local wheelhouse with network access disabled. Validation rejects missing, changed or unexpected non-bootstrap packages, compares the installed inventory with the packaged lock, runs `pip check`, and preserves the existing real OCR, searchable-text and relocation gates.
 
 Complete primary Run #87 (`33521994024`), job `99903300606`, commit `b18ff6d5b6cc1ebc22a142f970e5d221f66485ed`, passed every earlier gate plus authenticated download of all 27 wheels, offline installation, exact live inventory checks, repeated clean `pip check`, real OCR/searchable-text validation and relocation with spaces. It generated and validated a `1,463,925,596`-byte ZIP with SHA-256 `9F1BA2BCF2452C47D864ECE91AB4FBA876D4567502A1D398C6DE69A77C704E5C`; the ZIP and wheelhouse were not uploaded. Retained artifact `9807333187`, `PDF_Tunner-Windows-x64-CI-evidence`, is only `4,545` bytes, digest `sha256:33151eacdedd60fafe84e34fbeeb947716b651d35aee7dac0704dee172ea68cd`, expires 2026-09-08, and contains eight lightweight evidence files. Its layout summary records 28,579 files / 3,367,817,902 payload bytes. The portable Python dependency lock is formally accepted.
 
@@ -46,6 +46,12 @@ Primary Run **`33201568275` (#77)**, job **`98952028665`**, commit **`54802c1542
 Run #77 artifact: **`9698621272`**, `PDF_Tunner-Windows-x64-Portable-bootstrap`, GitHub Actions digest **`sha256:68f69bb0d4ed6b731aefee82abff3eba7b01d18c5b270051e2e546337cd6a164`**. This is CI evidence only, not the final v1 Release.
 
 The temporary focused OCRmyPDF workflow has been retired from automatic execution after primary acceptance. It remains manual-only temporarily and must be physically removed during final CI cleanup.
+
+### NumPy 2.5.2 — active candidate
+
+The current candidate extends the accepted Python lock to 28 packages with NumPy `2.5.2`. The exact CPython 3.12 Windows AMD64 wheel is authenticated by SHA-256 `28ac63476ec7651484215ee7fa15a1f78b57c14621f01e392afe17b9a1390ce4`; the resulting complete lock SHA-256 is `ededb999049d81b85527f4d4aa679179e747669df300083d91bc2dd4e14e430f`. Stirling's `split_photos.py` imports NumPy together with OpenCV, so NumPy is being established first as the compiled numerical base for the next OpenCV block.
+
+Preparation retains the same authenticated download and offline installation model. Validation proves the exact live version, package-local module and compiled core paths, AMD64 identity of the core extension and bundled native DLLs, and deterministic matrix multiplication. The complete probe repeats after relocation to a path containing spaces, while every prior OCR and portable gate remains enabled. Ordinary CI still retains only the small lock, inventory and provenance evidence; it does not upload the wheelhouse or portable ZIP. NumPy remains unaccepted until one complete primary regression is green.
 
 ### LibreOffice 26.2.5 + native `unoconvert` — accepted
 
@@ -137,7 +143,7 @@ The primary workflow also leaves npm/Gradle Actions caches disabled, so ordinary
 
 ## Remaining v1 roadmap
 
-1. NumPy; OpenCV; WeasyPrint.
+1. Validate and accept NumPy; then OpenCV; WeasyPrint.
 2. Calibre/`ebook-convert`; `unpaper`; `pngquant`; conversion fonts; explicit VeraPDF E2E; investigate `jbig2enc`; establish viable RAR/CBR support or document the limitation; add any further dependency found in exact pinned source.
 3. Representative E2E operations across OCR, Office, HTML/URL -> PDF, accepted Poppler, WeasyPrint, Calibre/EPUB, Python/OpenCV and representative Stirling API families.
 4. Non-Enterprise parity audit against Stirling 2.14.3.

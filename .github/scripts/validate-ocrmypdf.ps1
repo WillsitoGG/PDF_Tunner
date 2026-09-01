@@ -5,6 +5,8 @@ param(
     [Parameter(Mandatory = $true)][ValidatePattern('^[0-9a-fA-F]{64}$')][string]$PythonSha256,
     [Parameter(Mandatory = $true)][string]$OcrMyPdfVersion,
     [Parameter(Mandatory = $true)][ValidatePattern('^[0-9a-fA-F]{64}$')][string]$OcrMyPdfWheelSha256,
+    [Parameter(Mandatory = $true)][string]$NumPyVersion,
+    [Parameter(Mandatory = $true)][ValidatePattern('^[0-9a-fA-F]{64}$')][string]$NumPyWheelSha256,
     [Parameter(Mandatory = $true)][string]$DependencyLockPath,
     [Parameter(Mandatory = $true)][ValidatePattern('^[0-9a-fA-F]{64}$')][string]$DependencyLockSha256,
     [switch]$RequireRelocation
@@ -84,7 +86,8 @@ function New-OcrFixture {
 function Test-OcrRuntime {
     param(
         [Parameter(Mandatory = $true)][string]$Root,
-        [Parameter(Mandatory = $true)][array]$ExpectedPackages
+        [Parameter(Mandatory = $true)][array]$ExpectedPackages,
+        [Parameter(Mandatory = $true)][string]$ExpectedNumPyVersion
     )
 
     $pythonRoot = Join-Path $Root 'tools\python'
@@ -141,6 +144,39 @@ function Test-OcrRuntime {
         $bootstrapPackages = @('pip', 'setuptools', 'wheel')
         $unexpected = @($installedPackages.Keys | Where-Object { $_ -notin $bootstrapPackages -and $_ -notin $ExpectedPackages.Name })
         if ($unexpected.Count -gt 0) { throw "Unexpected packages outside dependency lock: $($unexpected -join ', ')" }
+
+        $numpyProbeOutput = @(& python -c "import json, pathlib, numpy as np; from numpy._core import _multiarray_umath as core; a=np.array([[1,2],[3,4]], dtype=np.int64); b=np.array([[5,6],[7,8]], dtype=np.int64); result=a @ b; assert result.tolist() == [[19,22],[43,50]]; print(json.dumps({'version':np.__version__,'package':str(pathlib.Path(np.__file__).resolve()),'core':str(pathlib.Path(core.__file__).resolve()),'result':result.tolist()}))" 2>&1)
+        if ($LASTEXITCODE -ne 0) {
+            $numpyProbeOutput | Out-Host
+            throw "NumPy functional probe failed with exit code $LASTEXITCODE."
+        }
+        try {
+            $numpyProbe = (($numpyProbeOutput -join [Environment]::NewLine) | ConvertFrom-Json -ErrorAction Stop)
+        }
+        catch {
+            $numpyProbeOutput | Out-Host
+            throw 'NumPy functional probe did not emit valid JSON.'
+        }
+        if ($numpyProbe.version -ne $ExpectedNumPyVersion) {
+            throw "NumPy version mismatch: expected '$ExpectedNumPyVersion', got '$($numpyProbe.version)'."
+        }
+        $pythonRootPrefix = [System.IO.Path]::GetFullPath($pythonRoot).TrimEnd('\') + '\'
+        $numpyPackagePath = [System.IO.Path]::GetFullPath([string]$numpyProbe.package)
+        $numpyCorePath = [System.IO.Path]::GetFullPath([string]$numpyProbe.core)
+        foreach ($numpyPath in @($numpyPackagePath, $numpyCorePath)) {
+            if (-not $numpyPath.StartsWith($pythonRootPrefix, [System.StringComparison]::OrdinalIgnoreCase)) {
+                throw "NumPy resolved outside package-local Python: $numpyPath"
+            }
+        }
+        if (-not (Test-Path -LiteralPath $numpyCorePath -PathType Leaf)) { throw "NumPy compiled core is missing: $numpyCorePath" }
+        if ((Get-PeMachine -Path $numpyCorePath) -ne 0x8664) { throw "NumPy compiled core is not AMD64: $numpyCorePath" }
+        $numpyDllRoot = Join-Path $pythonRoot 'Lib\site-packages\numpy.libs'
+        $numpyDlls = @(Get-ChildItem -LiteralPath $numpyDllRoot -File -Filter '*.dll' -ErrorAction Stop)
+        if ($numpyDlls.Count -eq 0) { throw "NumPy did not package its required native DLLs under $numpyDllRoot." }
+        foreach ($numpyDll in $numpyDlls) {
+            if ((Get-PeMachine -Path $numpyDll.FullName) -ne 0x8664) { throw "NumPy native DLL is not AMD64: $($numpyDll.FullName)" }
+        }
+        Write-Host "PASS: NumPy $ExpectedNumPyVersion package-local AMD64 import and deterministic matrix multiplication succeeded."
 
         $fixture = Join-Path $Root 'ocrmypdf-fixture.png'
         $outputPdf = Join-Path $Root 'ocrmypdf-output.pdf'
@@ -207,6 +243,8 @@ $required = @{
     'PYTHON_ARCHIVE_SHA256' = $PythonSha256.ToLowerInvariant()
     'OCRMY_PDF_VERSION' = $OcrMyPdfVersion
     'OCRMY_PDF_WHEEL_SHA256' = $OcrMyPdfWheelSha256.ToLowerInvariant()
+    'NUMPY_VERSION' = $NumPyVersion
+    'NUMPY_WHEEL_SHA256' = $NumPyWheelSha256.ToLowerInvariant()
     'PYTHON_DEPENDENCY_LOCK_SHA256' = $DependencyLockSha256.ToLowerInvariant()
     'PYTHON_DEPENDENCY_LOCK_PACKAGE_COUNT' = "$($lockEntries.Count)"
 }
@@ -227,6 +265,9 @@ foreach ($item in @(@{Path=$python;Name='python.exe'}, @{Path=$ocr;Name='ocrmypd
 if (@($lockEntries | Where-Object { $_.Name -eq 'ocrmypdf' -and $_.Version -eq $OcrMyPdfVersion -and $_.Hash -eq $OcrMyPdfWheelSha256.ToLowerInvariant() }).Count -ne 1) {
     throw 'Dependency lock does not contain the requested OCRmyPDF version and wheel hash.'
 }
+if (@($lockEntries | Where-Object { $_.Name -eq 'numpy' -and $_.Version -eq $NumPyVersion -and $_.Hash -eq $NumPyWheelSha256.ToLowerInvariant() }).Count -ne 1) {
+    throw 'Dependency lock does not contain the requested NumPy version and wheel hash.'
+}
 $expectedInventory = @($lockEntries | Sort-Object Name | ForEach-Object { "$($_.Name)==$($_.Version)" })
 $actualInventory = @(Get-Content -LiteralPath $dependencies | Where-Object { $_.Trim() })
 $inventoryDiff = @(Compare-Object -ReferenceObject $expectedInventory -DifferenceObject $actualInventory)
@@ -235,7 +276,7 @@ if ($inventoryDiff.Count -gt 0) {
     throw 'DEPENDENCIES.txt does not exactly match the authenticated dependency lock.'
 }
 
-Test-OcrRuntime -Root $portable -ExpectedPackages $lockEntries
+Test-OcrRuntime -Root $portable -ExpectedPackages $lockEntries -ExpectedNumPyVersion $NumPyVersion
 
 if ($RequireRelocation) {
     $tempRoot = Join-Path ([System.IO.Path]::GetTempPath()) ("pdf-tunner-ocr-relocation-" + [Guid]::NewGuid().ToString('N'))
@@ -244,12 +285,12 @@ if ($RequireRelocation) {
         New-Item -ItemType Directory -Force -Path $relocated | Out-Null
         Copy-Item -LiteralPath (Join-Path $portable 'tools') -Destination $relocated -Recurse -Force
         New-Item -ItemType Directory -Force -Path (Join-Path $relocated 'data') | Out-Null
-        Test-OcrRuntime -Root $relocated -ExpectedPackages $lockEntries
-        Write-Host "PASS: OCRmyPDF runtime remains functional after relocation to '$relocated'."
+        Test-OcrRuntime -Root $relocated -ExpectedPackages $lockEntries -ExpectedNumPyVersion $NumPyVersion
+        Write-Host "PASS: OCRmyPDF + NumPy runtime remains functional after relocation to '$relocated'."
     }
     finally {
         Remove-Item -LiteralPath $tempRoot -Recurse -Force -ErrorAction SilentlyContinue
     }
 }
 
-Write-Host "PASS: Python $PythonVersion + OCRmyPDF $OcrMyPdfVersion real OCR/searchable-text validation succeeded."
+Write-Host "PASS: Python $PythonVersion + OCRmyPDF $OcrMyPdfVersion + NumPy $NumPyVersion functional validation succeeded."
