@@ -26,6 +26,10 @@ env:
   PDF_TUNNER_QPDF_VARIANT: "mingw64"
   PDF_TUNNER_QPDF_URL: "https://github.com/qpdf/qpdf/releases/download/v12.4.0/qpdf-12.4.0-mingw64.zip"
   PDF_TUNNER_QPDF_SHA256: "dcec940ce825b3b654d4936918190f52e7bfca85b7fb1c49bc24b3035185b4f5"
+  PDF_TUNNER_POPPLER_VERSION: "26.02.0"
+  PDF_TUNNER_POPPLER_VARIANT: "windows-x64"
+  PDF_TUNNER_POPPLER_URL: "https://github.com/oschwartz10612/poppler-windows/releases/download/v26.02.0-0/Release-26.02.0-0.zip"
+  PDF_TUNNER_POPPLER_SHA256: "993e4a94376ed712fafc7058d724ea0b943d118bbd2305cd9ed55174eb85cda5"
   PDF_TUNNER_IMAGEMAGICK_VERSION: "7.1.2-30"
   PDF_TUNNER_IMAGEMAGICK_VARIANT: "portable-Q16-x64"
   PDF_TUNNER_IMAGEMAGICK_URL: "https://github.com/ImageMagick/ImageMagick/releases/download/7.1.2-30/ImageMagick-7.1.2-30-portable-Q16-x64.7z"
@@ -83,20 +87,20 @@ jobs:
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: "22"
-          cache: npm
-          cache-dependency-path: frontend/package-lock.json
 
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@4be9e76fd7c4901c61fb841f559994984270fce7 # stable
         with:
           toolchain: stable
 
-      - name: Preflight LibreOffice portable scripts and native shim
+      - name: Preflight portable dependency scripts and native shim
         shell: pwsh
         run: |
           $scripts = @(
             './.github/scripts/prepare-libreoffice.ps1',
-            './.github/scripts/validate-libreoffice.ps1'
+            './.github/scripts/validate-libreoffice.ps1',
+            './.github/scripts/prepare-poppler.ps1',
+            './.github/scripts/validate-poppler.ps1'
           )
           foreach ($script in $scripts) {
             $tokens = $null
@@ -121,7 +125,6 @@ jobs:
         with:
           distribution: temurin
           java-version: "25"
-          cache: gradle
 
       - name: Setup Task
         uses: go-task/setup-task@01a4adf9db2d14c1de7a560f09170b6e0df736aa # v2.1.0
@@ -212,6 +215,25 @@ jobs:
             -Version $env:PDF_TUNNER_QPDF_VERSION `
             -ExpectedArchiveSha256 $env:PDF_TUNNER_QPDF_SHA256 `
             -SamplePdf './test_globalsign.pdf'
+
+      - name: Stage pinned Poppler Windows x64 runtime
+        shell: pwsh
+        run: |
+          & './.github/scripts/prepare-poppler.ps1' `
+            -PortableRoot './dist/PDF_Tunner' `
+            -Version $env:PDF_TUNNER_POPPLER_VERSION `
+            -PackageVariant $env:PDF_TUNNER_POPPLER_VARIANT `
+            -DownloadUrl $env:PDF_TUNNER_POPPLER_URL `
+            -ExpectedSha256 $env:PDF_TUNNER_POPPLER_SHA256
+
+      - name: Validate packaged Poppler independently of runner PATH
+        shell: pwsh
+        run: |
+          & './.github/scripts/validate-poppler.ps1' `
+            -PortableRoot './dist/PDF_Tunner' `
+            -Version $env:PDF_TUNNER_POPPLER_VERSION `
+            -ExpectedArchiveSha256 $env:PDF_TUNNER_POPPLER_SHA256 `
+            -RequireRelocation
 
       - name: Stage official ImageMagick Windows runtime
         shell: pwsh
@@ -374,6 +396,7 @@ jobs:
             (Join-Path $portable 'tools/tesseract'),
             (Join-Path $portable 'tools/ghostscript/bin'),
             (Join-Path $portable 'tools/qpdf/bin'),
+            (Join-Path $portable 'tools/poppler/Library/bin'),
             (Join-Path $portable 'tools/imagemagick'),
             $system32,
             $env:SystemRoot
@@ -478,6 +501,13 @@ jobs:
             -PortableRoot './dist/PDF_Tunner' `
             -LibreOfficeVersion $env:PDF_TUNNER_LIBREOFFICE_VERSION `
             -LibreOfficeMsiSha256 $env:PDF_TUNNER_LIBREOFFICE_MSI_SHA256 `
+            -BackendBaseUrl "http://127.0.0.1:$port" `
+            -BackendLogRoot (Join-Path $portable 'data')
+
+          & './.github/scripts/validate-poppler.ps1' `
+            -PortableRoot './dist/PDF_Tunner' `
+            -Version $env:PDF_TUNNER_POPPLER_VERSION `
+            -ExpectedArchiveSha256 $env:PDF_TUNNER_POPPLER_SHA256 `
             -BackendBaseUrl "http://127.0.0.1:$port" `
             -BackendLogRoot (Join-Path $portable 'data')
 
@@ -761,6 +791,12 @@ jobs:
             'tools/qpdf/PROVENANCE.txt',
             'tools/qpdf/SHA256SUMS.txt',
             'tools/qpdf/version.txt',
+            'tools/poppler/Library/bin/pdftohtml.exe',
+            'tools/poppler/Library/bin/pdfinfo.exe',
+            'tools/poppler/Library/bin/pdfimages.exe',
+            'tools/poppler/PROVENANCE.txt',
+            'tools/poppler/SHA256SUMS.txt',
+            'tools/poppler/VERSION.txt',
             'tools/imagemagick/magick.exe',
             'tools/imagemagick/PROVENANCE.txt',
             'tools/imagemagick/SHA256SUMS.txt',
@@ -803,6 +839,11 @@ jobs:
             -Version $env:PDF_TUNNER_QPDF_VERSION `
             -ExpectedArchiveSha256 $env:PDF_TUNNER_QPDF_SHA256 `
             -SamplePdf './test_globalsign.pdf'
+
+          & './.github/scripts/validate-poppler.ps1' `
+            -PortableRoot './dist/PDF_Tunner' `
+            -Version $env:PDF_TUNNER_POPPLER_VERSION `
+            -ExpectedArchiveSha256 $env:PDF_TUNNER_POPPLER_SHA256
 
           & './.github/scripts/validate-imagemagick.ps1' `
             -PortableRoot './dist/PDF_Tunner' `
@@ -872,11 +913,15 @@ jobs:
             "COMMIT=$env:GITHUB_SHA",
             "UPSTREAM_VERSION=$env:PDF_TUNNER_UPSTREAM_VERSION",
             "UPSTREAM_COMMIT=$env:PDF_TUNNER_UPSTREAM_COMMIT",
+            "POPPLER_VERSION=$env:PDF_TUNNER_POPPLER_VERSION",
+            "POPPLER_ARCHIVE_SHA256=$env:PDF_TUNNER_POPPLER_SHA256",
             "ZIP_NAME=$env:PACKAGE_ZIP",
             "ZIP_SHA256=$env:PACKAGE_SHA256",
             "ZIP_SIZE_BYTES=$env:PACKAGE_SIZE_BYTES"
           ) | Set-Content -LiteralPath (Join-Path $evidence 'PACKAGE_EVIDENCE.txt') -Encoding ascii
           Copy-Item -LiteralPath "dist/$($env:PACKAGE_ZIP).sha256" -Destination (Join-Path $evidence "$($env:PACKAGE_ZIP).sha256") -Force
+          Copy-Item -LiteralPath './dist/PDF_Tunner/tools/poppler/PROVENANCE.txt' -Destination (Join-Path $evidence 'POPPLER_PROVENANCE.txt') -Force
+          Copy-Item -LiteralPath './dist/PDF_Tunner/tools/poppler/SHA256SUMS.txt' -Destination (Join-Path $evidence 'POPPLER_SHA256SUMS.txt') -Force
           $layout = Get-ChildItem -LiteralPath './dist/PDF_Tunner' -Recurse -File | Measure-Object -Property Length -Sum
           @(
             "PORTABLE_FILE_COUNT=$($layout.Count)",

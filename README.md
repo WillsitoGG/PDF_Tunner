@@ -58,6 +58,18 @@ The primary gate stages provenance and hashes, proves `where soffice` and `where
 
 Focused candidate Run #13 (`33272788391`, job `99154179041`, commit `8dea43f511771f5483f6b038067cfd39ec7f68e3`) validated the isolated payload/shim design only. Complete primary Run #83 (`33497784837`), job `99823839704`, commit `355c0cf5cfe7afaadd89933a0aa3fb13456ebb83`, passed every prior gate plus direct/shim DOCX→PDF and PDF→DOCX, normal relocation with spaces, package-local cleanup, and real Stirling Office→PDF/PDF→DOCX backend routes. It generated ZIP SHA-256 `1F0D6AE03FD5F0A6158128669517E5378CADE9B1BE358DE0272600ED9126D105`; retained evidence artifact `9797397461` is 957 bytes, digest `sha256:9a3ac1af4d03dcae8b69cda20fc5f2f824c5486a7112991f112addd2fc9cdb12`, expiring 2026-09-08. LibreOffice is known to be sensitive to unusually extreme Windows path lengths; v1 acceptance requires normal relocation and spaces, not artificially extreme paths.
 
+### Poppler 26.02.0 — candidate pending primary acceptance
+
+The active candidate packages Poppler `26.02.0` for Windows x64 from the `oschwartz10612/poppler-windows` binary distribution, release `v26.02.0-0`:
+
+- source asset: `https://github.com/oschwartz10612/poppler-windows/releases/download/v26.02.0-0/Release-26.02.0-0.zip`;
+- archive SHA-256: `993e4a94376ed712fafc7058d724ea0b943d118bbd2305cd9ed55174eb85cda5`;
+- package layout: `tools/poppler/Library/bin/`, including `pdftohtml.exe`, `pdfinfo.exe` and `pdfimages.exe`.
+
+This is a pinned third-party Windows build of the Poppler upstream project, not an official Windows binary published by Poppler itself; provenance records both projects explicitly. Stirling 2.14.3 probes the literal command `pdftohtml` and its PDF-to-HTML/Markdown implementation uses `-c`, plus `-s -noframes -c` for Markdown.
+
+The primary gate verifies the release hash, each packaged executable hash and AMD64 PE identity; proves isolated package-only command resolution; runs real `pdfinfo`, `pdfimages -list` and both exact `pdftohtml` option forms against a generated one-page PDF containing text and an image; repeats execution after relocation to a path containing spaces; and exercises Stirling's real `POST /api/v1/convert/pdf/html` route with backend log proof that package-local `pdftohtml` ran. Poppler remains unaccepted until the complete primary workflow is green with every earlier gate enabled.
+
 ## Architecture
 
 PDF_Tunner uses Stirling's own Tauri desktop app in `frontend/editor/src-tauri`. Portable mode activates when `PDF_TUNNER_PORTABLE` exists beside `PDF_Tunner.exe`.
@@ -75,6 +87,7 @@ State is localized component by component:
 - Python cache -> `data/python-cache/`;
 - LibreOffice -> `tools/libreoffice/`; `unoconvert.exe` -> `tools/bin/`;
 - LibreOffice child temp -> `data/tmp/libreoffice/`; transient shim profiles -> `p/`;
+- Poppler -> `tools/poppler/`, with executables under `Library/bin/`;
 - Calibre config -> `data/calibre/` when added.
 
 Portable mode also skips runtime `pdf-tunner://` protocol registration. Primary CI rejects new tracked host AppData/TEMP/registry state and package-local orphan processes.
@@ -111,7 +124,7 @@ A dependency is accepted only when the **complete current primary workflow** is 
 
 The primary workflow always builds the portable ZIP and verifies its layout, functional gates, size and SHA-256. Ordinary CI retains only a small evidence artifact containing the package hash, size, provenance and layout summary; it does not upload the multi-gigabyte ZIP itself. Failure diagnostics are text-only, capped at 2 MB and retained for 3 days.
 
-This preserves full regression coverage without consuming GitHub Actions storage for every iteration. Large ZIP retention is exceptional and must be justified before upload. The final user-deliverable ZIP will be attached to the GitHub Release only after the complete v1 acceptance process; no Release exists yet.
+The primary workflow also leaves npm/Gradle Actions caches disabled, so ordinary runs do not persist dependency caches against the 0.5 GB storage allowance. This preserves full regression coverage without consuming GitHub Actions storage for every iteration. Large ZIP retention is exceptional and must be justified before upload. The final user-deliverable ZIP will be attached to the GitHub Release only after the complete v1 acceptance process; no Release exists yet.
 
 ## Remaining v1 roadmap
 

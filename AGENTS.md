@@ -61,6 +61,7 @@ Do **not** globally replace `APPDATA`, `LOCALAPPDATA`, `PROGRAMDATA`, `USERPROFI
 - Tesseract -> package-first `<portable>/tools/tesseract`, `TESSDATA_PREFIX=<portable>/tools/tesseract/tessdata`;
 - Python/OCRmyPDF -> `<portable>/tools/python`; OCRmyPDF child temp -> `<portable>/data/tmp/ocrmypdf`; Python cache -> `<portable>/data/python-cache`;
 - LibreOffice -> `<portable>/tools/libreoffice`; native source-compatible `unoconvert.exe` -> `<portable>/tools/bin`; LibreOffice child temp -> `<portable>/data/tmp/libreoffice`; transient per-invocation shim profiles -> `<portable>/p/` and must be empty after each conversion;
+- Poppler -> `<portable>/tools/poppler`, executables under `Library/bin`;
 - Calibre config -> `<portable>/data/calibre` when packaged;
 - skip `pdf-tunner://` deep-link registration in portable mode.
 
@@ -184,6 +185,14 @@ Stirling 2.14.3 facts that must remain preserved: `RuntimePathConfig` defaults t
 
 Candidate history is not product input: `pdf-tunner/libreoffice-uno-candidate` at `8dea43f511771f5483f6b038067cfd39ec7f68e3` / focused Run #13 (`33272788391`, job `99154179041`) established that the shim works, but it is not acceptance. Only its final prepare/shim/validator design was consolidated. Historical diagnostic scripts/workflow from candidate runs #1–#12 are deliberately absent from the primary branch. The documented limitation is LibreOffice sensitivity to extreme Windows path lengths; test and accept ordinary relocation paths containing spaces, not synthetic extreme paths.
 
+### Poppler 26.02.0 — candidate pending primary acceptance
+
+The candidate pins `oschwartz10612/poppler-windows` release `v26.02.0-0`, asset `Release-26.02.0-0.zip`, SHA-256 `993e4a94376ed712fafc7058d724ea0b943d118bbd2305cd9ed55174eb85cda5`. This is a third-party Windows x64 distribution of Poppler upstream and provenance must identify both the upstream project and the binary distributor.
+
+Permanent scripts are `.github/scripts/prepare-poppler.ps1` and `.github/scripts/validate-poppler.ps1`. The payload is staged at `tools/poppler/`; required binaries are `Library/bin/pdftohtml.exe`, `pdfinfo.exe` and `pdfimages.exe`. Preparation must hash the downloaded archive before extraction and persist per-executable hashes without retaining the archive.
+
+The validator must preserve these gates: AMD64 identity; exact archive and executable hashes; isolated package-only `where` resolution; real `pdfinfo`, `pdfimages -list`, `pdftohtml -c`, and `pdftohtml -s -noframes -c` operations against a generated text-and-image PDF; relocation with spaces; final cleanup; and the actual Stirling route `POST /api/v1/convert/pdf/html` with backend logs proving the `Pdftohtml` group was not disabled and `Running command: pdftohtml` occurred. The candidate is not accepted until the complete primary workflow is green with all previous gates.
+
 ## Primary workflow acceptance contract
 
 Primary path: `.github/workflows/pdf-tunner-windows-portable.yml`.
@@ -196,7 +205,7 @@ A standalone candidate workflow or `--version` alone is not acceptance. Require 
 
 The primary workflow must always build the portable ZIP and execute all acceptance gates. It records the ZIP SHA-256, size, package provenance and layout summary, then uploads only that lightweight CI evidence by default; it must not upload the portable ZIP itself on ordinary runs. Failure diagnostics are text-only, hard-capped at 2 MB and retained for 3 days.
 
-This policy saves GitHub Actions storage without weakening validation. A large artifact is exceptional, requires a concrete evidence need plus quota/retention review, and must never be retained merely as an archive. The final portable ZIP is a GitHub Release asset only after final v1 acceptance; do not create a Release early.
+The primary workflow must keep npm/Gradle Actions caches disabled; ordinary runs may retain only the bounded text diagnostics and lightweight evidence artifact described above. This policy saves GitHub Actions storage without weakening validation. A large artifact is exceptional, requires a concrete evidence need plus quota/retention review, and must never be retained merely as an archive. The final portable ZIP is a GitHub Release asset only after final v1 acceptance; do not create a Release early.
 
 ## Remaining v1 roadmap — do not collapse
 
@@ -238,7 +247,9 @@ Accepted/closed: native portable/Tauri containment; Fixed WebView2; qpdf; ImageM
 
 Latest green primary regression: **Run #83** (`33497784837`), job `99823839704`, commit `355c0cf5cfe7afaadd89933a0aa3fb13456ebb83`; ZIP SHA-256 `1F0D6AE03FD5F0A6158128669517E5378CADE9B1BE358DE0272600ED9126D105`; evidence artifact `9797397461` (957 bytes), Actions digest `sha256:9a3ac1af4d03dcae8b69cda20fc5f2f824c5486a7112991f112addd2fc9cdb12`, expires 2026-09-08.
 
-Run #83 passed all earlier gates plus pinned LibreOffice 26.2.5 administrative extraction, package-local native `unoconvert`, direct and shim DOCX→PDF/PDF→DOCX, relocation through ordinary paths with spaces, local state/profile/process cleanup, and real Stirling backend Office→PDF/PDF→DOCX routes with package-local `unoconvert`. LibreOffice/unoconvert is accepted; the active next block is Poppler (`pdftohtml`, `pdfinfo`, `pdfimages`). The broader A/B/C roadmap remains mandatory.
+Run #83 passed all earlier gates plus pinned LibreOffice 26.2.5 administrative extraction, package-local native `unoconvert`, direct and shim DOCX→PDF/PDF→DOCX, relocation through ordinary paths with spaces, local state/profile/process cleanup, and real Stirling backend Office→PDF/PDF→DOCX routes with package-local `unoconvert`. LibreOffice/unoconvert is accepted.
+
+Active candidate: pinned Poppler 26.02.0 Windows x64 payload plus permanent prepare/validate scripts and complete primary integration. Acceptance is pending one green complete primary run; the broader A/B/C roadmap remains mandatory.
 
 ## Compact changelog
 
@@ -251,3 +262,4 @@ Run #83 passed all earlier gates plus pinned LibreOffice 26.2.5 administrative e
 - **2026-08-29:** LibreOffice 26.2.5 focused candidate Run #13 passed isolated extraction/shim/relocation probes.
 - **2026-09-01:** primary Run #82 passed all gates with LibreOffice/unoconvert plus real backend conversions; retained CI evidence is 958 bytes.
 - **2026-09-01:** post-documentation primary Run #83 passed every gate; ZIP SHA-256 and a 957-byte evidence artifact were retained. LibreOffice 26.2.5 + native `unoconvert` accepted; Poppler became the active block.
+- **2026-09-01:** Poppler 26.02.0 Windows x64 candidate integrated with pinned archive hash, isolated direct/relocation gates and real Stirling PDF→HTML backend proof; primary acceptance pending.
