@@ -6,11 +6,42 @@ param(
     [Parameter(Mandatory = $true)][ValidatePattern('^[0-9a-fA-F]{64}$')][string]$PythonSha256,
     [Parameter(Mandatory = $true)][string]$OcrMyPdfVersion,
     [Parameter(Mandatory = $true)][ValidatePattern('^[0-9a-fA-F]{64}$')][string]$OcrMyPdfWheelSha256,
+    [Parameter(Mandatory = $true)][string]$DependencyLockPath,
+    [Parameter(Mandatory = $true)][ValidatePattern('^[0-9a-fA-F]{64}$')][string]$DependencyLockSha256,
     [Parameter(Mandatory = $true)][string]$LauncherSource
 )
 
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
+
+function ConvertTo-NormalizedPackageName {
+    param([Parameter(Mandatory = $true)][string]$Name)
+    return (($Name.ToLowerInvariant() -replace '[-_.]+', '-').Trim('-'))
+}
+
+function Read-DependencyLock {
+    param([Parameter(Mandatory = $true)][string]$Path)
+    $entries = @()
+    $seenNames = @{}
+    $seenHashes = @{}
+    foreach ($line in Get-Content -LiteralPath $Path -ErrorAction Stop) {
+        $trimmed = $line.Trim()
+        if (-not $trimmed -or $trimmed.StartsWith('#')) { continue }
+        if ($trimmed -notmatch '^([A-Za-z0-9_.-]+)==([^\s]+)\s+--hash=sha256:([0-9a-fA-F]{64})$') {
+            throw "Invalid dependency lock line: $trimmed"
+        }
+        $name = ConvertTo-NormalizedPackageName -Name $Matches[1]
+        $version = $Matches[2]
+        $hash = $Matches[3].ToLowerInvariant()
+        if ($seenNames.ContainsKey($name)) { throw "Duplicate package in dependency lock: $name" }
+        if ($seenHashes.ContainsKey($hash)) { throw "Duplicate wheel hash in dependency lock: $hash" }
+        $seenNames[$name] = $true
+        $seenHashes[$hash] = $true
+        $entries += [pscustomobject]@{ Name = $name; Version = $version; Hash = $hash }
+    }
+    if ($entries.Count -eq 0) { throw 'Dependency lock does not contain any packages.' }
+    return $entries
+}
 
 $portable = (Resolve-Path -LiteralPath $PortableRoot).Path
 $toolsRoot = Join-Path $portable 'tools'
@@ -19,6 +50,19 @@ $tempRoot = Join-Path ([System.IO.Path]::GetTempPath()) ("pdf-tunner-ocrmypdf-" 
 $archive = Join-Path $tempRoot 'python-standalone.tar.gz'
 $extractRoot = Join-Path $tempRoot 'extract'
 $wheelRoot = Join-Path $tempRoot 'wheel'
+$dependencyLock = (Resolve-Path -LiteralPath $DependencyLockPath).Path
+$dependencyLockHash = (Get-FileHash -LiteralPath $dependencyLock -Algorithm SHA256).Hash.ToLowerInvariant()
+if ($dependencyLockHash -ne $DependencyLockSha256.ToLowerInvariant()) {
+    throw "Python dependency lock SHA-256 mismatch: expected $($DependencyLockSha256.ToLowerInvariant()), got $dependencyLockHash."
+}
+$lockEntries = @(Read-DependencyLock -Path $dependencyLock)
+$ocrLockEntry = @($lockEntries | Where-Object { $_.Name -eq 'ocrmypdf' })
+if ($ocrLockEntry.Count -ne 1 -or $ocrLockEntry[0].Version -ne $OcrMyPdfVersion) {
+    throw "Dependency lock must contain exactly OCRmyPDF $OcrMyPdfVersion."
+}
+if ($ocrLockEntry[0].Hash -ne $OcrMyPdfWheelSha256.ToLowerInvariant()) {
+    throw 'Dependency lock OCRmyPDF wheel hash does not match the workflow pin.'
+}
 
 try {
     Remove-Item -LiteralPath $pythonRoot -Recurse -Force -ErrorAction SilentlyContinue
@@ -61,9 +105,21 @@ try {
         if ($LASTEXITCODE -ne 0) { throw "ensurepip failed with exit code $LASTEXITCODE." }
     }
 
-    Write-Host "Downloading OCRmyPDF $OcrMyPdfVersion wheel for hash verification."
-    & $python -m pip download --disable-pip-version-check --no-deps --only-binary=:all: --dest $wheelRoot "ocrmypdf==$OcrMyPdfVersion" | Out-Host
-    if ($LASTEXITCODE -ne 0) { throw "pip download OCRmyPDF failed with exit code $LASTEXITCODE." }
+    Write-Host "Downloading the $($lockEntries.Count)-package Python wheelhouse from the authenticated lock."
+    & $python -m pip download --disable-pip-version-check --no-deps --only-binary=:all: --require-hashes --dest $wheelRoot --requirement $dependencyLock | Out-Host
+    if ($LASTEXITCODE -ne 0) { throw "pip download from dependency lock failed with exit code $LASTEXITCODE." }
+    $wheels = @(Get-ChildItem -LiteralPath $wheelRoot -File -Filter '*.whl')
+    if ($wheels.Count -ne $lockEntries.Count) {
+        throw "Wheelhouse count mismatch: expected $($lockEntries.Count), got $($wheels.Count)."
+    }
+    $lockedHashes = @{}
+    foreach ($entry in $lockEntries) { $lockedHashes[$entry.Hash] = $entry.Name }
+    foreach ($lockedWheel in $wheels) {
+        $downloadedHash = (Get-FileHash -LiteralPath $lockedWheel.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
+        if (-not $lockedHashes.ContainsKey($downloadedHash)) {
+            throw "Downloaded wheel is not authenticated by the lock: $($lockedWheel.Name) / $downloadedHash"
+        }
+    }
     $wheel = Get-ChildItem -LiteralPath $wheelRoot -File -Filter "ocrmypdf-$OcrMyPdfVersion-*.whl" | Select-Object -First 1
     if (-not $wheel) { throw 'Pinned OCRmyPDF wheel was not downloaded.' }
     $wheelHash = (Get-FileHash -LiteralPath $wheel.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
@@ -71,10 +127,25 @@ try {
         throw "OCRmyPDF wheel SHA-256 mismatch: expected $($OcrMyPdfWheelSha256.ToLowerInvariant()), got $wheelHash."
     }
 
-    & $python -m pip install --disable-pip-version-check --no-cache-dir $wheel.FullName | Out-Host
-    if ($LASTEXITCODE -ne 0) { throw "pip install OCRmyPDF failed with exit code $LASTEXITCODE." }
+    & $python -m pip install --disable-pip-version-check --no-cache-dir --no-index --find-links $wheelRoot --only-binary=:all: --require-hashes --no-deps --requirement $dependencyLock | Out-Host
+    if ($LASTEXITCODE -ne 0) { throw "Offline pip install from dependency lock failed with exit code $LASTEXITCODE." }
     & $python -m pip check | Out-Host
     if ($LASTEXITCODE -ne 0) { throw "pip check failed with exit code $LASTEXITCODE." }
+
+    $installedJson = (@(& $python -m pip list --format=json --disable-pip-version-check) -join [Environment]::NewLine)
+    if ($LASTEXITCODE -ne 0) { throw "pip list --format=json failed with exit code $LASTEXITCODE." }
+    $installedPackages = @{}
+    foreach ($package in @($installedJson | ConvertFrom-Json)) {
+        $installedPackages[(ConvertTo-NormalizedPackageName -Name $package.name)] = $package.version
+    }
+    foreach ($entry in $lockEntries) {
+        if (-not $installedPackages.ContainsKey($entry.Name) -or $installedPackages[$entry.Name] -ne $entry.Version) {
+            throw "Installed package does not match dependency lock: $($entry.Name)==$($entry.Version)."
+        }
+    }
+    $bootstrapPackages = @('pip', 'setuptools', 'wheel')
+    $unexpected = @($installedPackages.Keys | Where-Object { $_ -notin $bootstrapPackages -and $_ -notin $lockEntries.Name })
+    if ($unexpected.Count -gt 0) { throw "Unexpected packages outside dependency lock: $($unexpected -join ', ')" }
 
     $scriptsRoot = Join-Path $pythonRoot 'Scripts'
     Get-ChildItem -LiteralPath $scriptsRoot -Force -File -ErrorAction SilentlyContinue |
@@ -93,13 +164,9 @@ try {
         throw "OCRmyPDF version mismatch: expected '$OcrMyPdfVersion', got '$ocrVersionLine'."
     }
 
-    # pip freeze preserves the direct local-wheel installation origin as a file://
-    # reference, which is intentionally temporary and therefore unsuitable for a
-    # reproducible package inventory. pip list --format=freeze reports the same
-    # installed environment canonically as name==version, independent of origin.
-    $inventory = @(& $python -m pip list --format=freeze --disable-pip-version-check)
-    if ($LASTEXITCODE -ne 0) { throw "pip list --format=freeze failed with exit code $LASTEXITCODE." }
-    Set-Content -LiteralPath (Join-Path $pythonRoot 'DEPENDENCIES.txt') -Encoding utf8 -Value ($inventory | Sort-Object)
+    $inventory = @($lockEntries | Sort-Object Name | ForEach-Object { "$($_.Name)==$($_.Version)" })
+    Set-Content -LiteralPath (Join-Path $pythonRoot 'DEPENDENCIES.txt') -Encoding utf8 -Value $inventory
+    Copy-Item -LiteralPath $dependencyLock -Destination (Join-Path $pythonRoot 'DEPENDENCY_LOCK.txt') -Force
     Set-Content -LiteralPath (Join-Path $pythonRoot 'PYTHON_VERSION.txt') -Encoding ascii -Value $PythonVersion
     Set-Content -LiteralPath (Join-Path $pythonRoot 'OCRMY_PDF_VERSION.txt') -Encoding ascii -Value $OcrMyPdfVersion
 
@@ -114,16 +181,20 @@ try {
         "OCRMY_PDF_VERSION=$OcrMyPdfVersion",
         "OCRMY_PDF_PYPI=https://pypi.org/project/ocrmypdf/$OcrMyPdfVersion/",
         "OCRMY_PDF_WHEEL_SHA256=$wheelHash",
+        "PYTHON_DEPENDENCY_LOCK_SHA256=$dependencyLockHash",
+        "PYTHON_DEPENDENCY_LOCK_PACKAGE_COUNT=$($lockEntries.Count)",
         'OCRMY_PDF_LAUNCHER=package-local native relative launcher -> python.exe -m ocrmypdf'
     )
     Set-Content -LiteralPath (Join-Path $pythonRoot 'SHA256SUMS.txt') -Encoding ascii -Value @(
         "$pythonExeHash  python.exe",
-        "$launcherHash  ocrmypdf.exe"
+        "$launcherHash  ocrmypdf.exe",
+        "$dependencyLockHash  DEPENDENCY_LOCK.txt"
     )
 
     Write-Host "Staged Python $PythonVersion + OCRmyPDF $OcrMyPdfVersion at $pythonRoot"
     Write-Host "Python archive SHA-256: $archiveHash"
     Write-Host "OCRmyPDF wheel SHA-256: $wheelHash"
+    Write-Host "Python dependency lock SHA-256: $dependencyLockHash ($($lockEntries.Count) packages)"
 }
 finally {
     Remove-Item -LiteralPath $tempRoot -Recurse -Force -ErrorAction SilentlyContinue

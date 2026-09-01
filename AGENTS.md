@@ -170,6 +170,14 @@ Artifact **`9698621272`**, name `PDF_Tunner-Windows-x64-Portable-bootstrap`, Act
 
 The temporary focused OCRmyPDF workflow is retired after this primary acceptance; the permanent prepare/validate/launcher scripts remain part of the primary workflow.
 
+### Portable Python dependency lock — active candidate
+
+Do not return to unconstrained `pip install` dependency resolution. The candidate lock is `.github/config/ocrmypdf-py312-windows-x64.lock.txt`, SHA-256 `d58c07e22837967fbbefb1f9f5168c100bfe47535c88445ccbad156f7fcd1374`, with 27 exact requirements and one authenticated CPython 3.12 Windows x64/universal wheel hash per requirement.
+
+`.github/scripts/prepare-ocrmypdf.ps1` must verify the repository lock hash and OCRmyPDF pin, download exactly the locked wheelhouse with `--require-hashes`, reject unknown/count-mismatched wheels, and install offline from that wheelhouse with no dependency resolution. It packages the lock as `tools/python/DEPENDENCY_LOCK.txt`, emits deterministic `DEPENDENCIES.txt`, records lock hash/count in provenance, and rejects any installed non-bootstrap package outside the lock. `.github/scripts/validate-ocrmypdf.ps1` must independently recheck source/packaged lock hashes, exact inventory and live installed versions before preserving all existing OCR, searchable-text, isolation and relocation gates. The lightweight artifact may retain the small Python provenance, lock and inventory files; it must never retain the wheelhouse.
+
+Acceptance still requires one complete primary regression with every earlier gate enabled. If green, record exact Run/job/commit, ZIP hash/size and lightweight artifact evidence in README + AGENTS before moving to NumPy.
+
 ### LibreOffice 26.2.5 + native `unoconvert` — accepted
 
 Do not restart this block from the old wrapper or from `unoserver`. The only architecture is the Stirling Tauri desktop plus bundled Windows LibreOffice and a native package-relative compatibility shim:
@@ -207,7 +215,7 @@ A standalone candidate workflow or `--version` alone is not acceptance. Require 
 
 ## CI artifact storage policy
 
-The primary workflow must always build the portable ZIP and execute all acceptance gates. It records the ZIP SHA-256, size, package provenance and layout summary, then uploads only that lightweight CI evidence by default; it must not upload the portable ZIP itself on ordinary runs. Failure diagnostics are text-only, hard-capped at 2 MB and retained for 3 days.
+The primary workflow must always build the portable ZIP and execute all acceptance gates. It records the ZIP SHA-256, size, package provenance, Python dependency lock/inventory and layout summary, then uploads only that lightweight CI evidence by default; it must not upload the portable ZIP or Python wheelhouse on ordinary runs. Failure diagnostics are text-only, hard-capped at 2 MB and retained for 3 days.
 
 The primary workflow must keep npm/Gradle Actions caches disabled; ordinary runs may retain only the bounded text diagnostics and lightweight evidence artifact described above. Desktop preparation may retry a detected Maven Central HTTP 429 up to three attempts with 45/90-second backoff inside the same runner; do not persist its Gradle state as an Actions cache. This policy saves GitHub Actions storage without weakening validation. A large artifact is exceptional, requires a concrete evidence need plus quota/retention review, and must never be retained merely as an archive. The final portable ZIP is a GitHub Release asset only after final v1 acceptance; do not create a Release early.
 
@@ -215,7 +223,7 @@ The primary workflow must keep npm/Gradle Actions caches disabled; ordinary runs
 
 ### A. External toolchain
 
-1. consolidate portable Python dependency lock;
+1. validate and accept the active portable Python dependency lock;
 2. NumPy;
 3. OpenCV;
 4. WeasyPrint;
@@ -252,7 +260,7 @@ Latest green primary regression: **Run #86** (`33507551477`), job `99855128441`,
 
 Run #86 passed all earlier gates plus pinned Poppler 26.02.0 archive/executable hashes, AMD64 identity, isolated package-only resolution, real `pdfinfo`, `pdfimages` and both Stirling `pdftohtml` forms, relocation with spaces, final cleanup, and the real Stirling PDF→HTML backend route. The ZIP was generated and validated but not uploaded; the retained artifact contains only five small evidence files and records 28,553 package files / 3,367,812,959 payload bytes.
 
-Poppler is formally accepted. Run #85 (`33506142322`), job `99850534886`, remains documented as a pre-gate Maven Central HTTP 429; the bounded same-runner retry correction was proven by the green #86 without persistent caches. The next active candidate is consolidation of the portable Python dependency lock, but do not begin it as part of this Poppler closeout; the broader A/B/C roadmap remains mandatory.
+Poppler is formally accepted. Run #85 (`33506142322`), job `99850534886`, remains documented as a pre-gate Maven Central HTTP 429; the bounded same-runner retry correction was proven by the green #86 without persistent caches. The active candidate is the 27-package authenticated portable Python dependency lock described above; it is implemented but not accepted until a complete primary regression passes. NumPy is next after formal lock acceptance; the broader A/B/C roadmap remains mandatory.
 
 ## Compact changelog
 
@@ -269,3 +277,4 @@ Poppler is formally accepted. Run #85 (`33506142322`), job `99850534886`, remain
 - **2026-09-01:** complete primary Run #84 passed every previous and Poppler gate; generated ZIP SHA-256 `5146303DEC1D4D37E88217D9DB32422411198944C95182693CF0F38909120FA0`; retained evidence is 1,727 bytes. Formal acceptance pending the post-documentation regression.
 - **2026-09-01:** post-documentation Run #85 failed before functional gates on Maven Central HTTP 429; added bounded same-runner retry/backoff while keeping Actions caches disabled.
 - **2026-09-01:** corrected post-documentation primary Run #86 passed every gate; the ZIP was generated, validated and hashed but not uploaded, retained evidence is 1,732 bytes, and Poppler 26.02.0 is formally accepted.
+- **2026-09-01:** replaced open-ended OCRmyPDF transitive resolution with a 27-package CPython 3.12 Windows x64 lock, per-wheel hashes, authenticated wheelhouse download, offline installation and exact runtime inventory gates; primary acceptance pending.

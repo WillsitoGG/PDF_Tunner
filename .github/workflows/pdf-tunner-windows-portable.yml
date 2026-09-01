@@ -51,6 +51,7 @@ env:
   PDF_TUNNER_PYTHON_SHA256: "8e6aad12ef6fc9685e67ce66253f8f72d6e8fa02cb7187e5850bd4db5ecd9e2a"
   PDF_TUNNER_OCRMYPDF_VERSION: "17.10.0"
   PDF_TUNNER_OCRMYPDF_WHEEL_SHA256: "34ba1b595ecacc94b6dc3c9d4fa51953de63082cd16cf8595251bd72120b930a"
+  PDF_TUNNER_PYTHON_DEPENDENCY_LOCK_SHA256: "d58c07e22837967fbbefb1f9f5168c100bfe47535c88445ccbad156f7fcd1374"
   PDF_TUNNER_LIBREOFFICE_VERSION: "26.2.5"
   PDF_TUNNER_LIBREOFFICE_MSI_URL: "https://download.documentfoundation.org/libreoffice/stable/26.2.5/win/x86_64/LibreOffice_26.2.5_Win_x86-64.msi"
   PDF_TUNNER_LIBREOFFICE_MSI_SHA256: "f15ba07bfcb0186986cf3171063506f5d207c11f8cc051ba0d135209e9e915f9"
@@ -97,6 +98,8 @@ jobs:
         shell: pwsh
         run: |
           $scripts = @(
+            './.github/scripts/prepare-ocrmypdf.ps1',
+            './.github/scripts/validate-ocrmypdf.ps1',
             './.github/scripts/prepare-libreoffice.ps1',
             './.github/scripts/validate-libreoffice.ps1',
             './.github/scripts/prepare-poppler.ps1',
@@ -328,6 +331,8 @@ jobs:
             -PythonSha256 $env:PDF_TUNNER_PYTHON_SHA256 `
             -OcrMyPdfVersion $env:PDF_TUNNER_OCRMYPDF_VERSION `
             -OcrMyPdfWheelSha256 $env:PDF_TUNNER_OCRMYPDF_WHEEL_SHA256 `
+            -DependencyLockPath './.github/config/ocrmypdf-py312-windows-x64.lock.txt' `
+            -DependencyLockSha256 $env:PDF_TUNNER_PYTHON_DEPENDENCY_LOCK_SHA256 `
             -LauncherSource './.github/scripts/ocrmypdf-launcher.rs'
 
       - name: Validate packaged Python and OCRmyPDF independently of runner PATH
@@ -339,6 +344,8 @@ jobs:
             -PythonSha256 $env:PDF_TUNNER_PYTHON_SHA256 `
             -OcrMyPdfVersion $env:PDF_TUNNER_OCRMYPDF_VERSION `
             -OcrMyPdfWheelSha256 $env:PDF_TUNNER_OCRMYPDF_WHEEL_SHA256 `
+            -DependencyLockPath './.github/config/ocrmypdf-py312-windows-x64.lock.txt' `
+            -DependencyLockSha256 $env:PDF_TUNNER_PYTHON_DEPENDENCY_LOCK_SHA256 `
             -RequireRelocation
 
       - name: Stage LibreOffice portable runtime and native unoconvert shim
@@ -516,7 +523,9 @@ jobs:
             -PythonVersion $env:PDF_TUNNER_PYTHON_VERSION `
             -PythonSha256 $env:PDF_TUNNER_PYTHON_SHA256 `
             -OcrMyPdfVersion $env:PDF_TUNNER_OCRMYPDF_VERSION `
-            -OcrMyPdfWheelSha256 $env:PDF_TUNNER_OCRMYPDF_WHEEL_SHA256
+            -OcrMyPdfWheelSha256 $env:PDF_TUNNER_OCRMYPDF_WHEEL_SHA256 `
+            -DependencyLockPath './.github/config/ocrmypdf-py312-windows-x64.lock.txt' `
+            -DependencyLockSha256 $env:PDF_TUNNER_PYTHON_DEPENDENCY_LOCK_SHA256
 
           & './.github/scripts/validate-libreoffice.ps1' `
             -PortableRoot './dist/PDF_Tunner' `
@@ -841,6 +850,7 @@ jobs:
             'tools/python/PYTHON_VERSION.txt',
             'tools/python/OCRMY_PDF_VERSION.txt',
             'tools/python/DEPENDENCIES.txt',
+            'tools/python/DEPENDENCY_LOCK.txt',
             'tools/libreoffice/program/soffice.com',
             'tools/libreoffice/program/soffice.exe',
             'tools/libreoffice/PROVENANCE.txt',
@@ -890,7 +900,9 @@ jobs:
             -PythonVersion $env:PDF_TUNNER_PYTHON_VERSION `
             -PythonSha256 $env:PDF_TUNNER_PYTHON_SHA256 `
             -OcrMyPdfVersion $env:PDF_TUNNER_OCRMYPDF_VERSION `
-            -OcrMyPdfWheelSha256 $env:PDF_TUNNER_OCRMYPDF_WHEEL_SHA256
+            -OcrMyPdfWheelSha256 $env:PDF_TUNNER_OCRMYPDF_WHEEL_SHA256 `
+            -DependencyLockPath './.github/config/ocrmypdf-py312-windows-x64.lock.txt' `
+            -DependencyLockSha256 $env:PDF_TUNNER_PYTHON_DEPENDENCY_LOCK_SHA256
 
           & './.github/scripts/validate-libreoffice.ps1' `
             -PortableRoot './dist/PDF_Tunner' `
@@ -936,6 +948,7 @@ jobs:
             "UPSTREAM_COMMIT=$env:PDF_TUNNER_UPSTREAM_COMMIT",
             "POPPLER_VERSION=$env:PDF_TUNNER_POPPLER_VERSION",
             "POPPLER_ARCHIVE_SHA256=$env:PDF_TUNNER_POPPLER_SHA256",
+            "PYTHON_DEPENDENCY_LOCK_SHA256=$env:PDF_TUNNER_PYTHON_DEPENDENCY_LOCK_SHA256",
             "ZIP_NAME=$env:PACKAGE_ZIP",
             "ZIP_SHA256=$env:PACKAGE_SHA256",
             "ZIP_SIZE_BYTES=$env:PACKAGE_SIZE_BYTES"
@@ -943,6 +956,9 @@ jobs:
           Copy-Item -LiteralPath "dist/$($env:PACKAGE_ZIP).sha256" -Destination (Join-Path $evidence "$($env:PACKAGE_ZIP).sha256") -Force
           Copy-Item -LiteralPath './dist/PDF_Tunner/tools/poppler/PROVENANCE.txt' -Destination (Join-Path $evidence 'POPPLER_PROVENANCE.txt') -Force
           Copy-Item -LiteralPath './dist/PDF_Tunner/tools/poppler/SHA256SUMS.txt' -Destination (Join-Path $evidence 'POPPLER_SHA256SUMS.txt') -Force
+          Copy-Item -LiteralPath './dist/PDF_Tunner/tools/python/PROVENANCE.txt' -Destination (Join-Path $evidence 'PYTHON_PROVENANCE.txt') -Force
+          Copy-Item -LiteralPath './dist/PDF_Tunner/tools/python/DEPENDENCY_LOCK.txt' -Destination (Join-Path $evidence 'PYTHON_DEPENDENCY_LOCK.txt') -Force
+          Copy-Item -LiteralPath './dist/PDF_Tunner/tools/python/DEPENDENCIES.txt' -Destination (Join-Path $evidence 'PYTHON_DEPENDENCIES.txt') -Force
           $layout = Get-ChildItem -LiteralPath './dist/PDF_Tunner' -Recurse -File | Measure-Object -Property Length -Sum
           @(
             "PORTABLE_FILE_COUNT=$($layout.Count)",

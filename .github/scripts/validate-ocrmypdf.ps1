@@ -5,11 +5,41 @@ param(
     [Parameter(Mandatory = $true)][ValidatePattern('^[0-9a-fA-F]{64}$')][string]$PythonSha256,
     [Parameter(Mandatory = $true)][string]$OcrMyPdfVersion,
     [Parameter(Mandatory = $true)][ValidatePattern('^[0-9a-fA-F]{64}$')][string]$OcrMyPdfWheelSha256,
+    [Parameter(Mandatory = $true)][string]$DependencyLockPath,
+    [Parameter(Mandatory = $true)][ValidatePattern('^[0-9a-fA-F]{64}$')][string]$DependencyLockSha256,
     [switch]$RequireRelocation
 )
 
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
+
+function ConvertTo-NormalizedPackageName {
+    param([Parameter(Mandatory = $true)][string]$Name)
+    return (($Name.ToLowerInvariant() -replace '[-_.]+', '-').Trim('-'))
+}
+
+function Read-DependencyLock {
+    param([Parameter(Mandatory = $true)][string]$Path)
+    $entries = @()
+    $seenNames = @{}
+    foreach ($line in Get-Content -LiteralPath $Path -ErrorAction Stop) {
+        $trimmed = $line.Trim()
+        if (-not $trimmed -or $trimmed.StartsWith('#')) { continue }
+        if ($trimmed -notmatch '^([A-Za-z0-9_.-]+)==([^\s]+)\s+--hash=sha256:([0-9a-fA-F]{64})$') {
+            throw "Invalid dependency lock line: $trimmed"
+        }
+        $name = ConvertTo-NormalizedPackageName -Name $Matches[1]
+        if ($seenNames.ContainsKey($name)) { throw "Duplicate package in dependency lock: $name" }
+        $seenNames[$name] = $true
+        $entries += [pscustomobject]@{
+            Name = $name
+            Version = $Matches[2]
+            Hash = $Matches[3].ToLowerInvariant()
+        }
+    }
+    if ($entries.Count -eq 0) { throw 'Dependency lock does not contain any packages.' }
+    return $entries
+}
 
 function Get-PeMachine {
     param([Parameter(Mandatory = $true)][string]$Path)
@@ -52,7 +82,10 @@ function New-OcrFixture {
 }
 
 function Test-OcrRuntime {
-    param([Parameter(Mandatory = $true)][string]$Root)
+    param(
+        [Parameter(Mandatory = $true)][string]$Root,
+        [Parameter(Mandatory = $true)][array]$ExpectedPackages
+    )
 
     $pythonRoot = Join-Path $Root 'tools\python'
     $python = Join-Path $pythonRoot 'python.exe'
@@ -94,6 +127,20 @@ function Test-OcrRuntime {
         if ($LASTEXITCODE -ne 0 -or $ocrVersion -ne $OcrMyPdfVersion) { throw "OCRmyPDF version validation failed: '$ocrVersion'." }
         & python -m pip check | Out-Host
         if ($LASTEXITCODE -ne 0) { throw "pip check failed with exit code $LASTEXITCODE." }
+        $installedJson = (@(& python -m pip list --format=json --disable-pip-version-check) -join [Environment]::NewLine)
+        if ($LASTEXITCODE -ne 0) { throw "pip list --format=json failed with exit code $LASTEXITCODE." }
+        $installedPackages = @{}
+        foreach ($package in @($installedJson | ConvertFrom-Json)) {
+            $installedPackages[(ConvertTo-NormalizedPackageName -Name $package.name)] = $package.version
+        }
+        foreach ($entry in $ExpectedPackages) {
+            if (-not $installedPackages.ContainsKey($entry.Name) -or $installedPackages[$entry.Name] -ne $entry.Version) {
+                throw "Installed package does not match dependency lock: $($entry.Name)==$($entry.Version)."
+            }
+        }
+        $bootstrapPackages = @('pip', 'setuptools', 'wheel')
+        $unexpected = @($installedPackages.Keys | Where-Object { $_ -notin $bootstrapPackages -and $_ -notin $ExpectedPackages.Name })
+        if ($unexpected.Count -gt 0) { throw "Unexpected packages outside dependency lock: $($unexpected -join ', ')" }
 
         $fixture = Join-Path $Root 'ocrmypdf-fixture.png'
         $outputPdf = Join-Path $Root 'ocrmypdf-output.pdf'
@@ -138,10 +185,19 @@ $shaFile = Join-Path $pythonRoot 'SHA256SUMS.txt'
 $pythonVersionFile = Join-Path $pythonRoot 'PYTHON_VERSION.txt'
 $ocrVersionFile = Join-Path $pythonRoot 'OCRMY_PDF_VERSION.txt'
 $dependencies = Join-Path $pythonRoot 'DEPENDENCIES.txt'
+$packagedLock = Join-Path $pythonRoot 'DEPENDENCY_LOCK.txt'
+$sourceLock = (Resolve-Path -LiteralPath $DependencyLockPath).Path
+$sourceLockHash = (Get-FileHash -LiteralPath $sourceLock -Algorithm SHA256).Hash.ToLowerInvariant()
+if ($sourceLockHash -ne $DependencyLockSha256.ToLowerInvariant()) {
+    throw "Source dependency lock SHA-256 mismatch: expected $($DependencyLockSha256.ToLowerInvariant()), got $sourceLockHash."
+}
+$lockEntries = @(Read-DependencyLock -Path $sourceLock)
 
-foreach ($path in @($provenance, $shaFile, $pythonVersionFile, $ocrVersionFile, $dependencies)) {
+foreach ($path in @($provenance, $shaFile, $pythonVersionFile, $ocrVersionFile, $dependencies, $packagedLock)) {
     if (-not (Test-Path -LiteralPath $path -PathType Leaf)) { throw "Required Python/OCRmyPDF metadata file is missing: $path" }
 }
+$packagedLockHash = (Get-FileHash -LiteralPath $packagedLock -Algorithm SHA256).Hash.ToLowerInvariant()
+if ($packagedLockHash -ne $sourceLockHash) { throw 'Packaged dependency lock does not match the repository lock.' }
 if ((Get-Content -LiteralPath $pythonVersionFile -Raw).Trim() -ne $PythonVersion) { throw 'PYTHON_VERSION.txt mismatch.' }
 if ((Get-Content -LiteralPath $ocrVersionFile -Raw).Trim() -ne $OcrMyPdfVersion) { throw 'OCRMY_PDF_VERSION.txt mismatch.' }
 
@@ -151,6 +207,8 @@ $required = @{
     'PYTHON_ARCHIVE_SHA256' = $PythonSha256.ToLowerInvariant()
     'OCRMY_PDF_VERSION' = $OcrMyPdfVersion
     'OCRMY_PDF_WHEEL_SHA256' = $OcrMyPdfWheelSha256.ToLowerInvariant()
+    'PYTHON_DEPENDENCY_LOCK_SHA256' = $DependencyLockSha256.ToLowerInvariant()
+    'PYTHON_DEPENDENCY_LOCK_PACKAGE_COUNT' = "$($lockEntries.Count)"
 }
 foreach ($key in $required.Keys) {
     if (-not $metadata.ContainsKey($key)) { throw "Python/OCRmyPDF provenance is missing $key." }
@@ -162,15 +220,22 @@ foreach ($key in $required.Keys) {
 $python = Join-Path $pythonRoot 'python.exe'
 $ocr = Join-Path $pythonRoot 'ocrmypdf.exe'
 $shaText = Get-Content -LiteralPath $shaFile -Raw
-foreach ($item in @(@{Path=$python;Name='python.exe'}, @{Path=$ocr;Name='ocrmypdf.exe'})) {
+foreach ($item in @(@{Path=$python;Name='python.exe'}, @{Path=$ocr;Name='ocrmypdf.exe'}, @{Path=$packagedLock;Name='DEPENDENCY_LOCK.txt'})) {
     $hash = (Get-FileHash -LiteralPath $item.Path -Algorithm SHA256).Hash.ToLowerInvariant()
     if ($shaText -notmatch "(?im)^$hash\s+$([Regex]::Escape($item.Name))\s*$") { throw "SHA256SUMS.txt does not contain $($item.Name)." }
 }
-if ((Get-Content -LiteralPath $dependencies -Raw) -notmatch "(?im)^ocrmypdf==$([Regex]::Escape($OcrMyPdfVersion))\s*$") {
-    throw 'DEPENDENCIES.txt does not pin the requested OCRmyPDF version.'
+if (@($lockEntries | Where-Object { $_.Name -eq 'ocrmypdf' -and $_.Version -eq $OcrMyPdfVersion -and $_.Hash -eq $OcrMyPdfWheelSha256.ToLowerInvariant() }).Count -ne 1) {
+    throw 'Dependency lock does not contain the requested OCRmyPDF version and wheel hash.'
+}
+$expectedInventory = @($lockEntries | Sort-Object Name | ForEach-Object { "$($_.Name)==$($_.Version)" })
+$actualInventory = @(Get-Content -LiteralPath $dependencies | Where-Object { $_.Trim() })
+$inventoryDiff = @(Compare-Object -ReferenceObject $expectedInventory -DifferenceObject $actualInventory)
+if ($inventoryDiff.Count -gt 0) {
+    $inventoryDiff | Format-Table -AutoSize | Out-Host
+    throw 'DEPENDENCIES.txt does not exactly match the authenticated dependency lock.'
 }
 
-Test-OcrRuntime -Root $portable
+Test-OcrRuntime -Root $portable -ExpectedPackages $lockEntries
 
 if ($RequireRelocation) {
     $tempRoot = Join-Path ([System.IO.Path]::GetTempPath()) ("pdf-tunner-ocr-relocation-" + [Guid]::NewGuid().ToString('N'))
@@ -179,7 +244,7 @@ if ($RequireRelocation) {
         New-Item -ItemType Directory -Force -Path $relocated | Out-Null
         Copy-Item -LiteralPath (Join-Path $portable 'tools') -Destination $relocated -Recurse -Force
         New-Item -ItemType Directory -Force -Path (Join-Path $relocated 'data') | Out-Null
-        Test-OcrRuntime -Root $relocated
+        Test-OcrRuntime -Root $relocated -ExpectedPackages $lockEntries
         Write-Host "PASS: OCRmyPDF runtime remains functional after relocation to '$relocated'."
     }
     finally {

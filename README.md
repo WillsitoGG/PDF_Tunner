@@ -35,6 +35,8 @@ Stirling 2.14.3 probes and executes the external command `ocrmypdf`. PDF_Tunner 
 - OCRmyPDF `17.10.0` from PyPI;
 - OCRmyPDF wheel SHA-256 `34ba1b595ecacc94b6dc3c9d4fa51953de63082cd16cf8595251bd72120b930a`.
 
+The active dependency-lock hardening uses `.github/config/ocrmypdf-py312-windows-x64.lock.txt`, SHA-256 `d58c07e22837967fbbefb1f9f5168c100bfe47535c88445ccbad156f7fcd1374`. It pins all 27 OCRmyPDF/runtime packages to exact versions and authenticates the selected CPython 3.12 Windows x64/universal wheel for each package. Preparation downloads only that hash-locked wheelhouse, verifies its exact count and hashes, then installs from the local wheelhouse with network access disabled. Validation rejects missing, changed or unexpected non-bootstrap packages, compares the installed inventory with the packaged lock, runs `pip check`, and preserves the existing real OCR, searchable-text and relocation gates. This hardening is implemented but remains an active candidate until the complete primary workflow is green.
+
 PDF_Tunner removes the pip-generated Windows console launcher and builds `tools/python/ocrmypdf.exe`, a native relative shim that resolves sibling `python.exe`, executes `python.exe -m ocrmypdf`, writes OCRmyPDF temp state to `data/tmp/ocrmypdf/`, and Python cache to `data/python-cache/`.
 
 Primary Run **`33201568275` (#77)**, job **`98952028665`**, commit **`54802c15427673c0e95738195947ab76239d6e31`**, completed successfully with every prior gate enabled. It proved exact pinned versions/hashes, isolated package-only resolution, real searchable-PDF OCR, text extraction, package-local temp/cache, relocation to a path containing spaces, real backend acceptance of `ocrmypdf`, final layout cleanup, ZIP creation and SHA-256.
@@ -127,13 +129,13 @@ A dependency is accepted only when the **complete current primary workflow** is 
 
 ## CI artifact storage policy
 
-The primary workflow always builds the portable ZIP and verifies its layout, functional gates, size and SHA-256. Ordinary CI retains only a small evidence artifact containing the package hash, size, provenance and layout summary; it does not upload the multi-gigabyte ZIP itself. Failure diagnostics are text-only, capped at 2 MB and retained for 3 days.
+The primary workflow always builds the portable ZIP and verifies its layout, functional gates, size and SHA-256. Ordinary CI retains only a small evidence artifact containing the package hash, size, provenance, Python dependency lock/inventory and layout summary; it does not upload the multi-gigabyte ZIP itself. Failure diagnostics are text-only, capped at 2 MB and retained for 3 days.
 
 The primary workflow also leaves npm/Gradle Actions caches disabled, so ordinary runs do not persist dependency caches against the 0.5 GB storage allowance. Transient Maven Central HTTP 429 failures during desktop preparation are retried up to three times with bounded backoff inside the same runner; any runner-local Gradle state disappears with the job and is not uploaded. This preserves full regression coverage without consuming GitHub Actions storage for every iteration. Large ZIP retention is exceptional and must be justified before upload. The final user-deliverable ZIP will be attached to the GitHub Release only after the complete v1 acceptance process; no Release exists yet.
 
 ## Remaining v1 roadmap
 
-1. Consolidate portable Python dependency lock; NumPy; OpenCV; WeasyPrint.
+1. Validate and accept the active portable Python dependency lock; then NumPy; OpenCV; WeasyPrint.
 2. Calibre/`ebook-convert`; `unpaper`; `pngquant`; conversion fonts; explicit VeraPDF E2E; investigate `jbig2enc`; establish viable RAR/CBR support or document the limitation; add any further dependency found in exact pinned source.
 3. Representative E2E operations across OCR, Office, HTML/URL -> PDF, accepted Poppler, WeasyPrint, Calibre/EPUB, Python/OpenCV and representative Stirling API families.
 4. Non-Enterprise parity audit against Stirling 2.14.3.
