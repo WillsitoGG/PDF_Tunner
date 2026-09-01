@@ -718,16 +718,18 @@ jobs:
               Set-Content -LiteralPath (Join-Path $diagnostics 'webview2-state.txt') -Encoding utf8
           }
 
-          $diagnosticData = Join-Path $diagnostics 'data'
-          New-Item -ItemType Directory -Force -Path $diagnosticData | Out-Null
-          foreach ($relative in @('logs', 'configs', 'tmp', 'pipeline', 'tauri')) {
-            $source = Join-Path $data $relative
-            if (Test-Path -LiteralPath $source) {
-              Copy-Item -LiteralPath $source -Destination (Join-Path $diagnosticData $relative) -Recurse -Force -ErrorAction SilentlyContinue
-            }
+          $portableFiles = @(Get-ChildItem -LiteralPath $portable -Recurse -Force -File -ErrorAction SilentlyContinue)
+          @(
+            "PORTABLE_FILE_COUNT=$($portableFiles.Count)",
+            "PORTABLE_PAYLOAD_BYTES=$(($portableFiles | Measure-Object -Property Length -Sum).Sum)"
+          ) | Set-Content -LiteralPath (Join-Path $diagnostics 'portable-layout-summary.txt') -Encoding ascii
+
+          $diagnosticBytes = ($diagnostics | Get-ChildItem -Recurse -Force -File | Measure-Object -Property Length -Sum).Sum
+          if ($diagnosticBytes -gt 2MB) {
+            throw "Startup diagnostics exceed the 2 MB retention cap: $diagnosticBytes bytes."
           }
 
-      - name: Upload portable startup diagnostics
+      - name: Upload bounded portable startup diagnostics
         if: failure()
         uses: actions/upload-artifact@v7.0.1
         with:
@@ -735,7 +737,7 @@ jobs:
           path: dist/startup-diagnostics
           if-no-files-found: error
           include-hidden-files: true
-          retention-days: 7
+          retention-days: 3
 
       - name: Clean runtime data and verify portable layout
         shell: pwsh
@@ -851,13 +853,40 @@ jobs:
           "$($hash.Hash)  $name" | Set-Content -LiteralPath "$zip.sha256" -Encoding ascii
           Write-Host "SHA-256: $($hash.Hash)"
           "zip=$name" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+          "sha256=$($hash.Hash)" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+          "size_bytes=$((Get-Item -LiteralPath $zip).Length)" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
 
-      - name: Upload validated bootstrap artifact
+      - name: Create lightweight CI evidence
+        shell: pwsh
+        env:
+          PACKAGE_ZIP: ${{ steps.package.outputs.zip }}
+          PACKAGE_SHA256: ${{ steps.package.outputs.sha256 }}
+          PACKAGE_SIZE_BYTES: ${{ steps.package.outputs.size_bytes }}
+        run: |
+          $evidence = Join-Path $PWD 'dist/ci-evidence'
+          New-Item -ItemType Directory -Force -Path $evidence | Out-Null
+          @(
+            "WORKFLOW=$env:GITHUB_WORKFLOW",
+            "RUN_ID=$env:GITHUB_RUN_ID",
+            "RUN_ATTEMPT=$env:GITHUB_RUN_ATTEMPT",
+            "COMMIT=$env:GITHUB_SHA",
+            "UPSTREAM_VERSION=$env:PDF_TUNNER_UPSTREAM_VERSION",
+            "UPSTREAM_COMMIT=$env:PDF_TUNNER_UPSTREAM_COMMIT",
+            "ZIP_NAME=$env:PACKAGE_ZIP",
+            "ZIP_SHA256=$env:PACKAGE_SHA256",
+            "ZIP_SIZE_BYTES=$env:PACKAGE_SIZE_BYTES"
+          ) | Set-Content -LiteralPath (Join-Path $evidence 'PACKAGE_EVIDENCE.txt') -Encoding ascii
+          Copy-Item -LiteralPath "dist/$($env:PACKAGE_ZIP).sha256" -Destination (Join-Path $evidence "$($env:PACKAGE_ZIP).sha256") -Force
+          $layout = Get-ChildItem -LiteralPath './dist/PDF_Tunner' -Recurse -File | Measure-Object -Property Length -Sum
+          @(
+            "PORTABLE_FILE_COUNT=$($layout.Count)",
+            "PORTABLE_PAYLOAD_BYTES=$($layout.Sum)"
+          ) | Set-Content -LiteralPath (Join-Path $evidence 'PORTABLE_LAYOUT_SUMMARY.txt') -Encoding ascii
+
+      - name: Upload lightweight CI evidence
         uses: actions/upload-artifact@v7.0.1
         with:
-          name: PDF_Tunner-Windows-x64-Portable-bootstrap
-          path: |
-            dist/${{ steps.package.outputs.zip }}
-            dist/${{ steps.package.outputs.zip }}.sha256
+          name: PDF_Tunner-Windows-x64-CI-evidence
+          path: dist/ci-evidence
           if-no-files-found: error
           retention-days: 7
