@@ -41,9 +41,9 @@ Run #77 artifact: **`9698621272`**, `PDF_Tunner-Windows-x64-Portable-bootstrap`,
 
 The temporary focused OCRmyPDF workflow has been retired from automatic execution after primary acceptance. It remains manual-only temporarily and must be physically removed during final CI cleanup.
 
-### LibreOffice 26.2.5 + native `unoconvert` — primary integration pending acceptance
+### LibreOffice 26.2.5 + native `unoconvert` — primary regression passed; formal acceptance pending post-documentation regression
 
-This block is implemented on the portable-development path but is **not accepted** until the complete primary workflow is green. It pins the official The Document Foundation Windows x86-64 MSI:
+The complete primary regression is green, including the real backend routes. Formal acceptance remains pending one documentation-only primary regression. It pins the official The Document Foundation Windows x86-64 MSI:
 
 - LibreOffice `26.2.5`;
 - source: `https://download.documentfoundation.org/libreoffice/stable/26.2.5/win/x86_64/LibreOffice_26.2.5_Win_x86-64.msi`;
@@ -55,7 +55,7 @@ The shim intentionally does **not** run `unoserver`. It accepts Stirling's `--co
 
 The primary gate stages provenance and hashes, proves `where soffice` and `where unoconvert` resolve only inside the package with `tools/bin` first, runs direct `soffice` DOCX -> PDF plus shim DOCX -> PDF and PDF -> DOCX (`writer_pdf_import`), moves an already-used full portable tree between ordinary Windows paths containing spaces, and checks package-local temp/profile cleanup and no bundled LibreOffice process remains. It then starts the actual Tauri/Stirling backend with a package-only inherited `PATH`, verifies that `ExternalAppDepConfig` has not disabled either LibreOffice or Unoconvert, and exercises `/api/v1/convert/file/pdf` and `/api/v1/convert/pdf/word`.
 
-Focused candidate Run #13 (`33272788391`, job `99154179041`, commit `8dea43f511771f5483f6b038067cfd39ec7f68e3`) validated the isolated payload/shim design only. It is not acceptance evidence. LibreOffice is known to be sensitive to unusually extreme Windows path lengths; v1 acceptance requires normal relocation and spaces, not artificially extreme paths.
+Focused candidate Run #13 (`33272788391`, job `99154179041`, commit `8dea43f511771f5483f6b038067cfd39ec7f68e3`) validated the isolated payload/shim design only. The complete primary Run #82 (`33494425239`), job `99813187946`, commit `ac9c938e92fa7d53abc65b41a64a88431c0dcf92`, passed every prior gate plus direct/shim DOCX→PDF and PDF→DOCX, normal relocation with spaces, package-local cleanup, and real Stirling Office→PDF/PDF→DOCX backend routes. It generated ZIP SHA-256 `9ADD406AEB2938C54FD51BE39C1C925867C42120A943F982903810337C571109`; retained evidence artifact `9796127607` is 958 bytes, digest `sha256:0fbd955ae761f2638c5689afdbb7f77a0ae0e3d2c2822497e60c3d2bcc2cd762`, expiring 2026-09-08. LibreOffice is known to be sensitive to unusually extreme Windows path lengths; v1 acceptance requires normal relocation and spaces, not artificially extreme paths.
 
 ## Architecture
 
