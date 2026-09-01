@@ -1,7 +1,7 @@
 param(
   [string]$Branch = 'pdf-tunner/windows-portable-v1',
   [string]$WorkflowFile = 'pdf-tunner-windows-portable.yml',
-  [int]$Limit = 50
+  [ValidateRange(2, 10)][int]$Limit = 5
 )
 
 $ErrorActionPreference = 'Stop'
@@ -62,14 +62,27 @@ function Publish-RunStatus {
   } | ConvertTo-Json -Compress
 
   $statusUri = "https://api.github.com/repos/$env:GITHUB_REPOSITORY/statuses/$Sha"
-  Invoke-RestMethod -Method Post -Uri $statusUri -Headers $headers -ContentType 'application/json' -Body $payload | Out-Null
-  Write-Host "Published connector status for #$RunNumber / $RunId / $Sha => $State"
+  for ($attempt = 1; $attempt -le 2; $attempt++) {
+    try {
+      Invoke-RestMethod -Method Post -Uri $statusUri -Headers $headers -ContentType 'application/json' -Body $payload -TimeoutSec 10 | Out-Null
+      Write-Host "Published connector status for #$RunNumber / $RunId / $Sha => $State"
+      return $true
+    }
+    catch {
+      if ($attempt -eq 2) {
+        Write-Warning "Connector status publication failed after $attempt bounded attempts for run #$RunNumber / $RunId: $($_.Exception.Message)"
+        return $false
+      }
+      Start-Sleep -Seconds 2
+    }
+  }
 }
 
 # Publish the current run explicitly so its run_id is available even if the
 # Actions run-list endpoint has not indexed the run yet.
 $currentUrl = "$env:GITHUB_SERVER_URL/$env:GITHUB_REPOSITORY/actions/runs/$env:GITHUB_RUN_ID"
-Publish-RunStatus `
+$publishedCount = 0
+$currentPublished = Publish-RunStatus `
   -Sha $env:GITHUB_SHA `
   -RunId ([long]$env:GITHUB_RUN_ID) `
   -RunNumber ([int]$env:GITHUB_RUN_NUMBER) `
@@ -77,26 +90,48 @@ Publish-RunStatus `
   -Conclusion '' `
   -TargetUrl $currentUrl `
   -State 'pending'
+if ($currentPublished) { $publishedCount++ }
 
-# Backfill recent push runs so commits from before this bridge (notably run #50)
-# become discoverable through GitHub.get_commit_combined_status as well.
+# Publish only the latest completed predecessor. Historical backfill has already
+# been completed; replaying dozens of status writes adds no useful evidence and
+# makes an auxiliary connector bridge vulnerable to transient GitHub transport
+# failures before the functional gates begin.
 $encodedBranch = [Uri]::EscapeDataString($Branch)
 $runsUri = "https://api.github.com/repos/$env:GITHUB_REPOSITORY/actions/workflows/$WorkflowFile/runs?event=push&branch=$encodedBranch&per_page=$Limit"
-$response = Invoke-RestMethod -Method Get -Uri $runsUri -Headers $headers
-
-foreach ($run in @($response.workflow_runs)) {
-  if ([string]::IsNullOrWhiteSpace([string]$run.head_sha)) {
-    continue
+$response = $null
+for ($attempt = 1; $attempt -le 2; $attempt++) {
+  try {
+    $response = Invoke-RestMethod -Method Get -Uri $runsUri -Headers $headers -TimeoutSec 10
+    break
   }
-
-  Publish-RunStatus `
-    -Sha ([string]$run.head_sha) `
-    -RunId ([long]$run.id) `
-    -RunNumber ([int]$run.run_number) `
-    -Status ([string]$run.status) `
-    -Conclusion ([string]$run.conclusion) `
-    -TargetUrl ([string]$run.html_url) `
-    -State (Convert-RunToState -Run $run)
+  catch {
+    if ($attempt -eq 2) {
+      Write-Warning "Recent-run lookup failed after $attempt bounded attempts: $($_.Exception.Message)"
+    }
+    else {
+      Start-Sleep -Seconds 2
+    }
+  }
 }
 
-Write-Host "PASS: published connector-readable commit statuses for $(@($response.workflow_runs).Count) recent push runs."
+if ($null -ne $response) {
+  $predecessor = @($response.workflow_runs | Where-Object {
+      [long]$_.id -ne [long]$env:GITHUB_RUN_ID -and
+      $_.status -eq 'completed' -and
+      -not [string]::IsNullOrWhiteSpace([string]$_.head_sha)
+    } | Select-Object -First 1)
+
+  if ($predecessor.Count -eq 1) {
+    $predecessorPublished = Publish-RunStatus `
+      -Sha ([string]$predecessor[0].head_sha) `
+      -RunId ([long]$predecessor[0].id) `
+      -RunNumber ([int]$predecessor[0].run_number) `
+      -Status ([string]$predecessor[0].status) `
+      -Conclusion ([string]$predecessor[0].conclusion) `
+      -TargetUrl ([string]$predecessor[0].html_url) `
+      -State (Convert-RunToState -Run $predecessor[0])
+    if ($predecessorPublished) { $publishedCount++ }
+  }
+}
+
+Write-Host "PASS: connector status bridge completed with $publishedCount successful bounded publication(s); status publication is auxiliary and does not replace functional gates."

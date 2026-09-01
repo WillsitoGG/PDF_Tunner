@@ -71,6 +71,8 @@ jobs:
 
       - name: Publish connector-readable push-run statuses
         shell: pwsh
+        timeout-minutes: 2
+        continue-on-error: true
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
@@ -100,6 +102,7 @@ jobs:
         shell: pwsh
         run: |
           $scripts = @(
+            './.github/scripts/publish-push-run-statuses.ps1',
             './.github/scripts/prepare-ocrmypdf.ps1',
             './.github/scripts/validate-ocrmypdf.ps1',
             './.github/scripts/prepare-libreoffice.ps1',

@@ -184,6 +184,8 @@ The current candidate extends the accepted lock baseline to 28 packages. It pins
 
 Keep every accepted lock/OCR gate. In addition, preparation must verify the exact NumPy lock entry and wheel hash and record them in package provenance. Validation must prove the exact live version; package-local resolution of `numpy` and `_multiarray_umath`; AMD64 PE identity for the compiled core and every packaged `numpy.libs` DLL; deterministic matrix multiplication; and the same checks after relocation with spaces. The wheelhouse and ZIP remain prohibited as ordinary artifacts. Formal acceptance requires one complete primary regression with all earlier gates enabled.
 
+Primary Run #88 (`33528451159`), job `99925173576`, commit `b02b7f89a38f370c2102e4aea61aabe9e259ef67`, failed before every functional gate because the auxiliary connector-status bridge replayed historical statuses until GitHub forcibly closed the transport connection. The subsequent bounded diagnostic artifact upload also timed out; no artifact exists and no portable ZIP was built. This is infrastructure failure, not NumPy evidence. The bridge must publish at most the current run and latest completed predecessor, with short timeouts/retries and a two-minute workflow bound; it is best-effort and must never weaken or block functional gates.
+
 ### LibreOffice 26.2.5 + native `unoconvert` — accepted
 
 Do not restart this block from the old wrapper or from `unoserver`. The only architecture is the Stirling Tauri desktop plus bundled Windows LibreOffice and a native package-relative compatibility shim:
@@ -265,7 +267,7 @@ Latest green primary regression: **Run #87** (`33521994024`), job `99903300606`,
 
 Run #87 passed all earlier gates plus the authenticated 27-package Python lock, exact live inventory, offline wheelhouse installation, repeated clean `pip check`, real OCR/searchable-text and relocation. The ZIP and wheelhouse were not uploaded; the retained artifact contains only eight small evidence files and records 28,579 package files / 3,367,817,902 payload bytes.
 
-The portable Python dependency lock baseline is formally accepted. NumPy 2.5.2 is the active candidate with a 28-package authenticated lock, package-local compiled AMD64 and relocation gates; the broader A/B/C roadmap remains mandatory.
+The portable Python dependency lock baseline is formally accepted. NumPy 2.5.2 remains the active candidate with a 28-package authenticated lock, package-local compiled AMD64 and relocation gates. Run #88 is recorded only as a pre-gate connector-status transport failure; the corrected primary regression is still required.
 
 ## Compact changelog
 
@@ -285,3 +287,4 @@ The portable Python dependency lock baseline is formally accepted. NumPy 2.5.2 i
 - **2026-09-01:** replaced open-ended OCRmyPDF transitive resolution with a 27-package CPython 3.12 Windows x64 lock, per-wheel hashes, authenticated wheelhouse download, offline installation and exact runtime inventory gates; primary acceptance pending.
 - **2026-09-01:** complete primary Run #87 passed every prior and Python-lock gate; generated ZIP SHA-256 `9F1BA2BCF2452C47D864ECE91AB4FBA876D4567502A1D398C6DE69A77C704E5C`; retained evidence is 4,545 bytes. The authenticated portable Python dependency lock is formally accepted; NumPy is next.
 - **2026-09-01:** integrated the NumPy 2.5.2 CPython 3.12 Windows AMD64 wheel into a 28-package authenticated lock with package-local compiled-core/DLL, deterministic matrix and relocation gates; complete primary acceptance pending.
+- **2026-09-01:** primary Run #88 stopped before functional gates on a transient connector-status transport closure; bounded the auxiliary bridge to two useful statuses with short retry/time limits, preserving every acceptance gate and lightweight-storage rule.

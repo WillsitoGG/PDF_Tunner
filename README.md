@@ -53,6 +53,8 @@ The current candidate extends the accepted Python lock to 28 packages with NumPy
 
 Preparation retains the same authenticated download and offline installation model. Validation proves the exact live version, package-local module and compiled core paths, AMD64 identity of the core extension and bundled native DLLs, and deterministic matrix multiplication. The complete probe repeats after relocation to a path containing spaces, while every prior OCR and portable gate remains enabled. Ordinary CI still retains only the small lock, inventory and provenance evidence; it does not upload the wheelhouse or portable ZIP. NumPy remains unaccepted until one complete primary regression is green.
 
+Primary Run #88 (`33528451159`), job `99925173576`, commit `b02b7f89a38f370c2102e4aea61aabe9e259ef67`, stopped before every functional gate when the auxiliary connector-status bridge replayed historical status writes and GitHub closed the transport connection. No portable payload or evidence artifact was produced; this is not NumPy evidence. The bridge is now bounded to the current run plus the latest completed predecessor, uses short timeouts/retries, and remains explicitly auxiliary so a status-publication outage cannot replace or block the functional acceptance gates.
+
 ### LibreOffice 26.2.5 + native `unoconvert` — accepted
 
 The complete primary regression is green, including the real backend routes. LibreOffice and the native `unoconvert` compatibility shim are formally accepted on the evidence of primary Run #83. The integration pins the official The Document Foundation Windows x86-64 MSI:
