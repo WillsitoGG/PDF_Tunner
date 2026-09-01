@@ -55,6 +55,8 @@ Preparation retains the same authenticated download and offline installation mod
 
 Primary Run #88 (`33528451159`), job `99925173576`, commit `b02b7f89a38f370c2102e4aea61aabe9e259ef67`, stopped before every functional gate when the auxiliary connector-status bridge replayed historical status writes and GitHub closed the transport connection. No portable payload or evidence artifact was produced; this is not NumPy evidence. The bridge is now bounded to the current run plus the latest completed predecessor, uses short timeouts/retries, and remains explicitly auxiliary so a status-publication outage cannot replace or block the functional acceptance gates.
 
+Corrective primary Run #89 (`33529648123`), job `99929237590`, commit `92edd653e62cdd6d6e04f59889eac2c90e1b9ed9`, then failed deterministically in the PowerShell preflight because the bridge warning string used the invalid interpolation `$RunId:`. It therefore still ran no functional gate and built no ZIP or payload. The only retained output is text-only diagnostic artifact `9809195211`, `PDF_Tunner-startup-diagnostics`, at `1,309` bytes with digest `sha256:8e89549f40c874137c13db9a741f48d5eb16607a851e7f8aa21fad2a4fb0e792`, expiring 2026-09-04. The interpolation is corrected to `${RunId}:`; NumPy remains unaccepted pending one complete green primary regression.
+
 ### LibreOffice 26.2.5 + native `unoconvert` — accepted
 
 The complete primary regression is green, including the real backend routes. LibreOffice and the native `unoconvert` compatibility shim are formally accepted on the evidence of primary Run #83. The integration pins the official The Document Foundation Windows x86-64 MSI:

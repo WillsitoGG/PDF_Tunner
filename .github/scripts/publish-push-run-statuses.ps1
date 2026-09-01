@@ -70,7 +70,7 @@ function Publish-RunStatus {
     }
     catch {
       if ($attempt -eq 2) {
-        Write-Warning "Connector status publication failed after $attempt bounded attempts for run #$RunNumber / $RunId: $($_.Exception.Message)"
+        Write-Warning "Connector status publication failed after $attempt bounded attempts for run #$RunNumber / ${RunId}: $($_.Exception.Message)"
         return $false
       }
       Start-Sleep -Seconds 2

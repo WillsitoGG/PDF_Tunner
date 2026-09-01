@@ -186,6 +186,8 @@ Keep every accepted lock/OCR gate. In addition, preparation must verify the exac
 
 Primary Run #88 (`33528451159`), job `99925173576`, commit `b02b7f89a38f370c2102e4aea61aabe9e259ef67`, failed before every functional gate because the auxiliary connector-status bridge replayed historical statuses until GitHub forcibly closed the transport connection. The subsequent bounded diagnostic artifact upload also timed out; no artifact exists and no portable ZIP was built. This is infrastructure failure, not NumPy evidence. The bridge must publish at most the current run and latest completed predecessor, with short timeouts/retries and a two-minute workflow bound; it is best-effort and must never weaken or block functional gates.
 
+Corrective primary Run #89 (`33529648123`), job `99929237590`, commit `92edd653e62cdd6d6e04f59889eac2c90e1b9ed9`, failed in the PowerShell preflight before every functional gate because the bridge warning string contained the parser-invalid interpolation `$RunId:`. No ZIP or payload was built. Its only retained output is text-only diagnostic artifact `9809195211`, `PDF_Tunner-startup-diagnostics`, at `1,309` bytes with digest `sha256:8e89549f40c874137c13db9a741f48d5eb16607a851e7f8aa21fad2a4fb0e792`, expiring 2026-09-04. Use `${RunId}:` so the colon is outside the variable name. This run is not NumPy evidence; complete primary acceptance remains mandatory.
+
 ### LibreOffice 26.2.5 + native `unoconvert` — accepted
 
 Do not restart this block from the old wrapper or from `unoserver`. The only architecture is the Stirling Tauri desktop plus bundled Windows LibreOffice and a native package-relative compatibility shim:
@@ -267,7 +269,7 @@ Latest green primary regression: **Run #87** (`33521994024`), job `99903300606`,
 
 Run #87 passed all earlier gates plus the authenticated 27-package Python lock, exact live inventory, offline wheelhouse installation, repeated clean `pip check`, real OCR/searchable-text and relocation. The ZIP and wheelhouse were not uploaded; the retained artifact contains only eight small evidence files and records 28,579 package files / 3,367,817,902 payload bytes.
 
-The portable Python dependency lock baseline is formally accepted. NumPy 2.5.2 remains the active candidate with a 28-package authenticated lock, package-local compiled AMD64 and relocation gates. Run #88 is recorded only as a pre-gate connector-status transport failure; the corrected primary regression is still required.
+The portable Python dependency lock baseline is formally accepted. NumPy 2.5.2 remains the active candidate with a 28-package authenticated lock, package-local compiled AMD64 and relocation gates. Runs #88 and #89 are recorded only as pre-gate infrastructure/preflight failures; the corrected primary regression is still required.
 
 ## Compact changelog
 
@@ -288,3 +290,4 @@ The portable Python dependency lock baseline is formally accepted. NumPy 2.5.2 r
 - **2026-09-01:** complete primary Run #87 passed every prior and Python-lock gate; generated ZIP SHA-256 `9F1BA2BCF2452C47D864ECE91AB4FBA876D4567502A1D398C6DE69A77C704E5C`; retained evidence is 4,545 bytes. The authenticated portable Python dependency lock is formally accepted; NumPy is next.
 - **2026-09-01:** integrated the NumPy 2.5.2 CPython 3.12 Windows AMD64 wheel into a 28-package authenticated lock with package-local compiled-core/DLL, deterministic matrix and relocation gates; complete primary acceptance pending.
 - **2026-09-01:** primary Run #88 stopped before functional gates on a transient connector-status transport closure; bounded the auxiliary bridge to two useful statuses with short retry/time limits, preserving every acceptance gate and lightweight-storage rule.
+- **2026-09-01:** corrective primary Run #89 exposed `$RunId:` as invalid PowerShell interpolation during preflight; retained only a 1,309-byte text diagnostic, built no ZIP, and corrected the expression to `${RunId}:` without changing any functional gate.
