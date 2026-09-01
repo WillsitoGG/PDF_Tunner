@@ -170,13 +170,13 @@ Artifact **`9698621272`**, name `PDF_Tunner-Windows-x64-Portable-bootstrap`, Act
 
 The temporary focused OCRmyPDF workflow is retired after this primary acceptance; the permanent prepare/validate/launcher scripts remain part of the primary workflow.
 
-### Portable Python dependency lock — active candidate
+### Portable Python dependency lock — accepted
 
-Do not return to unconstrained `pip install` dependency resolution. The candidate lock is `.github/config/ocrmypdf-py312-windows-x64.lock.txt`, SHA-256 `d58c07e22837967fbbefb1f9f5168c100bfe47535c88445ccbad156f7fcd1374`, with 27 exact requirements and one authenticated CPython 3.12 Windows x64/universal wheel hash per requirement.
+Do not return to unconstrained `pip install` dependency resolution. The accepted lock is `.github/config/ocrmypdf-py312-windows-x64.lock.txt`, SHA-256 `d58c07e22837967fbbefb1f9f5168c100bfe47535c88445ccbad156f7fcd1374`, with 27 exact requirements and one authenticated CPython 3.12 Windows x64/universal wheel hash per requirement.
 
 `.github/scripts/prepare-ocrmypdf.ps1` must verify the repository lock hash and OCRmyPDF pin, download exactly the locked wheelhouse with `--require-hashes`, reject unknown/count-mismatched wheels, and install offline from that wheelhouse with no dependency resolution. It packages the lock as `tools/python/DEPENDENCY_LOCK.txt`, emits deterministic `DEPENDENCIES.txt`, records lock hash/count in provenance, and rejects any installed non-bootstrap package outside the lock. `.github/scripts/validate-ocrmypdf.ps1` must independently recheck source/packaged lock hashes, exact inventory and live installed versions before preserving all existing OCR, searchable-text, isolation and relocation gates. The lightweight artifact may retain the small Python provenance, lock and inventory files; it must never retain the wheelhouse.
 
-Acceptance still requires one complete primary regression with every earlier gate enabled. If green, record exact Run/job/commit, ZIP hash/size and lightweight artifact evidence in README + AGENTS before moving to NumPy.
+Complete primary Run #87 (`33521994024`), job `99903300606`, commit `b18ff6d5b6cc1ebc22a142f970e5d221f66485ed`, passed every earlier gate plus exact lock/hash checks, authenticated download of all 27 wheels, offline installation, rejection of packages outside the lock, repeated clean `pip check`, real OCR/searchable-text validation and relocation with spaces. The generated ZIP was `1,463,925,596` bytes, SHA-256 `9F1BA2BCF2452C47D864ECE91AB4FBA876D4567502A1D398C6DE69A77C704E5C`, and was not uploaded. Artifact `9807333187`, `PDF_Tunner-Windows-x64-CI-evidence`, is `4,545` bytes with Actions digest `sha256:33151eacdedd60fafe84e34fbeeb947716b651d35aee7dac0704dee172ea68cd`, expires 2026-09-08, and contains eight lightweight files including Python provenance, exact lock and inventory. Its layout summary records 28,579 files / 3,367,817,902 payload bytes. The portable Python dependency lock is formally accepted.
 
 ### LibreOffice 26.2.5 + native `unoconvert` — accepted
 
@@ -223,18 +223,17 @@ The primary workflow must keep npm/Gradle Actions caches disabled; ordinary runs
 
 ### A. External toolchain
 
-1. validate and accept the active portable Python dependency lock;
-2. NumPy;
-3. OpenCV;
-4. WeasyPrint;
-5. Calibre/`ebook-convert`;
-6. `unpaper`;
-7. `pngquant`;
-8. conversion fonts;
-9. explicit VeraPDF E2E;
-10. investigate/build/package `jbig2enc` if viable;
-11. viable portable RAR/CBR or concrete documented limitation;
-12. any further exact dependency exposed during pinned-source parity audit.
+1. NumPy;
+2. OpenCV;
+3. WeasyPrint;
+4. Calibre/`ebook-convert`;
+5. `unpaper`;
+6. `pngquant`;
+7. conversion fonts;
+8. explicit VeraPDF E2E;
+9. investigate/build/package `jbig2enc` if viable;
+10. viable portable RAR/CBR or concrete documented limitation;
+11. any further exact dependency exposed during pinned-source parity audit.
 
 ### B. Functional validation
 
@@ -254,13 +253,13 @@ Office -> PDF; supported PDF -> Office; HTML/URL -> PDF; WeasyPrint; Poppler; Ca
 
 ## Current handoff — 2026-09-01
 
-Accepted/closed: native portable/Tauri containment; Fixed WebView2; qpdf; ImageMagick; Ghostscript; Tesseract; Python 3.12.14 + OCRmyPDF 17.10.0; LibreOffice 26.2.5 + native `unoconvert`; Poppler 26.02.0.
+Accepted/closed: native portable/Tauri containment; Fixed WebView2; qpdf; ImageMagick; Ghostscript; Tesseract; Python 3.12.14 + OCRmyPDF 17.10.0; authenticated 27-package portable Python dependency lock; LibreOffice 26.2.5 + native `unoconvert`; Poppler 26.02.0.
 
-Latest green primary regression: **Run #86** (`33507551477`), job `99855128441`, commit `1b2bfdc4e99d87aa899a0701291db496f740f7ab`; ZIP SHA-256 `55C72F44FE4337875D3E0F368AE6067C04C2F65D4A10D9CC3901ED5BBB13FF72`, size `1,463,921,929` bytes; evidence artifact `9801229105` (`1,732` bytes), Actions digest `sha256:294f483bf220d0058faa83fd3ad5a2986039c86266d86021063208cd46acf49a`, expires 2026-09-08.
+Latest green primary regression: **Run #87** (`33521994024`), job `99903300606`, commit `b18ff6d5b6cc1ebc22a142f970e5d221f66485ed`; ZIP SHA-256 `9F1BA2BCF2452C47D864ECE91AB4FBA876D4567502A1D398C6DE69A77C704E5C`, size `1,463,925,596` bytes; evidence artifact `9807333187` (`4,545` bytes), Actions digest `sha256:33151eacdedd60fafe84e34fbeeb947716b651d35aee7dac0704dee172ea68cd`, expires 2026-09-08.
 
-Run #86 passed all earlier gates plus pinned Poppler 26.02.0 archive/executable hashes, AMD64 identity, isolated package-only resolution, real `pdfinfo`, `pdfimages` and both Stirling `pdftohtml` forms, relocation with spaces, final cleanup, and the real Stirling PDF→HTML backend route. The ZIP was generated and validated but not uploaded; the retained artifact contains only five small evidence files and records 28,553 package files / 3,367,812,959 payload bytes.
+Run #87 passed all earlier gates plus the authenticated 27-package Python lock, exact live inventory, offline wheelhouse installation, repeated clean `pip check`, real OCR/searchable-text and relocation. The ZIP and wheelhouse were not uploaded; the retained artifact contains only eight small evidence files and records 28,579 package files / 3,367,817,902 payload bytes.
 
-Poppler is formally accepted. Run #85 (`33506142322`), job `99850534886`, remains documented as a pre-gate Maven Central HTTP 429; the bounded same-runner retry correction was proven by the green #86 without persistent caches. The active candidate is the 27-package authenticated portable Python dependency lock described above; it is implemented but not accepted until a complete primary regression passes. NumPy is next after formal lock acceptance; the broader A/B/C roadmap remains mandatory.
+The portable Python dependency lock is formally accepted. NumPy is the next active dependency block; the broader A/B/C roadmap remains mandatory.
 
 ## Compact changelog
 
@@ -278,3 +277,4 @@ Poppler is formally accepted. Run #85 (`33506142322`), job `99850534886`, remain
 - **2026-09-01:** post-documentation Run #85 failed before functional gates on Maven Central HTTP 429; added bounded same-runner retry/backoff while keeping Actions caches disabled.
 - **2026-09-01:** corrected post-documentation primary Run #86 passed every gate; the ZIP was generated, validated and hashed but not uploaded, retained evidence is 1,732 bytes, and Poppler 26.02.0 is formally accepted.
 - **2026-09-01:** replaced open-ended OCRmyPDF transitive resolution with a 27-package CPython 3.12 Windows x64 lock, per-wheel hashes, authenticated wheelhouse download, offline installation and exact runtime inventory gates; primary acceptance pending.
+- **2026-09-01:** complete primary Run #87 passed every prior and Python-lock gate; generated ZIP SHA-256 `9F1BA2BCF2452C47D864ECE91AB4FBA876D4567502A1D398C6DE69A77C704E5C`; retained evidence is 4,545 bytes. The authenticated portable Python dependency lock is formally accepted; NumPy is next.

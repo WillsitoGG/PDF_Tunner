@@ -21,7 +21,7 @@ The complete primary Windows workflow has accepted:
 - ImageMagick `7.1.2-30` portable Q16 x64;
 - Ghostscript `10.07.1` Win64;
 - Tesseract OCR release `5.5.3`, Windows CLI `5.5.3.20260724`, with pinned `eng`, `spa` and `osd` models;
-- Python `3.12.14` x64 portable runtime;
+- Python `3.12.14` x64 portable runtime with an authenticated 27-package dependency lock;
 - OCRmyPDF `17.10.0` with a package-relative native launcher;
 - LibreOffice `26.2.5` with package-relative native `unoconvert.exe`;
 - Poppler `26.02.0` Windows x64 with package-local `pdftohtml`, `pdfinfo` and `pdfimages`.
@@ -35,7 +35,9 @@ Stirling 2.14.3 probes and executes the external command `ocrmypdf`. PDF_Tunner 
 - OCRmyPDF `17.10.0` from PyPI;
 - OCRmyPDF wheel SHA-256 `34ba1b595ecacc94b6dc3c9d4fa51953de63082cd16cf8595251bd72120b930a`.
 
-The active dependency-lock hardening uses `.github/config/ocrmypdf-py312-windows-x64.lock.txt`, SHA-256 `d58c07e22837967fbbefb1f9f5168c100bfe47535c88445ccbad156f7fcd1374`. It pins all 27 OCRmyPDF/runtime packages to exact versions and authenticates the selected CPython 3.12 Windows x64/universal wheel for each package. Preparation downloads only that hash-locked wheelhouse, verifies its exact count and hashes, then installs from the local wheelhouse with network access disabled. Validation rejects missing, changed or unexpected non-bootstrap packages, compares the installed inventory with the packaged lock, runs `pip check`, and preserves the existing real OCR, searchable-text and relocation gates. This hardening is implemented but remains an active candidate until the complete primary workflow is green.
+The accepted dependency lock is `.github/config/ocrmypdf-py312-windows-x64.lock.txt`, SHA-256 `d58c07e22837967fbbefb1f9f5168c100bfe47535c88445ccbad156f7fcd1374`. It pins all 27 OCRmyPDF/runtime packages to exact versions and authenticates the selected CPython 3.12 Windows x64/universal wheel for each package. Preparation downloads only that hash-locked wheelhouse, verifies its exact count and hashes, then installs from the local wheelhouse with network access disabled. Validation rejects missing, changed or unexpected non-bootstrap packages, compares the installed inventory with the packaged lock, runs `pip check`, and preserves the existing real OCR, searchable-text and relocation gates.
+
+Complete primary Run #87 (`33521994024`), job `99903300606`, commit `b18ff6d5b6cc1ebc22a142f970e5d221f66485ed`, passed every earlier gate plus authenticated download of all 27 wheels, offline installation, exact live inventory checks, repeated clean `pip check`, real OCR/searchable-text validation and relocation with spaces. It generated and validated a `1,463,925,596`-byte ZIP with SHA-256 `9F1BA2BCF2452C47D864ECE91AB4FBA876D4567502A1D398C6DE69A77C704E5C`; the ZIP and wheelhouse were not uploaded. Retained artifact `9807333187`, `PDF_Tunner-Windows-x64-CI-evidence`, is only `4,545` bytes, digest `sha256:33151eacdedd60fafe84e34fbeeb947716b651d35aee7dac0704dee172ea68cd`, expires 2026-09-08, and contains eight lightweight evidence files. Its layout summary records 28,579 files / 3,367,817,902 payload bytes. The portable Python dependency lock is formally accepted.
 
 PDF_Tunner removes the pip-generated Windows console launcher and builds `tools/python/ocrmypdf.exe`, a native relative shim that resolves sibling `python.exe`, executes `python.exe -m ocrmypdf`, writes OCRmyPDF temp state to `data/tmp/ocrmypdf/`, and Python cache to `data/python-cache/`.
 
@@ -63,7 +65,7 @@ Focused candidate Run #13 (`33272788391`, job `99154179041`, commit `8dea43f5117
 
 ### Poppler 26.02.0 — accepted
 
-The active candidate packages Poppler `26.02.0` for Windows x64 from the `oschwartz10612/poppler-windows` binary distribution, release `v26.02.0-0`:
+The accepted portable packages Poppler `26.02.0` for Windows x64 from the `oschwartz10612/poppler-windows` binary distribution, release `v26.02.0-0`:
 
 - source asset: `https://github.com/oschwartz10612/poppler-windows/releases/download/v26.02.0-0/Release-26.02.0-0.zip`;
 - archive SHA-256: `993e4a94376ed712fafc7058d724ea0b943d118bbd2305cd9ed55174eb85cda5`;
@@ -135,7 +137,7 @@ The primary workflow also leaves npm/Gradle Actions caches disabled, so ordinary
 
 ## Remaining v1 roadmap
 
-1. Validate and accept the active portable Python dependency lock; then NumPy; OpenCV; WeasyPrint.
+1. NumPy; OpenCV; WeasyPrint.
 2. Calibre/`ebook-convert`; `unpaper`; `pngquant`; conversion fonts; explicit VeraPDF E2E; investigate `jbig2enc`; establish viable RAR/CBR support or document the limitation; add any further dependency found in exact pinned source.
 3. Representative E2E operations across OCR, Office, HTML/URL -> PDF, accepted Poppler, WeasyPrint, Calibre/EPUB, Python/OpenCV and representative Stirling API families.
 4. Non-Enterprise parity audit against Stirling 2.14.3.
