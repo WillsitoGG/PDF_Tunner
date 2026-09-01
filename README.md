@@ -22,7 +22,8 @@ The complete primary Windows workflow has accepted:
 - Ghostscript `10.07.1` Win64;
 - Tesseract OCR release `5.5.3`, Windows CLI `5.5.3.20260724`, with pinned `eng`, `spa` and `osd` models;
 - Python `3.12.14` x64 portable runtime;
-- OCRmyPDF `17.10.0` with a package-relative native launcher.
+- OCRmyPDF `17.10.0` with a package-relative native launcher;
+- LibreOffice `26.2.5` with package-relative native `unoconvert.exe`.
 
 ### Python + OCRmyPDF — accepted
 
@@ -41,9 +42,9 @@ Run #77 artifact: **`9698621272`**, `PDF_Tunner-Windows-x64-Portable-bootstrap`,
 
 The temporary focused OCRmyPDF workflow has been retired from automatic execution after primary acceptance. It remains manual-only temporarily and must be physically removed during final CI cleanup.
 
-### LibreOffice 26.2.5 + native `unoconvert` — primary regression passed; formal acceptance pending post-documentation regression
+### LibreOffice 26.2.5 + native `unoconvert` — accepted
 
-The complete primary regression is green, including the real backend routes. Formal acceptance remains pending one documentation-only primary regression. It pins the official The Document Foundation Windows x86-64 MSI:
+The complete primary regression is green, including the real backend routes. LibreOffice and the native `unoconvert` compatibility shim are formally accepted on the evidence of primary Run #83. The integration pins the official The Document Foundation Windows x86-64 MSI:
 
 - LibreOffice `26.2.5`;
 - source: `https://download.documentfoundation.org/libreoffice/stable/26.2.5/win/x86_64/LibreOffice_26.2.5_Win_x86-64.msi`;
@@ -55,7 +56,7 @@ The shim intentionally does **not** run `unoserver`. It accepts Stirling's `--co
 
 The primary gate stages provenance and hashes, proves `where soffice` and `where unoconvert` resolve only inside the package with `tools/bin` first, runs direct `soffice` DOCX -> PDF plus shim DOCX -> PDF and PDF -> DOCX (`writer_pdf_import`), moves an already-used full portable tree between ordinary Windows paths containing spaces, and checks package-local temp/profile cleanup and no bundled LibreOffice process remains. It then starts the actual Tauri/Stirling backend with a package-only inherited `PATH`, verifies that `ExternalAppDepConfig` has not disabled either LibreOffice or Unoconvert, and exercises `/api/v1/convert/file/pdf` and `/api/v1/convert/pdf/word`.
 
-Focused candidate Run #13 (`33272788391`, job `99154179041`, commit `8dea43f511771f5483f6b038067cfd39ec7f68e3`) validated the isolated payload/shim design only. The complete primary Run #82 (`33494425239`), job `99813187946`, commit `ac9c938e92fa7d53abc65b41a64a88431c0dcf92`, passed every prior gate plus direct/shim DOCX→PDF and PDF→DOCX, normal relocation with spaces, package-local cleanup, and real Stirling Office→PDF/PDF→DOCX backend routes. It generated ZIP SHA-256 `9ADD406AEB2938C54FD51BE39C1C925867C42120A943F982903810337C571109`; retained evidence artifact `9796127607` is 958 bytes, digest `sha256:0fbd955ae761f2638c5689afdbb7f77a0ae0e3d2c2822497e60c3d2bcc2cd762`, expiring 2026-09-08. LibreOffice is known to be sensitive to unusually extreme Windows path lengths; v1 acceptance requires normal relocation and spaces, not artificially extreme paths.
+Focused candidate Run #13 (`33272788391`, job `99154179041`, commit `8dea43f511771f5483f6b038067cfd39ec7f68e3`) validated the isolated payload/shim design only. Complete primary Run #83 (`33497784837`), job `99823839704`, commit `355c0cf5cfe7afaadd89933a0aa3fb13456ebb83`, passed every prior gate plus direct/shim DOCX→PDF and PDF→DOCX, normal relocation with spaces, package-local cleanup, and real Stirling Office→PDF/PDF→DOCX backend routes. It generated ZIP SHA-256 `1F0D6AE03FD5F0A6158128669517E5378CADE9B1BE358DE0272600ED9126D105`; retained evidence artifact `9797397461` is 957 bytes, digest `sha256:9a3ac1af4d03dcae8b69cda20fc5f2f824c5486a7112991f112addd2fc9cdb12`, expiring 2026-09-08. LibreOffice is known to be sensitive to unusually extreme Windows path lengths; v1 acceptance requires normal relocation and spaces, not artificially extreme paths.
 
 ## Architecture
 
@@ -114,17 +115,16 @@ This preserves full regression coverage without consuming GitHub Actions storage
 
 ## Remaining v1 roadmap
 
-1. **Complete primary acceptance for LibreOffice + UNO/unoconvert** portable integration and real Office conversion gate.
-2. Poppler (`pdftohtml`, `pdfinfo`, `pdfimages`).
-3. Consolidate portable Python dependency lock; NumPy; OpenCV; WeasyPrint.
-4. Calibre/`ebook-convert`; `unpaper`; `pngquant`; conversion fonts; explicit VeraPDF E2E; investigate `jbig2enc`; establish viable RAR/CBR support or document the limitation; add any further dependency found in exact pinned source.
-5. Representative E2E operations across OCR, Office, HTML/URL -> PDF, Poppler, WeasyPrint, Calibre/EPUB, Python/OpenCV and representative Stirling API families.
-6. Non-Enterprise parity audit against Stirling 2.14.3.
-7. Final branding and portability audits.
-8. CI/repository cleanup, including physical removal of the retired OCRmyPDF candidate workflow, and downstream diff hygiene review.
-9. Final docs/provenance/version/hash record.
-10. Integrate to `main` without reopening old PR #1.
-11. Publish the clean v1 portable ZIP only after all gates, then perform the manual clean-machine Windows 10/11 checklist.
+1. Poppler (`pdftohtml`, `pdfinfo`, `pdfimages`).
+2. Consolidate portable Python dependency lock; NumPy; OpenCV; WeasyPrint.
+3. Calibre/`ebook-convert`; `unpaper`; `pngquant`; conversion fonts; explicit VeraPDF E2E; investigate `jbig2enc`; establish viable RAR/CBR support or document the limitation; add any further dependency found in exact pinned source.
+4. Representative E2E operations across OCR, Office, HTML/URL -> PDF, Poppler, WeasyPrint, Calibre/EPUB, Python/OpenCV and representative Stirling API families.
+5. Non-Enterprise parity audit against Stirling 2.14.3.
+6. Final branding and portability audits.
+7. CI/repository cleanup, including physical removal of the retired OCRmyPDF candidate workflow, and downstream diff hygiene review.
+8. Final docs/provenance/version/hash record.
+9. Integrate to `main` without reopening old PR #1.
+10. Publish the clean v1 portable ZIP only after all gates, then perform the manual clean-machine Windows 10/11 checklist.
 
 ## Mandatory documentation rule
 

@@ -169,7 +169,7 @@ Artifact **`9698621272`**, name `PDF_Tunner-Windows-x64-Portable-bootstrap`, Act
 
 The temporary focused OCRmyPDF workflow is retired after this primary acceptance; the permanent prepare/validate/launcher scripts remain part of the primary workflow.
 
-### LibreOffice 26.2.5 + native `unoconvert` — primary regression passed; formal acceptance pending post-documentation regression
+### LibreOffice 26.2.5 + native `unoconvert` — accepted
 
 Do not restart this block from the old wrapper or from `unoserver`. The only architecture is the Stirling Tauri desktop plus bundled Windows LibreOffice and a native package-relative compatibility shim:
 
@@ -202,21 +202,19 @@ This policy saves GitHub Actions storage without weakening validation. A large a
 
 ### A. External toolchain
 
-1. LibreOffice;
-2. UNO/`unoconvert` or source-compatible portable alternative;
-3. Poppler including `pdftohtml`, `pdfinfo`, `pdfimages`;
-4. consolidate portable Python dependency lock;
-5. NumPy;
-6. OpenCV;
-7. WeasyPrint;
-8. Calibre/`ebook-convert`;
-9. `unpaper`;
-10. `pngquant`;
-11. conversion fonts;
-12. explicit VeraPDF E2E;
-13. investigate/build/package `jbig2enc` if viable;
-14. viable portable RAR/CBR or concrete documented limitation;
-15. any further exact dependency exposed during pinned-source parity audit.
+1. Poppler including `pdftohtml`, `pdfinfo`, `pdfimages`;
+2. consolidate portable Python dependency lock;
+3. NumPy;
+4. OpenCV;
+5. WeasyPrint;
+6. Calibre/`ebook-convert`;
+7. `unpaper`;
+8. `pngquant`;
+9. conversion fonts;
+10. explicit VeraPDF E2E;
+11. investigate/build/package `jbig2enc` if viable;
+12. viable portable RAR/CBR or concrete documented limitation;
+13. any further exact dependency exposed during pinned-source parity audit.
 
 ### B. Functional validation
 
@@ -236,13 +234,11 @@ Office -> PDF; supported PDF -> Office; HTML/URL -> PDF; WeasyPrint; Poppler; Ca
 
 ## Current handoff — 2026-09-01
 
-Accepted/closed: native portable/Tauri containment; Fixed WebView2; qpdf; ImageMagick; Ghostscript; Tesseract; Python 3.12.14 + OCRmyPDF 17.10.0.
+Accepted/closed: native portable/Tauri containment; Fixed WebView2; qpdf; ImageMagick; Ghostscript; Tesseract; Python 3.12.14 + OCRmyPDF 17.10.0; LibreOffice 26.2.5 + native `unoconvert`.
 
-Latest green primary regression: **Run #82** (`33494425239`), job `99813187946`, commit `ac9c938e92fa7d53abc65b41a64a88431c0dcf92`; ZIP SHA-256 `9ADD406AEB2938C54FD51BE39C1C925867C42120A943F982903810337C571109`; evidence artifact `9796127607` (958 bytes), Actions digest `sha256:0fbd955ae761f2638c5689afdbb7f77a0ae0e3d2c2822497e60c3d2bcc2cd762`, expires 2026-09-08.
+Latest green primary regression: **Run #83** (`33497784837`), job `99823839704`, commit `355c0cf5cfe7afaadd89933a0aa3fb13456ebb83`; ZIP SHA-256 `1F0D6AE03FD5F0A6158128669517E5378CADE9B1BE358DE0272600ED9126D105`; evidence artifact `9797397461` (957 bytes), Actions digest `sha256:9a3ac1af4d03dcae8b69cda20fc5f2f824c5486a7112991f112addd2fc9cdb12`, expires 2026-09-08.
 
-Run #82 passed all earlier gates plus pinned LibreOffice 26.2.5 administrative extraction, package-local native `unoconvert`, direct and shim DOCX→PDF/PDF→DOCX, relocation through ordinary paths with spaces, local state/profile/process cleanup, and real Stirling backend Office→PDF/PDF→DOCX routes with package-local `unoconvert`.
-
-The only required next action is one post-documentation primary regression. Accept LibreOffice only if that regression is green; then stop before Poppler. The broader A/B/C roadmap remains mandatory.
+Run #83 passed all earlier gates plus pinned LibreOffice 26.2.5 administrative extraction, package-local native `unoconvert`, direct and shim DOCX→PDF/PDF→DOCX, relocation through ordinary paths with spaces, local state/profile/process cleanup, and real Stirling backend Office→PDF/PDF→DOCX routes with package-local `unoconvert`. LibreOffice/unoconvert is accepted; the active next block is Poppler (`pdftohtml`, `pdfinfo`, `pdfimages`). The broader A/B/C roadmap remains mandatory.
 
 ## Compact changelog
 
@@ -253,4 +249,5 @@ The only required next action is one post-documentation primary regression. Acce
 - **2026-08-28:** primary Run #77 passed with Python/OCRmyPDF integrated, real OCR, relocation, backend dependency acceptance, final ZIP and SHA-256. Python/OCRmyPDF accepted.
 - **2026-08-29:** temporary OCRmyPDF candidate workflow retired; primary Run #78 reconfirmed the accepted baseline.
 - **2026-08-29:** LibreOffice 26.2.5 focused candidate Run #13 passed isolated extraction/shim/relocation probes.
-- **2026-09-01:** primary Run #82 passed all gates with LibreOffice/unoconvert plus real backend conversions; retained CI evidence is 958 bytes. Formal acceptance is pending the required documentation-only regression.
+- **2026-09-01:** primary Run #82 passed all gates with LibreOffice/unoconvert plus real backend conversions; retained CI evidence is 958 bytes.
+- **2026-09-01:** post-documentation primary Run #83 passed every gate; ZIP SHA-256 and a 957-byte evidence artifact were retained. LibreOffice 26.2.5 + native `unoconvert` accepted; Poppler became the active block.
