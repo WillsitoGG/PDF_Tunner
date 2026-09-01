@@ -190,6 +190,18 @@ Corrective primary Run #89 (`33529648123`), job `99929237590`, commit `92edd653e
 
 Complete primary Run #90 (`33530454097`), job `99931980241`, commit `c32fb84eb2c0f7b157ef3217c59e57eee20b895b`, passed all earlier gates plus the exact 28-package lock/inventory, package-local NumPy module and compiled core, AMD64 core/DLL identity, deterministic matrix multiplication and repeated relocation with spaces. The generated ZIP was `1,480,791,164` bytes with SHA-256 `B1E7FB8E38DA90992FCBDC63118B7E8BEDE644EA434693AA2F1062B38709F473` and was not uploaded. Artifact `9810633011`, `PDF_Tunner-Windows-x64-CI-evidence`, is `4,727` bytes with Actions digest `sha256:d47a3e77de6788a32a6b9287452d53507b7c6ab04ba5e5aad15b259f4b72d0f9`, expires 2026-09-08, and contains exactly eight lightweight evidence files; its layout summary records 29,936 files / 3,421,683,208 payload bytes. NumPy 2.5.2 is formally accepted. OpenCV is the active block.
 
+### OpenCV 4.14.0.94 — active candidate
+
+Source-backed scope: pinned Stirling `app/core/src/main/resources/static/python/split_photos.py` imports `cv2` + NumPy and uses OpenCV thresholding, dilation, contour detection, auto-rotation and image output. `ExternalAppDepConfig` independently probes the `OpenCV` group through Python `import cv2`.
+
+Candidate distribution: **`opencv-python-headless 4.14.0.94`**, because the pinned Stirling usage requires image-processing APIs but no OpenCV GUI functions. Exact Windows x64 wheel: `opencv_python_headless-4.14.0.94-cp37-abi3-win_amd64.whl`; SHA-256 `cbed65415b8f6a9541c705afe3e64795840524d0ff3bc58f507826284a1dc64b`. PyPI declares `numpy>=2` for Python >=3.9, satisfied by accepted NumPy `2.5.2`.
+
+Do **not** rewrite the accepted 28-package OCRmyPDF/NumPy lock for this block. OpenCV uses dedicated repository lock `.github/config/opencv-py312-windows-x64.lock.txt`, SHA-256 `ec341586a884015445d4e28debbdd00b57ac903a36405bc7e0b9020e12dfd6c6`. `.github/scripts/prepare-ocrmypdf.ps1` keeps the accepted base wheelhouse unchanged, then downloads exactly this one OpenCV wheel with `--require-hashes`, validates exact filename/platform/hash, installs offline, records `OPENCV_*` provenance and emits a combined exact installed inventory. Neither wheelhouse nor wheel may become an Actions artifact.
+
+`.github/scripts/validate-ocrmypdf.ps1` must preserve every prior Python/OCRmyPDF/NumPy gate and additionally verify: source/packaged OpenCV lock identity; exact distribution/version/hash; `cv2` resolves below package-local Python; all packaged OpenCV `.pyd`/DLL binaries are AMD64; actual pinned Stirling `split_photos.py` processes a generated two-photo fixture and yields exactly two valid crops; the same proof succeeds after relocation to a path containing spaces; and live backend logs, when present, contain neither `Missing dependency: Python with OpenCV` nor `Disabling group: OpenCV`.
+
+Formal acceptance requires a complete primary workflow run with every earlier gate still green. On success, record the run/job/ZIP hash/evidence metadata in README + AGENTS using a documentation-only `[skip ci]` commit, then move the active block to WeasyPrint without triggering a redundant Actions run.
+
 ### LibreOffice 26.2.5 + native `unoconvert` — accepted
 
 Do not restart this block from the old wrapper or from `unoserver`. The only architecture is the Stirling Tauri desktop plus bundled Windows LibreOffice and a native package-relative compatibility shim:
@@ -270,7 +282,7 @@ Latest green primary regression: **Run #90** (`33530454097`), job `99931980241`,
 
 Run #90 passed all earlier gates plus the authenticated 28-package Python lock, exact live inventory, NumPy package-local AMD64 compiled-core/DLL checks, deterministic matrix multiplication, real OCR/searchable-text and relocation with spaces. The ZIP and wheelhouse were not uploaded; the retained artifact contains only eight small evidence files and records 29,936 package files / 3,421,683,208 payload bytes.
 
-The 28-package portable Python dependency lock and NumPy 2.5.2 are formally accepted. Runs #88 and #89 remain recorded only as pre-gate infrastructure/preflight failures. OpenCV is the active block.
+The 28-package portable Python dependency lock and NumPy 2.5.2 are formally accepted. Runs #88 and #89 remain recorded only as pre-gate infrastructure/preflight failures. OpenCV 4.14.0.94 headless is the active candidate with a dedicated one-package authenticated lock; formal acceptance still requires one complete primary green run.
 
 ## Compact changelog
 
@@ -293,3 +305,4 @@ The 28-package portable Python dependency lock and NumPy 2.5.2 are formally acce
 - **2026-09-01:** primary Run #88 stopped before functional gates on a transient connector-status transport closure; bounded the auxiliary bridge to two useful statuses with short retry/time limits, preserving every acceptance gate and lightweight-storage rule.
 - **2026-09-01:** corrective primary Run #89 exposed `$RunId:` as invalid PowerShell interpolation during preflight; retained only a 1,309-byte text diagnostic, built no ZIP, and corrected the expression to `${RunId}:` without changing any functional gate.
 - **2026-09-01:** complete primary Run #90 passed every prior gate plus authenticated NumPy 2.5.2 package-local AMD64, deterministic matrix and relocation validation; generated ZIP SHA-256 `B1E7FB8E38DA90992FCBDC63118B7E8BEDE644EA434693AA2F1062B38709F473`; retained evidence is 4,727 bytes. NumPy is formally accepted; OpenCV is next.
+- **2026-09-01:** prepared the OpenCV 4.14.0.94 headless candidate around a dedicated authenticated Windows x64 wheel lock, package-local AMD64 checks, real pinned `split_photos.py` E2E, relocation with spaces and backend dependency-group validation; complete primary acceptance pending.

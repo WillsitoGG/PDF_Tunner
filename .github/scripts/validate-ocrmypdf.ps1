@@ -15,6 +15,13 @@ param(
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
 
+$openCvSourceLock = (Resolve-Path -LiteralPath '.github/config/opencv-py312-windows-x64.lock.txt').Path
+$expectedOpenCvDependencyLockSha256 = 'ec341586a884015445d4e28debbdd00b57ac903a36405bc7e0b9020e12dfd6c6'
+$expectedOpenCvPackageName = 'opencv-python-headless'
+$expectedOpenCvVersion = '4.14.0.94'
+$expectedOpenCvWheelSha256 = 'cbed65415b8f6a9541c705afe3e64795840524d0ff3bc58f507826284a1dc64b'
+$splitPhotosScript = (Resolve-Path -LiteralPath './app/core/src/main/resources/static/python/split_photos.py').Path
+
 function ConvertTo-NormalizedPackageName {
     param([Parameter(Mandatory = $true)][string]$Name)
     return (($Name.ToLowerInvariant() -replace '[-_.]+', '-').Trim('-'))
@@ -87,7 +94,9 @@ function Test-OcrRuntime {
     param(
         [Parameter(Mandatory = $true)][string]$Root,
         [Parameter(Mandatory = $true)][array]$ExpectedPackages,
-        [Parameter(Mandatory = $true)][string]$ExpectedNumPyVersion
+        [Parameter(Mandatory = $true)][string]$ExpectedNumPyVersion,
+        [Parameter(Mandatory = $true)][string]$ExpectedOpenCvVersion,
+        [Parameter(Mandatory = $true)][string]$SplitPhotosScript
     )
 
     $pythonRoot = Join-Path $Root 'tools\python'
@@ -178,6 +187,57 @@ function Test-OcrRuntime {
         }
         Write-Host "PASS: NumPy $ExpectedNumPyVersion package-local AMD64 import and deterministic matrix multiplication succeeded."
 
+        $openCvProbeOutput = @(& python -c "import json, pathlib, cv2; print(json.dumps({'version':cv2.__version__,'package':str(pathlib.Path(cv2.__file__).resolve())}))" 2>&1)
+        if ($LASTEXITCODE -ne 0) {
+            $openCvProbeOutput | Out-Host
+            throw "OpenCV import probe failed with exit code $LASTEXITCODE."
+        }
+        try {
+            $openCvProbe = (($openCvProbeOutput -join [Environment]::NewLine) | ConvertFrom-Json -ErrorAction Stop)
+        }
+        catch {
+            $openCvProbeOutput | Out-Host
+            throw 'OpenCV import probe did not emit valid JSON.'
+        }
+        if ($openCvProbe.version -ne $ExpectedOpenCvVersion) {
+            throw "OpenCV version mismatch: expected '$ExpectedOpenCvVersion', got '$($openCvProbe.version)'."
+        }
+        $openCvPackagePath = [System.IO.Path]::GetFullPath([string]$openCvProbe.package)
+        if (-not $openCvPackagePath.StartsWith($pythonRootPrefix, [System.StringComparison]::OrdinalIgnoreCase)) {
+            throw "OpenCV resolved outside package-local Python: $openCvPackagePath"
+        }
+        $openCvPackageRoot = Split-Path -Parent $openCvPackagePath
+        $openCvNativeFiles = @(Get-ChildItem -LiteralPath $openCvPackageRoot -Recurse -File -ErrorAction Stop |
+            Where-Object { $_.Extension -in @('.pyd', '.dll') })
+        $openCvPyds = @($openCvNativeFiles | Where-Object { $_.Extension -eq '.pyd' })
+        if ($openCvPyds.Count -eq 0) { throw "OpenCV did not package a native .pyd under $openCvPackageRoot." }
+        foreach ($nativeFile in $openCvNativeFiles) {
+            if ((Get-PeMachine -Path $nativeFile.FullName) -ne 0x8664) {
+                throw "OpenCV native binary is not AMD64: $($nativeFile.FullName)"
+            }
+        }
+
+        $openCvFixture = Join-Path $Root 'opencv-split-fixture.png'
+        $openCvOutputDir = Join-Path $Root 'opencv-split-output'
+        Remove-Item -LiteralPath $openCvFixture, $openCvOutputDir -Recurse -Force -ErrorAction SilentlyContinue
+        $fixtureProbe = @(& python -c "import cv2, numpy as np, sys; img=np.full((500,900,3),255,dtype=np.uint8); cv2.rectangle(img,(50,75),(350,425),(20,40,180),-1); cv2.rectangle(img,(550,75),(850,425),(40,180,40),-1); assert cv2.imwrite(sys.argv[1],img)" $openCvFixture 2>&1)
+        if ($LASTEXITCODE -ne 0) {
+            $fixtureProbe | Out-Host
+            throw "OpenCV synthetic fixture creation failed with exit code $LASTEXITCODE."
+        }
+        $splitProbe = @(& python $SplitPhotosScript $openCvFixture $openCvOutputDir --tolerance 20 --min_area 10000 --min_contour_area 500 --angle_threshold 90 --border_size 0 2>&1)
+        if ($LASTEXITCODE -ne 0) {
+            $splitProbe | Out-Host
+            throw "Stirling split_photos.py OpenCV E2E failed with exit code $LASTEXITCODE."
+        }
+        $splitValidation = @(& python -c "import cv2, glob, json, os, sys; files=sorted(glob.glob(os.path.join(sys.argv[1],'*.png'))); assert len(files)==2, files; shapes=[cv2.imread(f).shape[:2] for f in files]; assert all(h >= 300 and w >= 250 for h,w in shapes), shapes; print(json.dumps({'count':len(files),'shapes':shapes}))" $openCvOutputDir 2>&1)
+        if ($LASTEXITCODE -ne 0) {
+            $splitValidation | Out-Host
+            throw "Stirling split_photos.py output validation failed with exit code $LASTEXITCODE."
+        }
+        Remove-Item -LiteralPath $openCvFixture, $openCvOutputDir -Recurse -Force -ErrorAction SilentlyContinue
+        Write-Host "PASS: OpenCV $ExpectedOpenCvVersion package-local AMD64 import and Stirling split_photos.py E2E succeeded."
+
         $fixture = Join-Path $Root 'ocrmypdf-fixture.png'
         $outputPdf = Join-Path $Root 'ocrmypdf-output.pdf'
         Remove-Item -LiteralPath $fixture, $outputPdf -Force -ErrorAction SilentlyContinue
@@ -222,6 +282,8 @@ $pythonVersionFile = Join-Path $pythonRoot 'PYTHON_VERSION.txt'
 $ocrVersionFile = Join-Path $pythonRoot 'OCRMY_PDF_VERSION.txt'
 $dependencies = Join-Path $pythonRoot 'DEPENDENCIES.txt'
 $packagedLock = Join-Path $pythonRoot 'DEPENDENCY_LOCK.txt'
+$packagedOpenCvLock = Join-Path $pythonRoot 'OPENCV_DEPENDENCY_LOCK.txt'
+$openCvVersionFile = Join-Path $pythonRoot 'OPENCV_VERSION.txt'
 $sourceLock = (Resolve-Path -LiteralPath $DependencyLockPath).Path
 $sourceLockHash = (Get-FileHash -LiteralPath $sourceLock -Algorithm SHA256).Hash.ToLowerInvariant()
 if ($sourceLockHash -ne $DependencyLockSha256.ToLowerInvariant()) {
@@ -229,13 +291,28 @@ if ($sourceLockHash -ne $DependencyLockSha256.ToLowerInvariant()) {
 }
 $lockEntries = @(Read-DependencyLock -Path $sourceLock)
 
-foreach ($path in @($provenance, $shaFile, $pythonVersionFile, $ocrVersionFile, $dependencies, $packagedLock)) {
+$openCvSourceLockHash = (Get-FileHash -LiteralPath $openCvSourceLock -Algorithm SHA256).Hash.ToLowerInvariant()
+if ($openCvSourceLockHash -ne $expectedOpenCvDependencyLockSha256) {
+    throw "Source OpenCV dependency lock SHA-256 mismatch: expected $expectedOpenCvDependencyLockSha256, got $openCvSourceLockHash."
+}
+$openCvLockEntries = @(Read-DependencyLock -Path $openCvSourceLock)
+if ($openCvLockEntries.Count -ne 1) { throw 'OpenCV dependency lock must contain exactly one package.' }
+$openCvLockEntry = $openCvLockEntries[0]
+if ($openCvLockEntry.Name -ne $expectedOpenCvPackageName -or $openCvLockEntry.Version -ne $expectedOpenCvVersion -or $openCvLockEntry.Hash -ne $expectedOpenCvWheelSha256) {
+    throw "OpenCV dependency lock must contain exactly $expectedOpenCvPackageName==$expectedOpenCvVersion with the pinned Windows x64 wheel hash."
+}
+$expectedRuntimeEntries = @($lockEntries + $openCvLockEntries)
+
+foreach ($path in @($provenance, $shaFile, $pythonVersionFile, $ocrVersionFile, $openCvVersionFile, $dependencies, $packagedLock, $packagedOpenCvLock)) {
     if (-not (Test-Path -LiteralPath $path -PathType Leaf)) { throw "Required Python/OCRmyPDF metadata file is missing: $path" }
 }
 $packagedLockHash = (Get-FileHash -LiteralPath $packagedLock -Algorithm SHA256).Hash.ToLowerInvariant()
 if ($packagedLockHash -ne $sourceLockHash) { throw 'Packaged dependency lock does not match the repository lock.' }
+$packagedOpenCvLockHash = (Get-FileHash -LiteralPath $packagedOpenCvLock -Algorithm SHA256).Hash.ToLowerInvariant()
+if ($packagedOpenCvLockHash -ne $openCvSourceLockHash) { throw 'Packaged OpenCV dependency lock does not match the repository lock.' }
 if ((Get-Content -LiteralPath $pythonVersionFile -Raw).Trim() -ne $PythonVersion) { throw 'PYTHON_VERSION.txt mismatch.' }
 if ((Get-Content -LiteralPath $ocrVersionFile -Raw).Trim() -ne $OcrMyPdfVersion) { throw 'OCRMY_PDF_VERSION.txt mismatch.' }
+if ((Get-Content -LiteralPath $openCvVersionFile -Raw).Trim() -ne $expectedOpenCvVersion) { throw 'OPENCV_VERSION.txt mismatch.' }
 
 $metadata = Get-KeyValueMetadata -Path $provenance
 $required = @{
@@ -245,6 +322,10 @@ $required = @{
     'OCRMY_PDF_WHEEL_SHA256' = $OcrMyPdfWheelSha256.ToLowerInvariant()
     'NUMPY_VERSION' = $NumPyVersion
     'NUMPY_WHEEL_SHA256' = $NumPyWheelSha256.ToLowerInvariant()
+    'OPENCV_DISTRIBUTION' = $expectedOpenCvPackageName
+    'OPENCV_VERSION' = $expectedOpenCvVersion
+    'OPENCV_WHEEL_SHA256' = $expectedOpenCvWheelSha256
+    'OPENCV_DEPENDENCY_LOCK_SHA256' = $expectedOpenCvDependencyLockSha256
     'PYTHON_DEPENDENCY_LOCK_SHA256' = $DependencyLockSha256.ToLowerInvariant()
     'PYTHON_DEPENDENCY_LOCK_PACKAGE_COUNT' = "$($lockEntries.Count)"
 }
@@ -258,7 +339,7 @@ foreach ($key in $required.Keys) {
 $python = Join-Path $pythonRoot 'python.exe'
 $ocr = Join-Path $pythonRoot 'ocrmypdf.exe'
 $shaText = Get-Content -LiteralPath $shaFile -Raw
-foreach ($item in @(@{Path=$python;Name='python.exe'}, @{Path=$ocr;Name='ocrmypdf.exe'}, @{Path=$packagedLock;Name='DEPENDENCY_LOCK.txt'})) {
+foreach ($item in @(@{Path=$python;Name='python.exe'}, @{Path=$ocr;Name='ocrmypdf.exe'}, @{Path=$packagedLock;Name='DEPENDENCY_LOCK.txt'}, @{Path=$packagedOpenCvLock;Name='OPENCV_DEPENDENCY_LOCK.txt'})) {
     $hash = (Get-FileHash -LiteralPath $item.Path -Algorithm SHA256).Hash.ToLowerInvariant()
     if ($shaText -notmatch "(?im)^$hash\s+$([Regex]::Escape($item.Name))\s*$") { throw "SHA256SUMS.txt does not contain $($item.Name)." }
 }
@@ -268,7 +349,10 @@ if (@($lockEntries | Where-Object { $_.Name -eq 'ocrmypdf' -and $_.Version -eq $
 if (@($lockEntries | Where-Object { $_.Name -eq 'numpy' -and $_.Version -eq $NumPyVersion -and $_.Hash -eq $NumPyWheelSha256.ToLowerInvariant() }).Count -ne 1) {
     throw 'Dependency lock does not contain the requested NumPy version and wheel hash.'
 }
-$expectedInventory = @($lockEntries | Sort-Object Name | ForEach-Object { "$($_.Name)==$($_.Version)" })
+if (@($openCvLockEntries | Where-Object { $_.Name -eq $expectedOpenCvPackageName -and $_.Version -eq $expectedOpenCvVersion -and $_.Hash -eq $expectedOpenCvWheelSha256 }).Count -ne 1) {
+    throw 'OpenCV dependency lock does not contain the requested OpenCV distribution, version and wheel hash.'
+}
+$expectedInventory = @($expectedRuntimeEntries | Sort-Object Name | ForEach-Object { "$($_.Name)==$($_.Version)" })
 $actualInventory = @(Get-Content -LiteralPath $dependencies | Where-Object { $_.Trim() })
 $inventoryDiff = @(Compare-Object -ReferenceObject $expectedInventory -DifferenceObject $actualInventory)
 if ($inventoryDiff.Count -gt 0) {
@@ -276,7 +360,7 @@ if ($inventoryDiff.Count -gt 0) {
     throw 'DEPENDENCIES.txt does not exactly match the authenticated dependency lock.'
 }
 
-Test-OcrRuntime -Root $portable -ExpectedPackages $lockEntries -ExpectedNumPyVersion $NumPyVersion
+Test-OcrRuntime -Root $portable -ExpectedPackages $expectedRuntimeEntries -ExpectedNumPyVersion $NumPyVersion -ExpectedOpenCvVersion $expectedOpenCvVersion -SplitPhotosScript $splitPhotosScript
 
 if ($RequireRelocation) {
     $tempRoot = Join-Path ([System.IO.Path]::GetTempPath()) ("pdf-tunner-ocr-relocation-" + [Guid]::NewGuid().ToString('N'))
@@ -285,12 +369,25 @@ if ($RequireRelocation) {
         New-Item -ItemType Directory -Force -Path $relocated | Out-Null
         Copy-Item -LiteralPath (Join-Path $portable 'tools') -Destination $relocated -Recurse -Force
         New-Item -ItemType Directory -Force -Path (Join-Path $relocated 'data') | Out-Null
-        Test-OcrRuntime -Root $relocated -ExpectedPackages $lockEntries -ExpectedNumPyVersion $NumPyVersion
-        Write-Host "PASS: OCRmyPDF + NumPy runtime remains functional after relocation to '$relocated'."
+        Test-OcrRuntime -Root $relocated -ExpectedPackages $expectedRuntimeEntries -ExpectedNumPyVersion $NumPyVersion -ExpectedOpenCvVersion $expectedOpenCvVersion -SplitPhotosScript $splitPhotosScript
+        Write-Host "PASS: OCRmyPDF + NumPy + OpenCV runtime remains functional after relocation to '$relocated'."
     }
     finally {
         Remove-Item -LiteralPath $tempRoot -Recurse -Force -ErrorAction SilentlyContinue
     }
 }
 
-Write-Host "PASS: Python $PythonVersion + OCRmyPDF $OcrMyPdfVersion + NumPy $NumPyVersion functional validation succeeded."
+$backendLogRoot = Join-Path $portable 'data'
+$backendLogs = @(Get-ChildItem -LiteralPath $backendLogRoot -Recurse -File -Filter '*.log' -ErrorAction SilentlyContinue)
+if ($backendLogs.Count -gt 0) {
+    $backendLogText = ($backendLogs | ForEach-Object { Get-Content -LiteralPath $_.FullName -Raw -ErrorAction SilentlyContinue }) -join "`n"
+    if ($backendLogText -match '(?im)Missing dependency:\s*Python with OpenCV\b') {
+        throw 'Stirling backend reported Missing dependency: Python with OpenCV.'
+    }
+    if ($backendLogText -match '(?im)Disabling group:\s*OpenCV\b') {
+        throw 'Stirling backend disabled the OpenCV dependency group.'
+    }
+    Write-Host 'PASS: Stirling backend did not disable the OpenCV dependency group.'
+}
+
+Write-Host "PASS: Python $PythonVersion + OCRmyPDF $OcrMyPdfVersion + NumPy $NumPyVersion + OpenCV $expectedOpenCvVersion functional validation succeeded."

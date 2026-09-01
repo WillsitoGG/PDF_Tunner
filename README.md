@@ -59,6 +59,18 @@ Corrective primary Run #89 (`33529648123`), job `99929237590`, commit `92edd653e
 
 Complete primary Run #90 (`33530454097`), job `99931980241`, commit `c32fb84eb2c0f7b157ef3217c59e57eee20b895b`, passed every earlier gate plus exact 28-package lock/inventory checks, package-local NumPy compiled-core/DLL AMD64 validation, deterministic matrix multiplication and the repeated relocation probe with spaces. It generated and validated a `1,480,791,164`-byte ZIP with SHA-256 `B1E7FB8E38DA90992FCBDC63118B7E8BEDE644EA434693AA2F1062B38709F473`; the ZIP and wheelhouse were not uploaded. Retained artifact `9810633011`, `PDF_Tunner-Windows-x64-CI-evidence`, is only `4,727` bytes, digest `sha256:d47a3e77de6788a32a6b9287452d53507b7c6ab04ba5e5aad15b259f4b72d0f9`, expires 2026-09-08, and contains eight lightweight evidence files. Its layout summary records 29,936 files / 3,421,683,208 payload bytes. NumPy 2.5.2 is formally accepted; OpenCV is the next block.
 
+### OpenCV 4.14.0.94 — active candidate
+
+Pinned Stirling 2.14.3 contains `app/core/src/main/resources/static/python/split_photos.py`, which imports `cv2` + NumPy and uses OpenCV for thresholding, dilation, contour detection, auto-rotation and PNG output. `ExternalAppDepConfig` separately probes OpenCV through package-local Python with `import cv2`.
+
+The candidate intentionally uses the **headless main-modules** wheel because Stirling's pinned script performs image processing only and does not use OpenCV GUI calls. The exact candidate is `opencv-python-headless 4.14.0.94`, Windows x64 wheel `opencv_python_headless-4.14.0.94-cp37-abi3-win_amd64.whl`, SHA-256 `cbed65415b8f6a9541c705afe3e64795840524d0ff3bc58f507826284a1dc64b`. PyPI declares `numpy>=2` for Python >=3.9, so the already accepted NumPy `2.5.2` satisfies the runtime requirement.
+
+To preserve the formally accepted 28-package OCRmyPDF/NumPy lock unchanged, OpenCV uses a dedicated one-package authenticated lock at `.github/config/opencv-py312-windows-x64.lock.txt`, SHA-256 `ec341586a884015445d4e28debbdd00b57ac903a36405bc7e0b9020e12dfd6c6`. The existing Python preparation downloads this wheel separately with `--require-hashes`, verifies its exact filename/platform/hash, installs it offline after the accepted base wheelhouse and records the OpenCV pin/lock in package provenance. The combined installed inventory must then equal the accepted 28 packages plus this single OpenCV distribution.
+
+The validator keeps every existing Python/OCRmyPDF/NumPy gate and additionally proves package-local `cv2` resolution, exact version, AMD64 identity of all packaged `.pyd`/DLL native payloads, a synthetic real execution of Stirling's own `split_photos.py` producing two expected cropped images, repetition after relocation to a path containing spaces, and absence of `Missing dependency: Python with OpenCV` / `Disabling group: OpenCV` in live backend logs when they are present. No OpenCV wheel, Python wheelhouse or portable ZIP is retained as an ordinary Actions artifact.
+
+This block remains **candidate/pending** until one complete primary `PDF_Tunner Windows Portable` run passes with every previously accepted gate still enabled. A green candidate run will be recorded in README + AGENTS with a `[skip ci]` documentation-only commit so acceptance itself does not consume a redundant Actions run.
+
 ### LibreOffice 26.2.5 + native `unoconvert` — accepted
 
 The complete primary regression is green, including the real backend routes. LibreOffice and the native `unoconvert` compatibility shim are formally accepted on the evidence of primary Run #83. The integration pins the official The Document Foundation Windows x86-64 MSI:
