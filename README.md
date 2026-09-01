@@ -23,7 +23,8 @@ The complete primary Windows workflow has accepted:
 - Tesseract OCR release `5.5.3`, Windows CLI `5.5.3.20260724`, with pinned `eng`, `spa` and `osd` models;
 - Python `3.12.14` x64 portable runtime;
 - OCRmyPDF `17.10.0` with a package-relative native launcher;
-- LibreOffice `26.2.5` with package-relative native `unoconvert.exe`.
+- LibreOffice `26.2.5` with package-relative native `unoconvert.exe`;
+- Poppler `26.02.0` Windows x64 with package-local `pdftohtml`, `pdfinfo` and `pdfimages`.
 
 ### Python + OCRmyPDF — accepted
 
@@ -58,7 +59,7 @@ The primary gate stages provenance and hashes, proves `where soffice` and `where
 
 Focused candidate Run #13 (`33272788391`, job `99154179041`, commit `8dea43f511771f5483f6b038067cfd39ec7f68e3`) validated the isolated payload/shim design only. Complete primary Run #83 (`33497784837`), job `99823839704`, commit `355c0cf5cfe7afaadd89933a0aa3fb13456ebb83`, passed every prior gate plus direct/shim DOCX→PDF and PDF→DOCX, normal relocation with spaces, package-local cleanup, and real Stirling Office→PDF/PDF→DOCX backend routes. It generated ZIP SHA-256 `1F0D6AE03FD5F0A6158128669517E5378CADE9B1BE358DE0272600ED9126D105`; retained evidence artifact `9797397461` is 957 bytes, digest `sha256:9a3ac1af4d03dcae8b69cda20fc5f2f824c5486a7112991f112addd2fc9cdb12`, expiring 2026-09-08. LibreOffice is known to be sensitive to unusually extreme Windows path lengths; v1 acceptance requires normal relocation and spaces, not artificially extreme paths.
 
-### Poppler 26.02.0 — primary regression passed; formal acceptance pending post-documentation regression
+### Poppler 26.02.0 — accepted
 
 The active candidate packages Poppler `26.02.0` for Windows x64 from the `oschwartz10612/poppler-windows` binary distribution, release `v26.02.0-0`:
 
@@ -70,7 +71,9 @@ This is a pinned third-party Windows build of the Poppler upstream project, not 
 
 The primary gate verifies the release hash, each packaged executable hash and AMD64 PE identity; proves isolated package-only command resolution; runs real `pdfinfo`, `pdfimages -list` and both exact `pdftohtml` option forms against a generated one-page PDF containing text and an image; repeats execution after relocation to a path containing spaces; and exercises Stirling's real `POST /api/v1/convert/pdf/html` route with backend log proof that package-local `pdftohtml` ran.
 
-Complete primary Run #84 (`33502880719`), job `99840040906`, commit `745d87e86096485927a72a0586c4ec5cb969d8c8`, passed every previous gate plus all Poppler direct, isolated, relocation and real backend PDF→HTML checks. Executable SHA-256 values were `9fb2802fe026a3ce9967229738e98861b20619b25829f273d3656a05656b0b2f` (`pdftohtml.exe`), `34040ff62bef73d6847a7b443457ac7fe216eb331bfbeadec62ae555618b2aae` (`pdfinfo.exe`) and `22ce0c5fc3fac7c19ae526bd3bd3f6fa90592699bb867bf0b62676c72a890d0a` (`pdfimages.exe`). The workflow generated and validated a `1,463,915,169`-byte ZIP with SHA-256 `5146303DEC1D4D37E88217D9DB32422411198944C95182693CF0F38909120FA0`, but did not upload it. Retained evidence artifact `9799390618` is only `1,727` bytes, digest `sha256:a77cd50cab23248a968526022548e3df2468674e5cc565275a8146bb7a42e4e3`, expiring 2026-09-08. Formal acceptance remains pending one post-documentation complete primary regression. Post-documentation Run #85 (`33506142322`), job `99850534886`, did not reach the Poppler or packaging gates: Maven Central returned HTTP 429 while Gradle resolved build dependencies. This is an upstream rate-limit failure, not a Poppler regression; the corrected workflow retries only that identified transient condition without enabling persistent caches.
+Complete primary Run #84 (`33502880719`), job `99840040906`, commit `745d87e86096485927a72a0586c4ec5cb969d8c8`, first passed every previous gate plus all Poppler direct, isolated, relocation and real backend PDF→HTML checks. Executable SHA-256 values were `9fb2802fe026a3ce9967229738e98861b20619b25829f273d3656a05656b0b2f` (`pdftohtml.exe`), `34040ff62bef73d6847a7b443457ac7fe216eb331bfbeadec62ae555618b2aae` (`pdfinfo.exe`) and `22ce0c5fc3fac7c19ae526bd3bd3f6fa90592699bb867bf0b62676c72a890d0a` (`pdfimages.exe`). Post-documentation Run #85 (`33506142322`), job `99850534886`, stopped before functional gates on a Maven Central HTTP 429; it is recorded as an upstream rate-limit failure, not Poppler evidence.
+
+Corrected post-documentation primary Run #86 (`33507551477`), job `99855128441`, commit `1b2bfdc4e99d87aa899a0701291db496f740f7ab`, passed every gate and formally accepts Poppler. It generated and validated a `1,463,921,929`-byte ZIP with SHA-256 `55C72F44FE4337875D3E0F368AE6067C04C2F65D4A10D9CC3901ED5BBB13FF72`; the ZIP was not uploaded. Retained artifact `9801229105`, `PDF_Tunner-Windows-x64-CI-evidence`, is only `1,732` bytes, has Actions digest `sha256:294f483bf220d0058faa83fd3ad5a2986039c86266d86021063208cd46acf49a`, expires 2026-09-08, and contains five small evidence files: package metadata, ZIP checksum, layout summary, Poppler provenance and executable checksums. The recorded portable layout is 28,553 files / 3,367,812,959 payload bytes.
 
 ## Architecture
 
@@ -130,16 +133,15 @@ The primary workflow also leaves npm/Gradle Actions caches disabled, so ordinary
 
 ## Remaining v1 roadmap
 
-1. Poppler (`pdftohtml`, `pdfinfo`, `pdfimages`).
-2. Consolidate portable Python dependency lock; NumPy; OpenCV; WeasyPrint.
-3. Calibre/`ebook-convert`; `unpaper`; `pngquant`; conversion fonts; explicit VeraPDF E2E; investigate `jbig2enc`; establish viable RAR/CBR support or document the limitation; add any further dependency found in exact pinned source.
-4. Representative E2E operations across OCR, Office, HTML/URL -> PDF, Poppler, WeasyPrint, Calibre/EPUB, Python/OpenCV and representative Stirling API families.
-5. Non-Enterprise parity audit against Stirling 2.14.3.
-6. Final branding and portability audits.
-7. CI/repository cleanup, including physical removal of the retired OCRmyPDF candidate workflow, and downstream diff hygiene review.
-8. Final docs/provenance/version/hash record.
-9. Integrate to `main` without reopening old PR #1.
-10. Publish the clean v1 portable ZIP only after all gates, then perform the manual clean-machine Windows 10/11 checklist.
+1. Consolidate portable Python dependency lock; NumPy; OpenCV; WeasyPrint.
+2. Calibre/`ebook-convert`; `unpaper`; `pngquant`; conversion fonts; explicit VeraPDF E2E; investigate `jbig2enc`; establish viable RAR/CBR support or document the limitation; add any further dependency found in exact pinned source.
+3. Representative E2E operations across OCR, Office, HTML/URL -> PDF, accepted Poppler, WeasyPrint, Calibre/EPUB, Python/OpenCV and representative Stirling API families.
+4. Non-Enterprise parity audit against Stirling 2.14.3.
+5. Final branding and portability audits.
+6. CI/repository cleanup, including physical removal of the retired OCRmyPDF candidate workflow, and downstream diff hygiene review.
+7. Final docs/provenance/version/hash record.
+8. Integrate to `main` without reopening old PR #1.
+9. Publish the clean v1 portable ZIP only after all gates, then perform the manual clean-machine Windows 10/11 checklist.
 
 ## Mandatory documentation rule
 
