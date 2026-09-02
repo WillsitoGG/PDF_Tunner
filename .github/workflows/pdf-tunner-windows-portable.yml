@@ -106,6 +106,7 @@ jobs:
         run: |
           $scripts = @(
             './.github/scripts/publish-push-run-statuses.ps1',
+            './.github/scripts/collect-startup-diagnostics.ps1',
             './.github/scripts/prepare-ocrmypdf.ps1',
             './.github/scripts/validate-ocrmypdf.ps1',
             './.github/scripts/prepare-libreoffice.ps1',
@@ -732,106 +733,13 @@ jobs:
           }
           Write-Host 'PASS: portable package contains normalized Fixed WebView2 runtime only; no CAB archive remains.'
 
-      - name: Collect portable startup diagnostics
+      - name: Collect bounded portable startup diagnostics
         if: failure()
         shell: pwsh
         run: |
-          $diagnostics = Join-Path $PWD 'dist/startup-diagnostics'
-          New-Item -ItemType Directory -Force -Path $diagnostics | Out-Null
-
-          $portable = Join-Path $PWD 'dist/PDF_Tunner'
-          $data = Join-Path $portable 'data'
-          $hostTempRoot = [System.IO.Path]::GetTempPath()
-          $protocolKey = 'HKCU:\Software\Classes\pdf-tunner'
-
-          @(
-            (Join-Path $hostTempRoot 'stirling-pdf'),
-            (Join-Path $hostTempRoot 'stirling-mobile-scanner')
-          ) | ForEach-Object {
-            [PSCustomObject]@{ Path = $_; Exists = Test-Path -LiteralPath $_ }
-          } | Format-Table -AutoSize | Out-String -Width 4096 |
-            Set-Content -LiteralPath (Join-Path $diagnostics 'host-temp-state.txt') -Encoding utf8
-
-          $hostProfilePaths = @(
-            (Join-Path $env:LOCALAPPDATA 'com.willsitogg.pdf-tunner'),
-            (Join-Path $env:LOCALAPPDATA 'com.willsitogg.pdf-tunner\EBWebView'),
-            (Join-Path $env:APPDATA 'com.willsitogg.pdf-tunner'),
-            (Join-Path $env:APPDATA 'Stirling-PDF')
-          )
-          $hostProfilePaths | ForEach-Object {
-            [PSCustomObject]@{ Path = $_; Exists = Test-Path -LiteralPath $_ }
-          } | Format-Table -AutoSize | Out-String -Width 4096 |
-            Set-Content -LiteralPath (Join-Path $diagnostics 'host-profile-state.txt') -Encoding utf8
-
-          $hostInventory = @()
-          foreach ($root in @($env:LOCALAPPDATA, $env:APPDATA)) {
-            if (Test-Path -LiteralPath $root) {
-              $hostInventory += Get-ChildItem -LiteralPath $root -Force -ErrorAction SilentlyContinue |
-                Where-Object { $_.Name -match '(?i)pdf.?tunner|stirling|willsitogg|pdf-tunner' } |
-                Select-Object FullName, PSIsContainer, Length, LastWriteTime
-            }
-          }
-          $hostInventory | Format-Table -AutoSize | Out-String -Width 4096 |
-            Set-Content -LiteralPath (Join-Path $diagnostics 'host-app-inventory.txt') -Encoding utf8
-
-          $hostAppTree = @()
-          foreach ($root in @(
-            (Join-Path $env:LOCALAPPDATA 'com.willsitogg.pdf-tunner'),
-            (Join-Path $env:APPDATA 'com.willsitogg.pdf-tunner'),
-            (Join-Path $env:APPDATA 'Stirling-PDF')
-          )) {
-            if (Test-Path -LiteralPath $root) {
-              $hostAppTree += [PSCustomObject]@{ FullName = $root; PSIsContainer = $true; Length = $null; LastWriteTime = (Get-Item -LiteralPath $root).LastWriteTime }
-              $hostAppTree += Get-ChildItem -LiteralPath $root -Recurse -Force -ErrorAction SilentlyContinue |
-                Select-Object FullName, PSIsContainer, Length, LastWriteTime
-            }
-          }
-          $hostAppTree | Format-Table -AutoSize | Out-String -Width 4096 |
-            Set-Content -LiteralPath (Join-Path $diagnostics 'host-app-tree.txt') -Encoding utf8
-
-          [PSCustomObject]@{ Path = $protocolKey; Exists = Test-Path -LiteralPath $protocolKey } |
-            Format-List | Out-String -Width 4096 |
-            Set-Content -LiteralPath (Join-Path $diagnostics 'registry-state.txt') -Encoding utf8
-
-          Get-CimInstance Win32_Process |
-            Where-Object { $_.Name -match 'PDF_Tunner|java|msedgewebview2' -or ($_.CommandLine -and $_.CommandLine -match 'PDF_Tunner|Stirling|webview2') } |
-            Select-Object ProcessId, ParentProcessId, Name, ExecutablePath, CommandLine |
-            Format-List |
-            Out-String -Width 4096 |
-            Set-Content -LiteralPath (Join-Path $diagnostics 'processes.txt') -Encoding utf8
-
-          if (Test-Path -LiteralPath $portable) {
-            Get-ChildItem -LiteralPath $portable -Recurse -Force -ErrorAction SilentlyContinue |
-              Select-Object FullName, Length, LastWriteTime |
-              Format-Table -AutoSize |
-              Out-String -Width 4096 |
-              Set-Content -LiteralPath (Join-Path $diagnostics 'portable-tree.txt') -Encoding utf8
-          }
-
-          $webView = Join-Path $data 'webview2'
-          if (Test-Path -LiteralPath $webView) {
-            $webViewFiles = @(Get-ChildItem -LiteralPath $webView -Recurse -Force -File -ErrorAction SilentlyContinue)
-            $webViewBytes = ($webViewFiles | Measure-Object -Property Length -Sum).Sum
-            @(
-              "Path: $webView",
-              "Files: $($webViewFiles.Count)",
-              "Bytes: $webViewBytes",
-              '',
-              'Sample files:'
-            ) + @($webViewFiles | Select-Object -First 100 | ForEach-Object { $_.FullName }) |
-              Set-Content -LiteralPath (Join-Path $diagnostics 'webview2-state.txt') -Encoding utf8
-          }
-
-          $portableFiles = @(Get-ChildItem -LiteralPath $portable -Recurse -Force -File -ErrorAction SilentlyContinue)
-          @(
-            "PORTABLE_FILE_COUNT=$($portableFiles.Count)",
-            "PORTABLE_PAYLOAD_BYTES=$(($portableFiles | Measure-Object -Property Length -Sum).Sum)"
-          ) | Set-Content -LiteralPath (Join-Path $diagnostics 'portable-layout-summary.txt') -Encoding ascii
-
-          $diagnosticBytes = ($diagnostics | Get-ChildItem -Recurse -Force -File | Measure-Object -Property Length -Sum).Sum
-          if ($diagnosticBytes -gt 2MB) {
-            throw "Startup diagnostics exceed the 2 MB retention cap: $diagnosticBytes bytes."
-          }
+          & './.github/scripts/collect-startup-diagnostics.ps1' `
+            -PortableRoot './dist/PDF_Tunner' `
+            -OutputRoot './dist/startup-diagnostics'
 
       - name: Upload bounded portable startup diagnostics
         if: failure()

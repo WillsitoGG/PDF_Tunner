@@ -108,7 +108,7 @@ The accepted portable packages Poppler `26.02.0` for Windows x64 from the `oschw
 
 - source asset: `https://github.com/oschwartz10612/poppler-windows/releases/download/v26.02.0-0/Release-26.02.0-0.zip`;
 - archive SHA-256: `993e4a94376ed712fafc7058d724ea0b943d118bbd2305cd9ed55174eb85cda5`;
-- package layout: `tools/poppler/Library/bin/`, including `pdftohtml.exe`, `pdfinfo.exe` and `pdfimages.exe`.
+- package layout: `tools/poppler/Library/bin/`, including `pdftohtml.exe`, `pdfinfo` and `pdfimages.exe`.
 
 This is a pinned third-party Windows build of the Poppler upstream project, not an official Windows binary published by Poppler itself; provenance records both projects explicitly. Stirling 2.14.3 probes the literal command `pdftohtml` and its PDF-to-HTML/Markdown implementation uses `-c`, plus `-s -noframes -c` for Markdown.
 
@@ -171,7 +171,7 @@ A dependency is accepted only when the **complete current primary workflow** is 
 
 ## CI artifact storage policy
 
-The primary workflow always builds the portable ZIP and verifies its layout, functional gates, size and SHA-256. Ordinary CI retains only a small evidence artifact containing the package hash, size, provenance, Python dependency lock/inventory and layout summary; it does not upload the multi-gigabyte ZIP itself. Failure diagnostics are text-only, capped at 2 MB and retained for 3 days.
+The primary workflow always builds the portable ZIP and verifies its layout, functional gates, size and SHA-256. Ordinary CI retains only a small evidence artifact containing the package hash, size, provenance, Python dependency lock/inventory and layout summary; it does not upload the multi-gigabyte ZIP itself. Failure diagnostics are text-only, capped at 2 MB and retained for 3 days. The bounded startup collector retains selected package-local backend log tails plus concise process/state inventories; it deliberately does not retain a recursive full-package tree.
 
 The primary workflow also leaves npm/Gradle Actions caches disabled, so ordinary runs do not persist dependency caches against the 0.5 GB storage allowance. Transient Maven Central HTTP 429 failures during desktop preparation are retried up to three times with bounded backoff inside the same runner; any runner-local Gradle state disappears with the job and is not uploaded. This preserves full regression coverage without consuming GitHub Actions storage for every iteration. Large ZIP retention is exceptional and must be justified before upload. The final user-deliverable ZIP will be attached to the GitHub Release only after the complete v1 acceptance process; no Release exists yet.
 
@@ -190,3 +190,11 @@ The primary workflow also leaves npm/Gradle Actions caches disabled, so ordinary
 ## Mandatory documentation rule
 
 **Every PDF_Tunner-specific repository change must update both `README.md` and `AGENTS.md` in the same final commit.**
+
+## Active diagnostic continuation — WeasyPrint Run #93
+
+Primary Run #93 (`33621678436`), attempt 2, job `100256100825`, commit `4a8cae2ee848c86c01f13c0452ff014df35ace19`, passed WeasyPrint staging plus the isolated package-local version/hash/AMD64/HTML-to-PDF/relocation gate and every previously accepted dependency gate up to bundled Java validation. It then failed in `Start PDF_Tunner and validate real backend` because the startup gate did not detect the dynamic backend port from package-local logs within its existing 150-second window. WeasyPrint is therefore still **candidate/pending**, not accepted.
+
+The #93 failure snapshot showed the packaged desktop stack had progressed well beyond an immediate crash: the PDF_Tunner/WebView2 stack and bundled Java were present and package-local backend log files had been created. The old failure collector did not preserve those log contents; instead it generated a multi-megabyte recursive portable-tree listing and then failed its own 2 MB retention cap. That is an observability defect, not a diagnosis of the backend failure.
+
+The primary workflow now delegates failure evidence to `.github/scripts/collect-startup-diagnostics.ps1`. The collector retains bounded tails from package-local backend logs, includes `weasyprint` in the process snapshot, keeps concise host/data/WebView2/layout evidence, removes optional snapshots if necessary, and preserves the existing 2 MB / 3-day policy without retaining the full portable tree. No backend timeout, WeasyPrint payload, accepted dependency, or functional gate is relaxed by this diagnostic-only change. The next primary run must either go green or provide the exact backend log tail needed for a targeted correction before any further dependency is added.
