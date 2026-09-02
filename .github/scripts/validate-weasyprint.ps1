@@ -208,8 +208,10 @@ try {
         if ([string]::IsNullOrWhiteSpace($logText)) { throw 'No backend logs were available for WeasyPrint acceptance.' }
         if ($logText -match '(?im)Missing dependency:\s*weasyprint\b') { throw 'Stirling backend reported Missing dependency: weasyprint.' }
         if ($logText -match '(?im)Disabling group:\s*Weasyprint\b') { throw 'Stirling backend disabled the Weasyprint group.' }
-        if ($logText -notmatch ('(?im)WeasyPrint\s+' + [Regex]::Escape($Version) + '\s+meets minimum\s+58\.0')) {
-            throw "Backend logs did not confirm WeasyPrint $Version meets minimum 58.0."
+        $candidateVersionPattern = [Regex]::Escape($Version) + '(?:\.0)?'
+        $minimumVersionPattern = '58\.0(?:\.0)?'
+        if ($logText -notmatch ('(?im)\bWeasyPrint\s+' + $candidateVersionPattern + '\s+meets minimum\s+' + $minimumVersionPattern + '\b')) {
+            throw "Backend logs did not confirm WeasyPrint $Version (allowing Stirling's patch-normalized version) meets minimum 58.0."
         }
         if ($logText -notmatch '(?im)Running command:\s*weasyprint\b') {
             throw 'Backend logs did not prove a real package-local weasyprint command execution.'
