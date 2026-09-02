@@ -62,6 +62,7 @@ Do **not** globally replace `APPDATA`, `LOCALAPPDATA`, `PROGRAMDATA`, `USERPROFI
 - Python/OCRmyPDF -> `<portable>/tools/python`; OCRmyPDF child temp -> `<portable>/data/tmp/ocrmypdf`; Python cache -> `<portable>/data/python-cache`;
 - LibreOffice -> `<portable>/tools/libreoffice`; native source-compatible `unoconvert.exe` -> `<portable>/tools/bin`; LibreOffice child temp -> `<portable>/data/tmp/libreoffice`; transient per-invocation shim profiles -> `<portable>/p/` and must be empty after each conversion;
 - Poppler -> `<portable>/tools/poppler`, executables under `Library/bin`;
+- WeasyPrint official Windows payload -> `<portable>/tools/weasyprint`; package-relative command shim -> `<portable>/tools/bin/weasyprint.exe`; per-invocation PyInstaller/temp state -> `<portable>/data/tmp/weasyprint` and must be removed after each invocation;
 - Calibre config -> `<portable>/data/calibre` when packaged;
 - skip `pdf-tunner://` deep-link registration in portable mode.
 
@@ -105,6 +106,7 @@ Package under one `tools/` subtree per dependency. Tauri prepends, when present:
 - `tools/ghostscript/bin`;
 - `tools/qpdf/bin`;
 - `tools/poppler/Library/bin`;
+- `tools/weasyprint` stores the official backend executable, while the literal command is provided from `tools/bin`;
 - `tools/imagemagick`;
 - `tools/calibre`;
 - `tools/pngquant`;
@@ -204,6 +206,18 @@ Primary Run #91 (`33539166188`), job `99960820047`, commit `92643f78737dc64e8511
 
 Complete primary Run #92 (`33557169326`), job `100020722841`, commit `c4c2b7f6e320840faf3d8c61967351b529875a50`, passed every previously accepted gate plus corrected distribution/runtime checks, package-local AMD64 OpenCV native validation, real pinned Stirling `split_photos.py` E2E yielding exactly two valid crops, repeated relocation with spaces, OCR/NumPy regressions, real backend acceptance, state/process cleanup, final layout validation and ZIP generation. The generated ZIP was `1,523,242,671` bytes with SHA-256 `B179CC0CDC50C9BD9A4171F987535979A2380C26519927E753D015F69CF8A23B` and was not uploaded. Artifact `9820918487`, `PDF_Tunner-Windows-x64-CI-evidence`, is `4,890` bytes with Actions digest `sha256:7c7145e3aed4514ec91328da4393fe0f7626ac7ddfd259fad84461c8eb51a39a`, expires 2026-09-08, and contains exactly eight lightweight evidence files. Its layout summary records `30,042` files / `3,537,776,401` payload bytes. **OpenCV is formally accepted. WeasyPrint is the active external-toolchain block.**
 
+### WeasyPrint 69.0 — active candidate
+
+Source-backed scope: `RuntimePathConfig` defaults to literal `weasyprint` on Windows, `ExternalAppDepConfig` maps it to the `Weasyprint` group and requires version `58.0` or newer, and pinned `FileToPdf` executes `weasyprint -e utf-8 -v --pdf-forms INPUT OUTPUT`. HTML, Markdown and EML conversion paths use this shared renderer. Version 69.0 retains the exact CLI options Stirling requires, including `-e/--encoding`, `--pdf-forms`, `-u/--base-url` and `-v`.
+
+Candidate payload: official Kozea WeasyPrint **69.0** Windows release asset `weasyprint-windows.zip`, published 2026-06-02, size `29,832,155` bytes, archive SHA-256 `330101ff3ea50ebde4abf805283b6d703d5f3d71c77c983db94357ec4524a3ef`, source `https://github.com/Kozea/WeasyPrint/releases/download/v69.0/weasyprint-windows.zip`. This is a Kozea security release addressing CVE-2026-49452. The upstream Windows release workflow builds a Python 3.13/Pango payload into a PyInstaller one-file executable and tests it with `weasyprint --info`.
+
+Permanent candidate components are `.github/scripts/prepare-weasyprint.ps1`, `.github/scripts/weasyprint-launcher.rs` and `.github/scripts/validate-weasyprint.ps1`. Preparation authenticates the exact official archive, extracts only the official executable plus license/readme metadata, stages it at `tools/weasyprint/weasyprint.exe`, and builds `tools/bin/weasyprint.exe` as the literal package-first command Stirling sees. The native shim resolves the backend relative to itself, forwards the complete CLI unchanged, sets child `TEMP`, `TMP` and `TMPDIR` to a unique `data/tmp/weasyprint/run-<pid>-<timestamp>` directory, waits for completion, and removes that invocation directory. Do not add WeasyPrint to the accepted Python/OCRmyPDF lock; this isolated official executable avoids perturbing the accepted Python environment.
+
+The validator must prove exact release archive provenance/hash; AMD64 identity and SHA-256 of both official backend and shim; isolated `where weasyprint` resolution to exactly `tools/bin/weasyprint.exe`; exact version `69.0`; real HTML→PDF execution using Stirling's exact `-e utf-8 -v --pdf-forms` command shape; valid PDF output; no leftover package-local PyInstaller/temp invocation state; and the same proof after relocation to a path containing spaces. With a live backend it must exercise `POST /api/v1/convert/html/pdf` and `POST /api/v1/convert/markdown/pdf`, require valid PDFs, reject `Missing dependency: weasyprint` and `Disabling group: Weasyprint`, require the `WeasyPrint 69.0 meets minimum 58.0` dependency log and a real `Running command: weasyprint` execution record. HTML/URL/base-URL and EML breadth remains in the representative E2E phase; this block establishes the dependency itself without collapsing later parity testing.
+
+Formal acceptance requires one complete primary workflow run with every earlier accepted gate still green. On success, record run/job/ZIP hash/evidence metadata in README + AGENTS using a documentation-only `[skip ci]` commit, then move the active block to Calibre without triggering a redundant Actions run.
+
 ### LibreOffice 26.2.5 + native `unoconvert` — accepted
 
 Do not restart this block from the old wrapper or from `unoserver`. The only architecture is the Stirling Tauri desktop plus bundled Windows LibreOffice and a native package-relative compatibility shim:
@@ -281,7 +295,9 @@ Accepted/closed: native portable/Tauri containment; Fixed WebView2; qpdf; ImageM
 
 Latest green primary regression and OpenCV acceptance evidence: **Run #92** (`33557169326`), job `100020722841`, commit `c4c2b7f6e320840faf3d8c61967351b529875a50`; ZIP SHA-256 `B179CC0CDC50C9BD9A4171F987535979A2380C26519927E753D015F69CF8A23B`, size `1,523,242,671` bytes; evidence artifact `9820918487` (`4,890` bytes), Actions digest `sha256:7c7145e3aed4514ec91328da4393fe0f7626ac7ddfd259fad84461c8eb51a39a`, expires 2026-09-08. Layout: 30,042 package files / 3,537,776,401 payload bytes.
 
-Run #92 passed all earlier gates plus exact OpenCV distribution/runtime identity, package-local AMD64 native validation, real Stirling `split_photos.py` E2E with two valid crops, repeated relocation with spaces, real OCR/NumPy regressions, backend acceptance, state/process cleanup and final ZIP/layout validation. Run #91 remains only the validator-semantic history that led to the corrected check. **OpenCV is formally accepted. WeasyPrint is now the active candidate block.**
+Run #92 passed all earlier gates plus exact OpenCV distribution/runtime identity, package-local AMD64 native validation, real Stirling `split_photos.py` E2E with two valid crops, repeated relocation with spaces, real OCR/NumPy regressions, backend acceptance, state/process cleanup and final ZIP/layout validation. Run #91 remains only the validator-semantic history that led to the corrected check. **OpenCV is formally accepted.**
+
+Active candidate: **WeasyPrint 69.0**, official Kozea Windows PyInstaller release asset, SHA-256 `330101ff3ea50ebde4abf805283b6d703d5f3d71c77c983db94357ec4524a3ef`. Candidate architecture is official backend `tools/weasyprint/weasyprint.exe` plus package-relative `tools/bin/weasyprint.exe` shim localizing per-invocation temp to `data/tmp/weasyprint`. Acceptance gates include authenticated provenance/hash, AMD64, isolated PATH, exact Stirling CLI, real HTML→PDF, relocation with spaces, real backend HTML→PDF and Markdown→PDF, dependency-group logs and final full-regression ZIP/evidence. It is **not accepted** until the complete primary workflow is green.
 
 ## Compact changelog
 
@@ -307,3 +323,4 @@ Run #92 passed all earlier gates plus exact OpenCV distribution/runtime identity
 - **2026-09-01:** prepared the OpenCV 4.14.0.94 headless candidate around a dedicated authenticated Windows x64 wheel lock, package-local AMD64 checks, real pinned `split_photos.py` E2E, relocation with spaces and backend dependency-group validation; complete primary acceptance pending.
 - **2026-09-01:** primary Run #91 authenticated and packaged OpenCV 4.14.0.94 and passed the NumPy gate, then exposed a validator-only distribution/runtime version conflation (`4.14.0.94` vs `cv2.__version__=4.14.0`). Corrective validation now checks both identities separately without changing the payload or weakening any functional gate.
 - **2026-09-01:** complete primary Run #92 passed every earlier gate plus corrected OpenCV distribution/runtime, AMD64 native, real `split_photos.py`, relocation and backend checks; generated ZIP SHA-256 `B179CC0CDC50C9BD9A4171F987535979A2380C26519927E753D015F69CF8A23B`; retained evidence is 4,890 bytes. OpenCV is formally accepted; WeasyPrint is next.
+- **2026-09-02:** prepared the authenticated WeasyPrint 69.0 candidate from Kozea's official Windows release asset with native package-relative temp-containment shim, AMD64/hash/PATH/direct HTML→PDF/relocation gates and real Stirling HTML→PDF + Markdown→PDF backend validation; complete primary acceptance pending.

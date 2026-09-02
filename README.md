@@ -74,6 +74,18 @@ Primary Run #91 (`33539166188`), job `99960820047`, commit `92643f78737dc64e8511
 
 Complete primary Run #92 (`33557169326`), job `100020722841`, commit `c4c2b7f6e320840faf3d8c61967351b529875a50`, passed every previously accepted gate plus the corrected OpenCV distribution/runtime identity checks, package-local AMD64 native validation, real pinned Stirling `split_photos.py` E2E producing exactly two valid crops, the repeated relocation-with-spaces probe, real OCR/NumPy regressions, backend validation, portable-state/process cleanup, final layout validation and ZIP creation. It generated and validated a `1,523,242,671`-byte ZIP with SHA-256 `B179CC0CDC50C9BD9A4171F987535979A2380C26519927E753D015F69CF8A23B`; the ZIP and wheelhouse were not uploaded. Retained artifact `9820918487`, `PDF_Tunner-Windows-x64-CI-evidence`, is only `4,890` bytes, digest `sha256:7c7145e3aed4514ec91328da4393fe0f7626ac7ddfd259fad84461c8eb51a39a`, expires 2026-09-08, and contains eight lightweight evidence files. Its layout summary records `30,042` files / `3,537,776,401` payload bytes. **OpenCV is formally accepted. WeasyPrint is the active external-toolchain block.**
 
+### WeasyPrint 69.0 — active candidate
+
+Pinned Stirling 2.14.3 resolves the literal Windows command `weasyprint` through `RuntimePathConfig`, and `ExternalAppDepConfig` requires version `58.0` or newer before leaving the `Weasyprint` feature group enabled. Its shared `FileToPdf` path invokes `weasyprint -e utf-8 -v --pdf-forms INPUT OUTPUT`; the same conversion layer is used by HTML, Markdown and EML conversion paths.
+
+The candidate pins the official Kozea **WeasyPrint 69.0** Windows release asset `weasyprint-windows.zip`, published 2026-06-02. The archive is `29,832,155` bytes and has SHA-256 `330101ff3ea50ebde4abf805283b6d703d5f3d71c77c983db94357ec4524a3ef`; source URL: `https://github.com/Kozea/WeasyPrint/releases/download/v69.0/weasyprint-windows.zip`. Version 69.0 is also a security release addressing CVE-2026-49452. Kozea's release workflow builds the Windows executable with PyInstaller one-file mode and validates it with `weasyprint --info`.
+
+PDF_Tunner stages the authenticated official executable at `tools/weasyprint/weasyprint.exe` and builds a small package-relative native shim at `tools/bin/weasyprint.exe`, where Stirling's literal probe already resolves first. The shim forwards the complete CLI unchanged, localizes PyInstaller/child `TEMP`, `TMP` and `TMPDIR` to a unique `data/tmp/weasyprint/run-<pid>-<timestamp>/` directory, waits for completion, then removes that per-invocation directory. This keeps the accepted Python/OCRmyPDF/NumPy/OpenCV environment untouched.
+
+The primary candidate gate independently verifies exact release archive SHA/provenance, AMD64 identity and packaged executable/shim hashes; proves isolated `where weasyprint` resolves only to `tools/bin/weasyprint.exe`; checks exact version `69.0`; performs a real HTML→PDF conversion with Stirling's exact `-e utf-8 -v --pdf-forms` options; rejects residual per-invocation temp state; and repeats the complete runtime proof after relocation to a Windows path containing spaces. The live-backend gate then exercises real `POST /api/v1/convert/html/pdf` and `POST /api/v1/convert/markdown/pdf` requests, requires valid PDF output, checks that the backend reports `WeasyPrint 69.0 meets minimum 58.0`, and rejects missing/disabled dependency logs while requiring a real `Running command: weasyprint` execution record.
+
+WeasyPrint remains **candidate/pending** until one complete primary `PDF_Tunner Windows Portable` run passes with every previously accepted gate still enabled. HTML/URL→PDF breadth, including explicit URL/base-URL coverage and EML regression, remains part of the broader representative E2E phase even after this dependency block is accepted.
+
 ### LibreOffice 26.2.5 + native `unoconvert` — accepted
 
 The complete primary regression is green, including the real backend routes. LibreOffice and the native `unoconvert` compatibility shim are formally accepted on the evidence of primary Run #83. The integration pins the official The Document Foundation Windows x86-64 MSI:
@@ -124,6 +136,7 @@ State is localized component by component:
 - LibreOffice -> `tools/libreoffice/`; `unoconvert.exe` -> `tools/bin/`;
 - LibreOffice child temp -> `data/tmp/libreoffice/`; transient shim profiles -> `p/`;
 - Poppler -> `tools/poppler/`, with executables under `Library/bin/`;
+- WeasyPrint official Windows payload -> `tools/weasyprint/`; portable command shim -> `tools/bin/weasyprint.exe`; per-invocation temp -> `data/tmp/weasyprint/`;
 - Calibre config -> `data/calibre/` when added.
 
 Portable mode also skips runtime `pdf-tunner://` protocol registration. Primary CI rejects new tracked host AppData/TEMP/registry state and package-local orphan processes.

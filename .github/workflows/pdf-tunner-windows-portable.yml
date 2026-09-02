@@ -30,6 +30,9 @@ env:
   PDF_TUNNER_POPPLER_VARIANT: "windows-x64"
   PDF_TUNNER_POPPLER_URL: "https://github.com/oschwartz10612/poppler-windows/releases/download/v26.02.0-0/Release-26.02.0-0.zip"
   PDF_TUNNER_POPPLER_SHA256: "993e4a94376ed712fafc7058d724ea0b943d118bbd2305cd9ed55174eb85cda5"
+  PDF_TUNNER_WEASYPRINT_VERSION: "69.0"
+  PDF_TUNNER_WEASYPRINT_URL: "https://github.com/Kozea/WeasyPrint/releases/download/v69.0/weasyprint-windows.zip"
+  PDF_TUNNER_WEASYPRINT_SHA256: "330101ff3ea50ebde4abf805283b6d703d5f3d71c77c983db94357ec4524a3ef"
   PDF_TUNNER_IMAGEMAGICK_VERSION: "7.1.2-30"
   PDF_TUNNER_IMAGEMAGICK_VARIANT: "portable-Q16-x64"
   PDF_TUNNER_IMAGEMAGICK_URL: "https://github.com/ImageMagick/ImageMagick/releases/download/7.1.2-30/ImageMagick-7.1.2-30-portable-Q16-x64.7z"
@@ -108,7 +111,9 @@ jobs:
             './.github/scripts/prepare-libreoffice.ps1',
             './.github/scripts/validate-libreoffice.ps1',
             './.github/scripts/prepare-poppler.ps1',
-            './.github/scripts/validate-poppler.ps1'
+            './.github/scripts/validate-poppler.ps1',
+            './.github/scripts/prepare-weasyprint.ps1',
+            './.github/scripts/validate-weasyprint.ps1'
           )
           foreach ($script in $scripts) {
             $tokens = $null
@@ -119,13 +124,15 @@ jobs:
               throw "PowerShell syntax preflight failed: $script"
             }
           }
-          $metadata = Join-Path $env:RUNNER_TEMP 'pdf-tunner-unoconvert-launcher.rmeta'
-          try {
-            & rustc.exe --edition 2021 --emit metadata './.github/scripts/unoconvert-launcher.rs' -o $metadata
-            if ($LASTEXITCODE -ne 0) { throw "Rust shim syntax preflight failed with exit code $LASTEXITCODE." }
-          }
-          finally {
-            Remove-Item -LiteralPath $metadata -Force -ErrorAction SilentlyContinue
+          foreach ($source in @('./.github/scripts/unoconvert-launcher.rs', './.github/scripts/weasyprint-launcher.rs')) {
+            $metadata = Join-Path $env:RUNNER_TEMP ((Split-Path -Leaf $source) + '.rmeta')
+            try {
+              & rustc.exe --edition 2021 --emit metadata $source -o $metadata
+              if ($LASTEXITCODE -ne 0) { throw "Rust shim syntax preflight failed for $source with exit code $LASTEXITCODE." }
+            }
+            finally {
+              Remove-Item -LiteralPath $metadata -Force -ErrorAction SilentlyContinue
+            }
           }
 
       - name: Setup JDK 25
@@ -262,6 +269,25 @@ jobs:
             -PortableRoot './dist/PDF_Tunner' `
             -Version $env:PDF_TUNNER_POPPLER_VERSION `
             -ExpectedArchiveSha256 $env:PDF_TUNNER_POPPLER_SHA256 `
+            -RequireRelocation
+
+      - name: Stage official WeasyPrint Windows runtime and portable shim
+        shell: pwsh
+        run: |
+          & './.github/scripts/prepare-weasyprint.ps1' `
+            -PortableRoot './dist/PDF_Tunner' `
+            -Version $env:PDF_TUNNER_WEASYPRINT_VERSION `
+            -DownloadUrl $env:PDF_TUNNER_WEASYPRINT_URL `
+            -ExpectedSha256 $env:PDF_TUNNER_WEASYPRINT_SHA256 `
+            -LauncherSource './.github/scripts/weasyprint-launcher.rs'
+
+      - name: Validate packaged WeasyPrint independently of runner PATH
+        shell: pwsh
+        run: |
+          & './.github/scripts/validate-weasyprint.ps1' `
+            -PortableRoot './dist/PDF_Tunner' `
+            -Version $env:PDF_TUNNER_WEASYPRINT_VERSION `
+            -ExpectedArchiveSha256 $env:PDF_TUNNER_WEASYPRINT_SHA256 `
             -RequireRelocation
 
       - name: Stage official ImageMagick Windows runtime
@@ -552,6 +578,13 @@ jobs:
             -BackendBaseUrl "http://127.0.0.1:$port" `
             -BackendLogRoot (Join-Path $portable 'data')
 
+          & './.github/scripts/validate-weasyprint.ps1' `
+            -PortableRoot './dist/PDF_Tunner' `
+            -Version $env:PDF_TUNNER_WEASYPRINT_VERSION `
+            -ExpectedArchiveSha256 $env:PDF_TUNNER_WEASYPRINT_SHA256 `
+            -BackendBaseUrl "http://127.0.0.1:$port" `
+            -BackendLogRoot (Join-Path $portable 'data')
+
           $backendLogs = @(Get-ChildItem -LiteralPath (Join-Path $portable 'data') -Recurse -Force -File -Filter '*.log' -ErrorAction SilentlyContinue)
           if ($backendLogs.Count -eq 0) { throw 'No backend logs were available for OCRmyPDF dependency acceptance.' }
           $backendLogText = ($backendLogs | ForEach-Object { Get-Content -LiteralPath $_.FullName -Raw -ErrorAction SilentlyContinue }) -join "`n"
@@ -838,6 +871,12 @@ jobs:
             'tools/poppler/PROVENANCE.txt',
             'tools/poppler/SHA256SUMS.txt',
             'tools/poppler/VERSION.txt',
+            'tools/weasyprint/weasyprint.exe',
+            'tools/weasyprint/PROVENANCE.txt',
+            'tools/weasyprint/SHA256SUMS.txt',
+            'tools/weasyprint/VERSION.txt',
+            'tools/bin/weasyprint.exe',
+            'tools/bin/WEASYPRINT_PROVENANCE.txt',
             'tools/imagemagick/magick.exe',
             'tools/imagemagick/PROVENANCE.txt',
             'tools/imagemagick/SHA256SUMS.txt',
@@ -886,6 +925,11 @@ jobs:
             -PortableRoot './dist/PDF_Tunner' `
             -Version $env:PDF_TUNNER_POPPLER_VERSION `
             -ExpectedArchiveSha256 $env:PDF_TUNNER_POPPLER_SHA256
+
+          & './.github/scripts/validate-weasyprint.ps1' `
+            -PortableRoot './dist/PDF_Tunner' `
+            -Version $env:PDF_TUNNER_WEASYPRINT_VERSION `
+            -ExpectedArchiveSha256 $env:PDF_TUNNER_WEASYPRINT_SHA256
 
           & './.github/scripts/validate-imagemagick.ps1' `
             -PortableRoot './dist/PDF_Tunner' `
@@ -961,6 +1005,8 @@ jobs:
             "UPSTREAM_COMMIT=$env:PDF_TUNNER_UPSTREAM_COMMIT",
             "POPPLER_VERSION=$env:PDF_TUNNER_POPPLER_VERSION",
             "POPPLER_ARCHIVE_SHA256=$env:PDF_TUNNER_POPPLER_SHA256",
+            "WEASYPRINT_VERSION=$env:PDF_TUNNER_WEASYPRINT_VERSION",
+            "WEASYPRINT_ARCHIVE_SHA256=$env:PDF_TUNNER_WEASYPRINT_SHA256",
             "NUMPY_VERSION=$env:PDF_TUNNER_NUMPY_VERSION",
             "NUMPY_WHEEL_SHA256=$env:PDF_TUNNER_NUMPY_WHEEL_SHA256",
             "PYTHON_DEPENDENCY_LOCK_SHA256=$env:PDF_TUNNER_PYTHON_DEPENDENCY_LOCK_SHA256",
@@ -971,6 +1017,9 @@ jobs:
           Copy-Item -LiteralPath "dist/$($env:PACKAGE_ZIP).sha256" -Destination (Join-Path $evidence "$($env:PACKAGE_ZIP).sha256") -Force
           Copy-Item -LiteralPath './dist/PDF_Tunner/tools/poppler/PROVENANCE.txt' -Destination (Join-Path $evidence 'POPPLER_PROVENANCE.txt') -Force
           Copy-Item -LiteralPath './dist/PDF_Tunner/tools/poppler/SHA256SUMS.txt' -Destination (Join-Path $evidence 'POPPLER_SHA256SUMS.txt') -Force
+          Copy-Item -LiteralPath './dist/PDF_Tunner/tools/weasyprint/PROVENANCE.txt' -Destination (Join-Path $evidence 'WEASYPRINT_PROVENANCE.txt') -Force
+          Copy-Item -LiteralPath './dist/PDF_Tunner/tools/weasyprint/SHA256SUMS.txt' -Destination (Join-Path $evidence 'WEASYPRINT_SHA256SUMS.txt') -Force
+          Copy-Item -LiteralPath './dist/PDF_Tunner/tools/bin/WEASYPRINT_PROVENANCE.txt' -Destination (Join-Path $evidence 'WEASYPRINT_SHIM_PROVENANCE.txt') -Force
           Copy-Item -LiteralPath './dist/PDF_Tunner/tools/python/PROVENANCE.txt' -Destination (Join-Path $evidence 'PYTHON_PROVENANCE.txt') -Force
           Copy-Item -LiteralPath './dist/PDF_Tunner/tools/python/DEPENDENCY_LOCK.txt' -Destination (Join-Path $evidence 'PYTHON_DEPENDENCY_LOCK.txt') -Force
           Copy-Item -LiteralPath './dist/PDF_Tunner/tools/python/DEPENDENCIES.txt' -Destination (Join-Path $evidence 'PYTHON_DEPENDENCIES.txt') -Force
