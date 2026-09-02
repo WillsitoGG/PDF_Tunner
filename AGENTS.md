@@ -180,7 +180,7 @@ Complete primary Run #87 (`33521994024`), job `99903300606`, commit `b18ff6d5b6c
 
 ### NumPy 2.5.2 — accepted
 
-The accepted lock now contains 28 packages. It pins NumPy `2.5.2` to the CPython 3.12 Windows AMD64 wheel SHA-256 `28ac63476ec7651484215ee7fa15a1f78b57c14621f01e392afe17b9a1390ce4`; the complete lock SHA-256 is `ededb999049d81b85527f4d4aa679179e747669df300083d91bc2dd4e14e430f`. Pinned Stirling source imports NumPy in `app/core/src/main/resources/static/python/split_photos.py` together with `cv2`; there is no standalone Java NumPy probe, so this block establishes the compiled numerical base before OpenCV.
+The accepted lock now contains 28 packages. It pins NumPy `2.5.2` to the CPython 3.12 Windows AMD64 wheel SHA-256 `28ac63476ec7651484215ee7fa15a1f78b57c14621f01e392afe17b9a1390ce4`; the complete lock SHA-256 is `ededb999049d81b85527f4d4aa679179e747669df300083d91bc2dd4e14e430f`. Pinned Stirling source imports NumPy in `app/core/src/main/resources/static/python/split_photos.py` together with `cv2`; there is no standalone Java NumPy probe, so this block establishes the compiled numerical base used by OpenCV.
 
 Keep every accepted lock/OCR gate. In addition, preparation must verify the exact NumPy lock entry and wheel hash and record them in package provenance. Validation must prove the exact live version; package-local resolution of `numpy` and `_multiarray_umath`; AMD64 PE identity for the compiled core and every packaged `numpy.libs` DLL; deterministic matrix multiplication; and the same checks after relocation with spaces. The wheelhouse and ZIP remain prohibited as ordinary artifacts. Formal acceptance requires one complete primary regression with all earlier gates enabled.
 
@@ -188,21 +188,21 @@ Primary Run #88 (`33528451159`), job `99925173576`, commit `b02b7f89a38f370c2102
 
 Corrective primary Run #89 (`33529648123`), job `99929237590`, commit `92edd653e62cdd6d6e04f59889eac2c90e1b9ed9`, failed in the PowerShell preflight before every functional gate because the bridge warning string contained the parser-invalid interpolation `$RunId:`. No ZIP or payload was built. Its only retained output is text-only diagnostic artifact `9809195211`, `PDF_Tunner-startup-diagnostics`, at `1,309` bytes with digest `sha256:8e89549f40c874137c13db9a741f48d5eb16607a851e7f8aa21fad2a4fb0e792`, expiring 2026-09-04. Use `${RunId}:` so the colon is outside the variable name. This run did not count as NumPy acceptance evidence.
 
-Complete primary Run #90 (`33530454097`), job `99931980241`, commit `c32fb84eb2c0f7b157ef3217c59e57eee20b895b`, passed all earlier gates plus the exact 28-package lock/inventory, package-local NumPy module and compiled core, AMD64 core/DLL identity, deterministic matrix multiplication and repeated relocation with spaces. The generated ZIP was `1,480,791,164` bytes with SHA-256 `B1E7FB8E38DA90992FCBDC63118B7E8BEDE644EA434693AA2F1062B38709F473` and was not uploaded. Artifact `9810633011`, `PDF_Tunner-Windows-x64-CI-evidence`, is `4,727` bytes with Actions digest `sha256:d47a3e77de6788a32a6b9287452d53507b7c6ab04ba5e5aad15b259f4b72d0f9`, expires 2026-09-08, and contains exactly eight lightweight evidence files; its layout summary records 29,936 files / 3,421,683,208 payload bytes. NumPy 2.5.2 is formally accepted. OpenCV is the active block.
+Complete primary Run #90 (`33530454097`), job `99931980241`, commit `c32fb84eb2c0f7b157ef3217c59e57eee20b895b`, passed all earlier gates plus the exact 28-package lock/inventory, package-local NumPy module and compiled core, AMD64 core/DLL identity, deterministic matrix multiplication and repeated relocation with spaces. The generated ZIP was `1,480,791,164` bytes with SHA-256 `B1E7FB8E38DA90992FCBDC63118B7E8BEDE644EA434693AA2F1062B38709F473` and was not uploaded. Artifact `9810633011`, `PDF_Tunner-Windows-x64-CI-evidence`, is `4,727` bytes with Actions digest `sha256:d47a3e77de6788a32a6b9287452d53507b7c6ab04ba5e5aad15b259f4b72d0f9`, expires 2026-09-08, and contains exactly eight lightweight evidence files; its layout summary records 29,936 files / 3,421,683,208 payload bytes. NumPy 2.5.2 is formally accepted.
 
-### OpenCV 4.14.0.94 — active candidate
+### OpenCV 4.14.0.94 — accepted
 
 Source-backed scope: pinned Stirling `app/core/src/main/resources/static/python/split_photos.py` imports `cv2` + NumPy and uses OpenCV thresholding, dilation, contour detection, auto-rotation and image output. `ExternalAppDepConfig` independently probes the `OpenCV` group through Python `import cv2`.
 
-Candidate distribution: **`opencv-python-headless 4.14.0.94`**, because the pinned Stirling usage requires image-processing APIs but no OpenCV GUI functions. Exact Windows x64 wheel: `opencv_python_headless-4.14.0.94-cp37-abi3-win_amd64.whl`; SHA-256 `cbed65415b8f6a9541c705afe3e64795840524d0ff3bc58f507826284a1dc64b`. PyPI declares `numpy>=2` for Python >=3.9, satisfied by accepted NumPy `2.5.2`.
+Accepted distribution: **`opencv-python-headless 4.14.0.94`**, because the pinned Stirling usage requires image-processing APIs but no OpenCV GUI functions. Exact Windows x64 wheel: `opencv_python_headless-4.14.0.94-cp37-abi3-win_amd64.whl`; SHA-256 `cbed65415b8f6a9541c705afe3e64795840524d0ff3bc58f507826284a1dc64b`. PyPI declares `numpy>=2` for Python >=3.9, satisfied by accepted NumPy `2.5.2`.
 
 Do **not** rewrite the accepted 28-package OCRmyPDF/NumPy lock for this block. OpenCV uses dedicated repository lock `.github/config/opencv-py312-windows-x64.lock.txt`, SHA-256 `ec341586a884015445d4e28debbdd00b57ac903a36405bc7e0b9020e12dfd6c6`. `.github/scripts/prepare-ocrmypdf.ps1` keeps the accepted base wheelhouse unchanged, then downloads exactly this one OpenCV wheel with `--require-hashes`, validates exact filename/platform/hash, installs offline, records `OPENCV_*` provenance and emits a combined exact installed inventory. Neither wheelhouse nor wheel may become an Actions artifact.
 
-`.github/scripts/validate-ocrmypdf.ps1` must preserve every prior Python/OCRmyPDF/NumPy gate and additionally verify: source/packaged OpenCV lock identity; exact PyPI distribution version `4.14.0.94`; exact runtime/core version `4.14.0` from `cv2.__version__`; package-local `cv2` resolution; all packaged OpenCV `.pyd`/DLL binaries are AMD64; actual pinned Stirling `split_photos.py` processes a generated two-photo fixture and yields exactly two valid crops; the same proof succeeds after relocation to a path containing spaces; and live backend logs, when present, contain neither `Missing dependency: Python with OpenCV` nor `Disabling group: OpenCV`. Never compare the four-component `opencv-python-headless` distribution version directly with `cv2.__version__`; the wheel build component is not part of the OpenCV runtime version.
+`.github/scripts/validate-ocrmypdf.ps1` preserves every prior Python/OCRmyPDF/NumPy gate and additionally verifies: source/packaged OpenCV lock identity; exact PyPI distribution version `4.14.0.94`; exact runtime/core version `4.14.0` from `cv2.__version__`; package-local `cv2` resolution; all packaged OpenCV `.pyd`/DLL binaries are AMD64; actual pinned Stirling `split_photos.py` processes a generated two-photo fixture and yields exactly two valid crops; the same proof succeeds after relocation to a path containing spaces; and live backend logs contain neither `Missing dependency: Python with OpenCV` nor `Disabling group: OpenCV`. Never compare the four-component `opencv-python-headless` distribution version directly with `cv2.__version__`; the wheel build component is not part of the OpenCV runtime version.
 
-Primary Run #91 (`33539166188`), job `99960820047`, commit `92643f78737dc64e851156d23050a61927ba60bf`, authenticated and installed `opencv-python-headless 4.14.0.94`, staged the complete Python/OCRmyPDF/NumPy/OpenCV payload, passed `pip check`, and passed the package-local NumPy AMD64/matrix gate. It then failed deterministically at the first OpenCV validator comparison because the validator compared `ExpectedOpenCvVersion=4.14.0.94` with `cv2.__version__=4.14.0`. The failure occurred before OpenCV native/E2E/relocation gates and does not indicate a broken payload. Run #91 diagnostics physically contain the packaged `cv2` tree and `opencv_python_headless-4.14.0.94.dist-info`. The corrective change splits distribution and runtime validation while preserving the candidate wheel, authenticated lock/hash, preparation and all functional gates.
+Primary Run #91 (`33539166188`), job `99960820047`, commit `92643f78737dc64e851156d23050a61927ba60bf`, authenticated and installed the correct candidate but exposed a validator-only version-semantic failure (`4.14.0.94` distribution vs `4.14.0` runtime). Corrective commit `c4c2b7f6e320840faf3d8c61967351b529875a50` split those identities without changing payload, lock, hash or functional gates.
 
-Formal acceptance requires a complete primary workflow run with every earlier gate still green. On success, record the run/job/ZIP hash/evidence metadata in README + AGENTS using a documentation-only `[skip ci]` commit, then move the active block to WeasyPrint without triggering a redundant Actions run.
+Complete primary Run #92 (`33557169326`), job `100020722841`, commit `c4c2b7f6e320840faf3d8c61967351b529875a50`, passed every previously accepted gate plus corrected distribution/runtime checks, package-local AMD64 OpenCV native validation, real pinned Stirling `split_photos.py` E2E yielding exactly two valid crops, repeated relocation with spaces, OCR/NumPy regressions, real backend acceptance, state/process cleanup, final layout validation and ZIP generation. The generated ZIP was `1,523,242,671` bytes with SHA-256 `B179CC0CDC50C9BD9A4171F987535979A2380C26519927E753D015F69CF8A23B` and was not uploaded. Artifact `9820918487`, `PDF_Tunner-Windows-x64-CI-evidence`, is `4,890` bytes with Actions digest `sha256:7c7145e3aed4514ec91328da4393fe0f7626ac7ddfd259fad84461c8eb51a39a`, expires 2026-09-08, and contains exactly eight lightweight evidence files. Its layout summary records `30,042` files / `3,537,776,401` payload bytes. **OpenCV is formally accepted. WeasyPrint is the active external-toolchain block.**
 
 ### LibreOffice 26.2.5 + native `unoconvert` — accepted
 
@@ -229,7 +229,7 @@ The validator must preserve these gates: AMD64 identity; exact archive and execu
 
 Complete primary Run #84 (`33502880719`), job `99840040906`, commit `745d87e86096485927a72a0586c4ec5cb969d8c8`, first passed every previous gate and every Poppler gate. Packaged executable SHA-256 values: `pdftohtml.exe` `9fb2802fe026a3ce9967229738e98861b20619b25829f273d3656a05656b0b2f`; `pdfinfo.exe` `34040ff62bef73d6847a7b443457ac7fe216eb331bfbeadec62ae555618b2aae`; `pdfimages.exe` `22ce0c5fc3fac7c19ae526bd3bd3f6fa90592699bb867bf0b62676c72a890d0a`. Post-documentation Run #85 (`33506142322`), job `99850534886`, failed before functional gates on Maven Central HTTP 429 and remains only infrastructure history.
 
-Corrected post-documentation complete primary Run #86 (`33507551477`), job `99855128441`, commit `1b2bfdc4e99d87aa899a0701291db496f740f7ab`, passed all earlier gates and all Poppler gates; this is the formal acceptance evidence. The generated ZIP was `1,463,921,929` bytes, SHA-256 `55C72F44FE4337875D3E0F368AE6067C04C2F65D4A10D9CC3901ED5BBB13FF72`, and was not uploaded. Artifact `9801229105`, `PDF_Tunner-Windows-x64-CI-evidence`, is `1,732` bytes with Actions digest `sha256:294f483bf220d0058faa83fd3ad5a2986039c86266d86021063208cd46acf49a`, expires 2026-09-08, and contains exactly five lightweight files: package evidence, ZIP checksum, layout summary, Poppler provenance and Poppler executable checksums. Its layout summary records 28,553 files / 3,367,812,959 payload bytes.
+Corrected post-documentation complete primary Run #86 (`33507551477`), job `99855128441`, commit `1b2bfdc4e99d87aa899a0701291db496f740f7ab`, passed all earlier gates and all Poppler gates; this is the formal acceptance evidence. The generated ZIP was `1,463,921,929` bytes, SHA-256 `55C72F44FE4337875D3E0F368AE6067C04C2F65D4A10D9CC3901ED5BBB13FF72`, and was not uploaded. Artifact `9801229105`, `PDF_Tunner-Windows-x64-CI-evidence`, is `1,732` bytes with Actions digest `sha256:294f483bf220d0058faa83fd3ad5a2986039c86266d86021063208cd46acf49a`, expires 2026-09-08, and contains exactly five lightweight files: package evidence, ZIP checksum, layout summary, Poppler provenance and executable checksums. Its layout summary records 28,553 files / 3,367,812,959 payload bytes.
 
 ## Primary workflow acceptance contract
 
@@ -249,16 +249,15 @@ The primary workflow must keep npm/Gradle Actions caches disabled; ordinary runs
 
 ### A. External toolchain
 
-1. OpenCV;
-2. WeasyPrint;
-3. Calibre/`ebook-convert`;
-4. `unpaper`;
-5. `pngquant`;
-6. conversion fonts;
-7. explicit VeraPDF E2E;
-8. investigate/build/package `jbig2enc` if viable;
-9. viable portable RAR/CBR or concrete documented limitation;
-10. any further exact dependency exposed during pinned-source parity audit.
+1. WeasyPrint;
+2. Calibre/`ebook-convert`;
+3. `unpaper`;
+4. `pngquant`;
+5. conversion fonts;
+6. explicit VeraPDF E2E;
+7. investigate/build/package `jbig2enc` if viable;
+8. viable portable RAR/CBR or concrete documented limitation;
+9. any further exact dependency exposed during pinned-source parity audit.
 
 ### B. Functional validation
 
@@ -276,17 +275,13 @@ Office -> PDF; supported PDF -> Office; HTML/URL -> PDF; WeasyPrint; Poppler; Ca
 8. publish clean v1 ZIP only when all gates are complete;
 9. manual clean-machine Windows 10/11 checklist.
 
-## Current handoff — 2026-09-01
+## Current handoff — 2026-09-02
 
-Accepted/closed: native portable/Tauri containment; Fixed WebView2; qpdf; ImageMagick; Ghostscript; Tesseract; Python 3.12.14 + OCRmyPDF 17.10.0; authenticated 28-package portable Python dependency lock with NumPy 2.5.2; LibreOffice 26.2.5 + native `unoconvert`; Poppler 26.02.0.
+Accepted/closed: native portable/Tauri containment; Fixed WebView2; qpdf; ImageMagick; Ghostscript; Tesseract; Python 3.12.14 + OCRmyPDF 17.10.0; authenticated 28-package portable Python dependency lock with NumPy 2.5.2; OpenCV via `opencv-python-headless 4.14.0.94` / runtime `4.14.0`; LibreOffice 26.2.5 + native `unoconvert`; Poppler 26.02.0.
 
-Latest green primary regression: **Run #90** (`33530454097`), job `99931980241`, commit `c32fb84eb2c0f7b157ef3217c59e57eee20b895b`; ZIP SHA-256 `B1E7FB8E38DA90992FCBDC63118B7E8BEDE644EA434693AA2F1062B38709F473`, size `1,480,791,164` bytes; evidence artifact `9810633011` (`4,727` bytes), Actions digest `sha256:d47a3e77de6788a32a6b9287452d53507b7c6ab04ba5e5aad15b259f4b72d0f9`, expires 2026-09-08.
+Latest green primary regression and OpenCV acceptance evidence: **Run #92** (`33557169326`), job `100020722841`, commit `c4c2b7f6e320840faf3d8c61967351b529875a50`; ZIP SHA-256 `B179CC0CDC50C9BD9A4171F987535979A2380C26519927E753D015F69CF8A23B`, size `1,523,242,671` bytes; evidence artifact `9820918487` (`4,890` bytes), Actions digest `sha256:7c7145e3aed4514ec91328da4393fe0f7626ac7ddfd259fad84461c8eb51a39a`, expires 2026-09-08. Layout: 30,042 package files / 3,537,776,401 payload bytes.
 
-Run #90 passed all earlier gates plus the authenticated 28-package Python lock, exact live inventory, NumPy package-local AMD64 compiled-core/DLL checks, deterministic matrix multiplication, real OCR/searchable-text and relocation with spaces. The ZIP and wheelhouse were not uploaded; the retained artifact contains only eight small evidence files and records 29,936 package files / 3,421,683,208 payload bytes.
-
-Latest primary attempt: **Run #91** (`33539166188`), job `99960820047`, commit `92643f78737dc64e851156d23050a61927ba60bf`. OpenCV 4.14.0.94 was authenticated, installed and packaged; `pip check` and the NumPy gate passed. The run stopped before OpenCV native/E2E/relocation validation only because `validate-ocrmypdf.ps1` conflated the PyPI distribution version `4.14.0.94` with runtime `cv2.__version__=4.14.0`. The candidate payload is unchanged; the validator now treats those identities separately.
-
-The 28-package portable Python dependency lock and NumPy 2.5.2 remain formally accepted. Runs #88 and #89 remain recorded only as pre-gate infrastructure/preflight failures. OpenCV 4.14.0.94 headless remains the active candidate with a dedicated one-package authenticated lock; formal acceptance still requires one complete primary green run.
+Run #92 passed all earlier gates plus exact OpenCV distribution/runtime identity, package-local AMD64 native validation, real Stirling `split_photos.py` E2E with two valid crops, repeated relocation with spaces, real OCR/NumPy regressions, backend acceptance, state/process cleanup and final ZIP/layout validation. Run #91 remains only the validator-semantic history that led to the corrected check. **OpenCV is formally accepted. WeasyPrint is now the active candidate block.**
 
 ## Compact changelog
 
@@ -311,3 +306,4 @@ The 28-package portable Python dependency lock and NumPy 2.5.2 remain formally a
 - **2026-09-01:** complete primary Run #90 passed every prior gate plus authenticated NumPy 2.5.2 package-local AMD64, deterministic matrix and relocation validation; generated ZIP SHA-256 `B1E7FB8E38DA90992FCBDC63118B7E8BEDE644EA434693AA2F1062B38709F473`; retained evidence is 4,727 bytes. NumPy is formally accepted; OpenCV is next.
 - **2026-09-01:** prepared the OpenCV 4.14.0.94 headless candidate around a dedicated authenticated Windows x64 wheel lock, package-local AMD64 checks, real pinned `split_photos.py` E2E, relocation with spaces and backend dependency-group validation; complete primary acceptance pending.
 - **2026-09-01:** primary Run #91 authenticated and packaged OpenCV 4.14.0.94 and passed the NumPy gate, then exposed a validator-only distribution/runtime version conflation (`4.14.0.94` vs `cv2.__version__=4.14.0`). Corrective validation now checks both identities separately without changing the payload or weakening any functional gate.
+- **2026-09-01:** complete primary Run #92 passed every earlier gate plus corrected OpenCV distribution/runtime, AMD64 native, real `split_photos.py`, relocation and backend checks; generated ZIP SHA-256 `B179CC0CDC50C9BD9A4171F987535979A2380C26519927E753D015F69CF8A23B`; retained evidence is 4,890 bytes. OpenCV is formally accepted; WeasyPrint is next.
