@@ -9,17 +9,18 @@ PDF_Tunner is the real fork `WillsitoGG/PDF_Tunner` of `Stirling-Tools/Stirling-
 - Pinned upstream version: `2.14.3`
 - Pinned upstream commit: `7fb29d002dbb8fa4b5945d1d1fe8dd164a9f7632`
 - Development branch: `pdf-tunner/windows-portable-v1`
-- Target: Windows 10/11 x64 portable ZIP, extract and run.
+- Target: Windows 10/11 x64 portable ZIP, extract and run without installation.
 - Preserve Stirling non-Enterprise functionality unless explicitly removed.
 - Bundle required runtimes/dependencies whenever technically viable.
 - Keep runtime config/cache/log/temp/state inside the portable tree as far as underlying Windows APIs permit.
 - Keep the downstream delta small and easy to rebase on Stirling upstream.
-- No final PDF_Tunner v1 Release exists yet; `main` remains the clean upstream base while v1 is developed.
+- `main` remains the clean pinned upstream base during v1 development.
+- No final PDF_Tunner v1 Release exists yet.
 
 ## Mandatory repository rules
 
 1. Preserve Stirling's root structure; do not reorganize the fork into generic archive/source roots.
-2. Keep `main` clean: no generated builds, logs, abandoned experiments, one-shot triggers or temporary scripts.
+2. Keep `main` clean: no generated builds, logs, abandoned experiments, one-shot triggers or temporary artifacts.
 3. Preserve upstream behavior unless the user requests removal or functionality is outside target.
 4. Compilation alone is never validation. Validate the assembled portable app and real operations.
 5. Never archive failed/intermediate builds as release history.
@@ -27,19 +28,21 @@ PDF_Tunner is the real fork `WillsitoGG/PDF_Tunner` of `Stirling-Tools/Stirling-
 7. **Every PDF_Tunner-specific change must update BOTH `README.md` and `AGENTS.md` in the same final commit.**
 8. Heavy CI must use branch/workflow-specific concurrency with `cancel-in-progress: true`.
 9. Use at most one automatic trigger per heavy workflow unless technically necessary.
-10. Remove development-only focused workflows/triggers when their phase is complete and before final `main`.
-11. Do not reopen old PR #1 as the v1 release integration vehicle.
-12. Do not publish a final Release until toolchain, E2E, parity, branding, portability, cleanup and documentation gates are complete, and never without explicit user authorization.
+10. Avoid redundant complete regressions; inspect failures and apply the smallest justified correction first.
+11. Remove development-only focused/integration/diagnostic mechanisms before final `main` integration.
+12. Do not reopen old PR #1 as the v1 release integration vehicle.
+13. Do not publish a final Release until toolchain, E2E, parity, branding, portability, cleanup and documentation gates are complete, and never without explicit user authorization.
+14. Ordinary CI must never upload the multi-gigabyte portable ZIP; retain lightweight evidence only.
 
 ## Continuity protocol
 
 Before writes in a resumed conversation:
 
 1. recover the most recent PDF_Tunner handoff;
-2. read current project rules, README and AGENTS;
-3. verify live branch HEAD, latest primary Actions run, PR state and Release state;
+2. read the project `00.` rules plus current README and AGENTS;
+3. verify live development-branch HEAD, latest primary Actions run, PR state and Release state;
 4. carry accepted/closed, active candidate, next block and broader roadmap explicitly;
-5. never treat one immediate task as the only remaining work;
+5. never treat one immediate dependency as the only remaining work;
 6. at each accepted milestone record commit, Run/job, artifact/digest where relevant, next candidate and remaining roadmap in README + AGENTS;
 7. before final Release re-audit against the full original PDF_Tunner objective.
 
@@ -51,19 +54,20 @@ Portable mode is enabled by `PDF_TUNNER_PORTABLE` beside the executable.
 
 Do **not** globally replace `APPDATA`, `LOCALAPPDATA`, `PROGRAMDATA`, `USERPROFILE`, `HOME`, `TEMP` or `TMP` before Tauri/WebView2 initializes. Use component-specific localization:
 
-- `PDF_TUNNER_PORTABLE_ROOT` -> executable directory;
-- Stirling app data -> `<portable>/data`;
-- Java temp -> `<portable>/data/tmp` through `JAVA_TOOL_OPTIONS`;
-- WebView2 user data -> `<portable>/data/webview2`;
-- Tauri logs/store/window-state/http cookies -> `<portable>/data/tauri/...`;
-- ImageMagick config -> `<portable>/tools/imagemagick`, temp -> `<portable>/data/tmp/imagemagick`;
-- Ghostscript -> package-first `<portable>/tools/ghostscript/bin`;
-- Tesseract -> package-first `<portable>/tools/tesseract`, `TESSDATA_PREFIX=<portable>/tools/tesseract/tessdata`;
-- Python/OCRmyPDF -> `<portable>/tools/python`; OCRmyPDF child temp -> `<portable>/data/tmp/ocrmypdf`; Python cache -> `<portable>/data/python-cache`;
-- LibreOffice -> `<portable>/tools/libreoffice`; native source-compatible `unoconvert.exe` -> `<portable>/tools/bin`; transient state must remain package-local and cleaned;
-- Poppler -> `<portable>/tools/poppler`, executables under `Library/bin`;
-- WeasyPrint official Windows payload -> `<portable>/tools/weasyprint`; package-relative command shim -> `<portable>/tools/bin/weasyprint.exe`; per-invocation PyInstaller/temp state -> `<portable>/data/tmp/weasyprint` and must be removed after each invocation;
-- Calibre official Windows x64 payload -> `<portable>/tools/calibre`; package-relative literal command launcher -> `<portable>/tools/bin/ebook-convert.exe`; config/cache -> `<portable>/data/calibre`; per-invocation temp -> `<portable>/data/tmp/calibre` and must be removed after each invocation; set `CALIBRE_NO_DEFAULT_PROGRAMS=1`;
+- `PDF_TUNNER_PORTABLE_ROOT` → executable directory;
+- Stirling app data → `<portable>/data`;
+- Java temp → `<portable>/data/tmp` through `JAVA_TOOL_OPTIONS`;
+- WebView2 user data → `<portable>/data/webview2`;
+- Tauri logs/store/window-state/http cookies → `<portable>/data/tauri/...`;
+- ImageMagick → `<portable>/tools/imagemagick`, temp → `<portable>/data/tmp/imagemagick`;
+- Ghostscript → package-first `<portable>/tools/ghostscript/bin`;
+- Tesseract → package-first `<portable>/tools/tesseract`, `TESSDATA_PREFIX=<portable>/tools/tesseract/tessdata`;
+- Python/OCRmyPDF/NumPy/OpenCV → `<portable>/tools/python`; OCRmyPDF child temp → `<portable>/data/tmp/ocrmypdf`; Python cache → `<portable>/data/python-cache`;
+- LibreOffice → `<portable>/tools/libreoffice`; native source-compatible `unoconvert.exe` → `<portable>/tools/bin`;
+- Poppler → `<portable>/tools/poppler`, executables under `Library/bin`;
+- WeasyPrint → `<portable>/tools/weasyprint`; package-relative literal shim → `<portable>/tools/bin/weasyprint.exe`; temp → `<portable>/data/tmp/weasyprint`;
+- Calibre → `<portable>/tools/calibre`; package-relative literal launcher → `<portable>/tools/bin/ebook-convert.exe`; config/cache → `<portable>/data/calibre`; temp → `<portable>/data/tmp/calibre`; set `CALIBRE_NO_DEFAULT_PROGRAMS=1`;
+- OCRmyPDF auxiliaries → `<portable>/tools/bin/unpaper.exe` with required sibling DLLs and `<portable>/tools/bin/pngquant.exe`;
 - skip `pdf-tunner://` deep-link registration in portable mode.
 
 ## External dependency source of truth
@@ -73,7 +77,8 @@ For Stirling 2.14.3 inspect at least:
 - `app/core/src/main/java/stirling/software/SPDF/config/ExternalAppDepConfig.java`;
 - `app/common/src/main/java/stirling/software/common/configuration/RuntimePathConfig.java`;
 - `docker/base/Dockerfile`;
-- controllers/services executing each feature.
+- controllers/services executing each feature;
+- exact accepted third-party package source when a dependency is mediated through OCRmyPDF or another bundled runtime.
 
 Direct runtime probes include:
 
@@ -92,156 +97,164 @@ Direct runtime probes include:
 | ImageMagick | `magick` |
 | Python | `python3` or `python` |
 | OpenCV | Python `import cv2` |
+| OCR cleaning | OCRmyPDF `ToolProbe('unpaper')` |
+| OCR optimization | OCRmyPDF `ToolProbe('pngquant')` |
 
-Also audit Poppler `pdfinfo`/`pdfimages`, `unpaper`, `pngquant`, NumPy/OpenCV, WeasyPrint, LibreOffice/UNO, Calibre, conversion fonts, VeraPDF E2E, `jbig2enc` and any additional exact dependency exposed by pinned source.
+Also audit conversion fonts, VeraPDF E2E, `jbig2enc`, RAR/CBR and any additional exact dependency exposed by pinned source.
 
 ## Tool layout strategy
 
-Package under one `tools/` subtree per dependency. Tauri prepends, when present: `tools/bin`, Python/Scripts, LibreOffice program, Tesseract, Ghostscript, qpdf, Poppler `Library/bin`, WeasyPrint backend, ImageMagick, Calibre and any later accepted tool subtree. If Windows executable naming differs from Stirling's literal probe, provide a deterministic package-local alias/shim only after proving the exact probe. Never count runner-installed software as package evidence.
+Package dependencies under deterministic `tools/` paths. Tauri prepends, when present, `tools/bin`, Python/Scripts, LibreOffice program, Tesseract, Ghostscript, qpdf, Poppler `Library/bin`, WeasyPrint backend, ImageMagick, Calibre and later accepted subtrees. If Windows executable naming differs from Stirling's literal probe, provide a deterministic package-local alias/shim only after proving the exact probe. Never count runner-installed software as package evidence.
 
 ## Accepted layers and evidence
 
-### Native portable/Tauri containment — accepted
+| Layer | Acceptance evidence |
+| --- | --- |
+| Native portable/Tauri containment | consolidated AppData/window-state proof includes Run `32825188381` |
+| Fixed WebView2 `151.0.4129.101` x64 | Run #62 `33058462619`, commit `72924f81d1b54afe06563c9636b26f1cf1e4aca4` |
+| qpdf `12.4.0` | Run #66 `33086404875`, commit `413994c9ea368b5144a26686afef6011eba8de59` |
+| ImageMagick `7.1.2-30` | Run #67 `33092698357`, commit `d1801e8569a23a762035a39dc7295de0f19e6115` |
+| Ghostscript `10.07.1` | Run #68 `33104114920`, commit `84b2fb4a8dd1e69896abc7147442aabec68c3004` |
+| Tesseract `5.5.3` / CLI `5.5.3.20260724` | Run #70 `33122172947`, commit `52429eb7812e8615ee39aab695641d495798c1ba` |
+| Python `3.12.14` + OCRmyPDF `17.10.0` | Run #77 `33201568275`, job `98952028665`, commit `54802c15427673c0e95738195947ab76239d6e31` |
+| LibreOffice `26.2.5` + native `unoconvert` | Run #83 `33497784837`, job `99823839704`, commit `355c0cf5cfe7afaadd89933a0aa3fb13456ebb83` |
+| Poppler `26.02.0` | Run #86 `33507551477`, job `99855128441`, commit `1b2bfdc4e99d87aa899a0701291db496f740f7ab` |
+| authenticated Python dependency lock + NumPy `2.5.2` | complete Run #90 `33530454097`, job `99931980241`, commit `c32fb84eb2c0f7b157ef3217c59e57eee20b895b` |
+| OpenCV distribution `4.14.0.94` / runtime `4.14.0` | Run #92 `33557169326`, job `100020722841`, commit `c4c2b7f6e320840faf3d8c61967351b529875a50` |
+| WeasyPrint `69.0` | Run #95 `33695530172`, job `100463449110`, functional commit `a7a118e852277069c8ab13cc2f25121f9be87fea` |
+| **Calibre `9.14.0` / `ebook-convert`** | **Run #96 `33748509811`, job `100626447125`, commit `0874881eaadcede5095e3db0052ce8b78cc23906`** |
 
-Real packaged startup/backend health, Java temp localization, WebView2 profile localization, package-local Tauri stores/logs/http cookies, protocol containment, normal process-tree cleanup and two-launch window-state persistence are accepted. Run `32825188381` is the key consolidated AppData/window-state proof.
+### Fixed provenance values that must not drift silently
 
-### Fixed WebView2 — accepted
+- WebView2 CAB SHA-256: `c386640d35f7a4604d088925a9bb01938400297f6da6fe985b72614daba87cda`
+- qpdf archive SHA-256: `dcec940ce825b3b654d4936918190f52e7bfca85b7fb1c49bc24b3035185b4f5`
+- ImageMagick archive SHA-256: `47a4ffd20f9360fc85817286df29019fad781df15002dcffdd260c9b27a9e4d8`
+- Ghostscript installer SHA-256: `3a4c28d0aac47aa7cccd35a5932c55110376e9dbd966898dde388b7faba444a4`
+- Tesseract installer SHA-256: `bee9e3434bd94fd65387d9be28cd467a41f61b1275383b55b0f59a1331270ae4`
+- Python archive SHA-256: `8e6aad12ef6fc9685e67ce66253f8f72d6e8fa02cb7187e5850bd4db5ecd9e2a`
+- OCRmyPDF wheel SHA-256: `34ba1b595ecacc94b6dc3c9d4fa51953de63082cd16cf8595251bd72120b930a`
+- accepted 28-package Python lock SHA-256: `ededb999049d81b85527f4d4aa679179e747669df300083d91bc2dd4e14e430f`
+- NumPy wheel SHA-256: `28ac63476ec7651484215ee7fa15a1f78b57c14621f01e392afe17b9a1390ce4`
+- OpenCV wheel SHA-256: `cbed65415b8f6a9541c705afe3e64795840524d0ff3bc58f507826284a1dc64b`
+- LibreOffice MSI SHA-256: `f15ba07bfcb0186986cf3171063506f5d207c11f8cc051ba0d135209e9e915f9`
+- Poppler archive SHA-256: `993e4a94376ed712fafc7058d724ea0b943d118bbd2305cd9ed55174eb85cda5`
+- WeasyPrint archive SHA-256: `330101ff3ea50ebde4abf805283b6d703d5f3d71c77c983db94357ec4524a3ef`
+- Calibre MSI SHA-256: `4ccaf2a49a0069b5e78291ee7248dcd8967896d316d6432ddf657b6feae8f32d`
 
-`151.0.4129.101` x64; official CAB SHA-256 `c386640d35f7a4604d088925a9bb01938400297f6da6fe985b72614daba87cda`; acceptance Run #62 (`33058462619`), job `98471041328`, commit `72924f81d1b54afe06563c9636b26f1cf1e4aca4`.
+## Latest accepted milestone — Calibre
 
-### qpdf — accepted
+Complete primary Run #96 (`33748509811`), job `100626447125`, commit `0874881eaadcede5095e3db0052ce8b78cc23906`, passed every primary step and formally accepts Calibre 9.14.0.
 
-`12.4.0` MinGW64; SHA-256 `dcec940ce825b3b654d4936918190f52e7bfca85b7fb1c49bc24b3035185b4f5`; acceptance Run #66 (`33086404875`), job `98567113737`, commit `413994c9ea368b5144a26686afef6011eba8de59`.
+Calibre package contract:
 
-### ImageMagick — accepted
+- official Windows x64 MSI `calibre-64bit-9.14.0.msi`;
+- MSI SHA-256 `4ccaf2a49a0069b5e78291ee7248dcd8967896d316d6432ddf657b6feae8f32d`;
+- administrative extraction only, never runner installation;
+- backend `tools/calibre/ebook-convert.exe`;
+- literal package-relative launcher `tools/bin/ebook-convert.exe`;
+- config/cache under `data/calibre`, temp under `data/tmp/calibre`, `CALIBRE_NO_DEFAULT_PROGRAMS=1`;
+- real Stirling PDF→EPUB and eBook→PDF routes accepted;
+- relocation with spaces and prior dependency regressions accepted.
 
-`7.1.2-30` portable Q16 x64; SHA-256 `47a4ffd20f9360fc85817286df29019fad781df15002dcffdd260c9b27a9e4d8`; acceptance Run #67 (`33092698357`), job `98589465377`, commit `d1801e8569a23a762035a39dc7295de0f19e6115`.
+Run #96 generated `PDF_Tunner-2.14.3-bootstrap-Windows-x64-Portable.zip`, size `1,837,322,506` bytes, SHA-256 `724C882195965A9F5676ADB6B4ED09FE1ED32EED09D74424D76DEF7B59C7CCAE`; the ZIP was not uploaded. Layout: `31,400` files / `4,228,817,694` payload bytes. Lightweight artifact `9891758584` is `7,273` bytes with Actions digest `sha256:d03923535d0b2d9e61aa4ea7ed3f82e84ae241d8380abd4a62d77b2874431bf7`, expires 2026-09-10.
 
-### Ghostscript — accepted
+Calibre is closed/accepted; do not reopen it without new evidence.
 
-`10.07.1` Win64; SHA-256 `3a4c28d0aac47aa7cccd35a5932c55110376e9dbd966898dde388b7faba444a4`; acceptance Run #68 (`33104114920`), job `98629258424`, commit `84b2fb4a8dd1e69896abc7147442aabec68c3004`.
+## Active candidate — unpaper + pngquant
 
-### Tesseract — accepted
+Pinned-source audit conclusion:
 
-Release `5.5.3`, Windows CLI `5.5.3.20260724`; installer SHA-256 `bee9e3434bd94fd65387d9be28cd467a41f61b1275383b55b0f59a1331270ae4`; acceptance Run #70 (`33122172947`), job `98691480028`, commit `52429eb7812e8615ee39aab695641d495798c1ba`.
+- Stirling 2.14.3 standard runtime installs `unpaper` and `pngquant`, but `ExternalAppDepConfig` does not expose them as independent feature groups.
+- Stirling's OCR controller passes `--clean` and `--clean-final` to OCRmyPDF when requested.
+- Accepted OCRmyPDF `17.10.0` uses literal `unpaper` through `ToolProbe` and its `run_unpaper` wrapper for cleaning.
+- Accepted OCRmyPDF `17.10.0` uses literal `pngquant` through `ToolProbe` and its `quantize` wrapper for optimization levels 2/3.
+- OCRmyPDF 17.10.0 has no minimum-version gate for either command.
 
-### Python 3.12.14 + OCRmyPDF 17.10.0 — accepted
+Candidate identity:
 
-Python archive SHA-256 `8e6aad12ef6fc9685e67ce66253f8f72d6e8fa02cb7187e5850bd4db5ecd9e2a`; OCRmyPDF wheel SHA-256 `34ba1b595ecacc94b6dc3c9d4fa51953de63082cd16cf8595251bd72120b930a`. Native package-relative launcher executes sibling Python and localizes OCRmyPDF temp/cache. Acceptance Run #77 (`33201568275`), job `98952028665`, commit `54802c15427673c0e95738195947ab76239d6e31`, proved package-only resolution, real searchable-PDF OCR, relocation with spaces and live backend acceptance.
+### unpaper 6.1 Windows x86_64
 
-### Portable Python dependency lock + NumPy 2.5.2 — accepted
+- source: `rodrigost23/unpaper` release `unpaper-6.1`;
+- archive: `unpaper-6.1-windows-x86_64.zip`;
+- SHA-256: `a760fa1fb5a076c7dad24c643aaec5330473ab03fbf6ede50e124978d840ee65`;
+- staged files: `tools/bin/unpaper.exe`, `LIBBZ2-1.DLL`, `LIBWINPTHREAD-1.DLL`, `ZLIB1.DLL`;
+- provenance exception: this is a community Windows x64 build. Current official upstream unpaper release `7.0.0` publishes source only and has no Windows binary asset. Do not label 6.1 as an official upstream Windows binary.
 
-The accepted 28-package lock SHA-256 is `ededb999049d81b85527f4d4aa679179e747669df300083d91bc2dd4e14e430f`; NumPy Windows AMD64 wheel SHA-256 is `28ac63476ec7651484215ee7fa15a1f78b57c14621f01e392afe17b9a1390ce4`. Preparation must remain authenticated/offline after download and validation must preserve exact inventory, compiled AMD64 identity, deterministic matrix and relocation gates. Acceptance Run #90 (`33530454097`), job `99931980241`, commit `c32fb84eb2c0f7b157ef3217c59e57eee20b895b`.
+### pngquant 3.0.3 Windows
 
-### OpenCV 4.14.0.94 — accepted
+- source: official `https://pngquant.org/pngquant-windows.zip`;
+- SHA-256: `bd0257aeeccfe446a4cd764927e26f8af6051796f28abed104307284107b120d`;
+- staged executable: `tools/bin/pngquant.exe`.
 
-Use `opencv-python-headless 4.14.0.94`, wheel SHA-256 `cbed65415b8f6a9541c705afe3e64795840524d0ff3bc58f507826284a1dc64b`, dedicated lock SHA-256 `ec341586a884015445d4e28debbdd00b57ac903a36405bc7e0b9020e12dfd6c6`. Preserve separate distribution `4.14.0.94` and runtime/core `4.14.0` identity checks. Acceptance Run #92 (`33557169326`), job `100020722841`, commit `c4c2b7f6e320840faf3d8c61967351b529875a50`, passed real Stirling `split_photos.py`, AMD64, relocation, OCR/NumPy regression and live backend gates.
+Candidate validation contract:
 
-### LibreOffice 26.2.5 + native `unoconvert` — accepted
+1. authenticate both archives by exact SHA-256 before extraction;
+2. require AMD64 PE identity for executables and unpaper sibling DLLs;
+3. isolate PATH and require `where.exe` to resolve only package copies;
+4. prove exact version identities;
+5. prove OCRmyPDF 17.10.0 detects both tools with its own `ToolProbe` layer;
+6. execute OCRmyPDF's actual `unpaper.run_unpaper` wrapper with its production-style arguments;
+7. execute OCRmyPDF's actual `pngquant.quantize` wrapper, including stdin/stdout semantics implemented by OCRmyPDF;
+8. run real OCRmyPDF with Stirling-exposed `--clean --clean-final` flags;
+9. prove auxiliary binaries remain functional from a relocated path containing spaces;
+10. preserve every earlier primary gate and final package/layout evidence.
 
-Official Windows x86-64 MSI SHA-256 `f15ba07bfcb0186986cf3171063506f5d207c11f8cc051ba0d135209e9e915f9`. CI uses administrative extraction, never runner installation. Native package-relative `unoconvert.exe` translates Stirling CLI to bundled LibreOffice, localizes state and cleans profiles. Acceptance Run #83 (`33497784837`), job `99823839704`, commit `355c0cf5cfe7afaadd89933a0aa3fb13456ebb83`, passed real Office→PDF/PDF→DOCX routes and relocation.
+CI implementation intentionally preserves the accepted Python/OCRmyPDF preparation logic byte-for-byte as `.github/scripts/prepare-ocrmypdf-core.ps1` (same blob as the previously accepted `.github/scripts/prepare-ocrmypdf.ps1`). The existing workflow entry path `.github/scripts/prepare-ocrmypdf.ps1` is now a narrow wrapper: run the accepted core, then `.github/scripts/prepare-ocr-aux.ps1`. This avoids rewriting the accepted Python/lock/OpenCV preparation logic while adding the new block.
 
-### Poppler 26.02.0 — accepted
-
-Pinned `oschwartz10612/poppler-windows` archive SHA-256 `993e4a94376ed712fafc7058d724ea0b943d118bbd2305cd9ed55174eb85cda5`. Preserve package-local `pdftohtml`, `pdfinfo`, `pdfimages`, isolated resolution, real commands, relocation and Stirling PDF→HTML. Acceptance Run #86 (`33507551477`), job `99855128441`, commit `1b2bfdc4e99d87aa899a0701291db496f740f7ab`.
-
-### WeasyPrint 69.0 — accepted
-
-Source-backed scope: pinned Stirling defaults to literal `weasyprint`, requires version `58.0` or newer and executes `weasyprint -e utf-8 -v --pdf-forms INPUT OUTPUT`. HTML, Markdown and EML paths use the shared renderer.
-
-Accepted payload: official Kozea WeasyPrint `69.0` Windows asset `weasyprint-windows.zip`, published 2026-06-02, size `29,832,155` bytes, archive SHA-256 `330101ff3ea50ebde4abf805283b6d703d5f3d71c77c983db94357ec4524a3ef`. Stage official backend at `tools/weasyprint/weasyprint.exe`; build native package-relative literal command at `tools/bin/weasyprint.exe`. The shim forwards the complete CLI, localizes child `TEMP`/`TMP`/`TMPDIR` to a unique `data/tmp/weasyprint/run-<pid>-<timestamp>` directory and removes it on exit. Do not merge WeasyPrint into the accepted Python/OCRmyPDF lock.
-
-Run #94 (`33666446582`), job `100369276881`, commit `3afffbc52eb2450eede8ea112ce0628a0bd8b3c4`, retained bounded diagnostics proving Stirling started and both real WeasyPrint HTML→PDF and Markdown→PDF routes were healthy. Its failure was validator-only: Stirling patch-normalized the log identity to `WeasyPrint 69.0.0 meets minimum 58.0.0`, while the validator demanded shorter `69.0` / `58.0` literals.
-
-Functional corrective commit `a7a118e852277069c8ab13cc2f25121f9be87fea` changed only the dependency-log assertion to accept that semantic patch normalization. It did **not** change the `69.0` payload, archive hash, shim, PATH, CLI, endpoints, timeout or any accepted gate.
-
-**Complete primary Run #95 (`33695530172`), job `100463449110`, commit `a7a118e852277069c8ab13cc2f25121f9be87fea`, passed every primary step and formally accepts WeasyPrint 69.0.** It proved exact source/hash/AMD64, isolated package-only command resolution, exact version, real Stirling-shaped HTML→PDF, no residual invocation temp, relocation with spaces, real live-backend HTML→PDF + Markdown→PDF, enabled dependency group, actual `Running command: weasyprint`, all prior accepted gates, backend startup, portable state/process cleanup, final layout and ZIP generation.
-
-Run #95 generated `PDF_Tunner-2.14.3-bootstrap-Windows-x64-Portable.zip`, size `1,553,629,801` bytes, SHA-256 `CFD09D41CC5E074B7CEF1885F5A32ED58F08E2FE6FB9EEBC0C0AA07B2A16C0FE`; the ZIP was not uploaded. Lightweight evidence artifact `9872300027` is `6,055` bytes, Actions digest `sha256:e54704632653500d4514dd41c24340d598c66de547ac81e1a06e8d3d30d3468f`, expires 2026-09-09. Layout: `30,051` package files / `3,569,719,817` payload bytes. WeasyPrint is closed/accepted; do not reopen it without new evidence.
-
-### Calibre 9.14.0 / `ebook-convert` — active candidate, focused green
-
-Pinned Stirling 2.14.3 defaults to literal `ebook-convert`; dependency availability is binary/command based with no Calibre minimum-version gate. The PDF→EPUB controller uses `--pdf-engine pdftohtml` plus heuristic/CSS arguments and therefore requires the accepted package-local Poppler. The eBook→PDF controller accepts EPUB/MOBI/AZW3/FB2/TXT/DOCX and can subsequently use Ghostscript optimization.
-
-Candidate payload is the official Calibre Windows x64 MSI `calibre-64bit-9.14.0.msi`, URL `https://download.calibre-ebook.com/9.14.0/calibre-64bit-9.14.0.msi`, pinned SHA-256 `4ccaf2a49a0069b5e78291ee7248dcd8967896d316d6432ddf657b6feae8f32d`. Use administrative MSI extraction only; never install Calibre on the runner. Stage the extracted application beside its runtime DLLs under `tools/calibre`.
-
-Build native `tools/bin/ebook-convert.exe` from `.github/scripts/calibre-launcher.rs`; it forwards all arguments to `tools/calibre/ebook-convert.exe`, localizes `CALIBRE_CONFIG_DIRECTORY` and `CALIBRE_CACHE_DIRECTORY` under `data/calibre`, localizes `CALIBRE_TEMP_DIR` plus child `TEMP`/`TMP` to unique `data/tmp/calibre/run-*`, sets `CALIBRE_NO_DEFAULT_PROGRAMS=1`, and cleans per-invocation temp. Candidate gates: exact MSI hash/provenance, AMD64 backend+launcher, package-first resolution, exact version, TXT→EPUB, EPUB→PDF, Stirling-shaped PDF→EPUB via bundled Poppler, no new host profile state, no orphan Calibre process and relocation with spaces. Focused validation is not acceptance; complete primary backend `/ebook/pdf` + `/pdf/epub`, dependency-log evidence and all previous gates remain mandatory.
-
-**Focused candidate Run #1 (`33743422083`), job `100610347852`, commit `e329e3c128ab9d26437f5dffad8a47e80b0c6362`, passed all focused gates.** It proved the exact MSI hash, administrative extraction, package-first AMD64 launcher/backend, exact version, TXT→EPUB, EPUB→PDF, Stirling-shaped PDF→EPUB through bundled Poppler, package-local state/temp/process cleanup and relocation with spaces. Evidence artifact `9888693480` is `1,469` bytes, digest `sha256:4fcec246dd9a55263bd4b609a1053d18e72908dd40a7ad9c9ca291480c3c2694`, expires 2026-09-06. This does not yet promote Calibre to accepted.
+**Do not call unpaper/pngquant accepted until the complete primary workflow is green with this candidate and every earlier gate enabled.**
 
 ## Primary workflow acceptance contract
 
 Primary path: `.github/workflows/pdf-tunner-windows-portable.yml`.
 
-A dependency moves to accepted only when the **complete primary workflow** is green with every earlier accepted gate enabled. Record commit SHA, Run/number, job ID, exact source/version/hash and artifact/digest when relevant. Standalone candidate workflow or `--version` alone is never acceptance. Require real operation and isolated package-first PATH/environment wherever practical.
+A dependency moves to accepted only when the complete primary workflow is green with every earlier accepted gate enabled. Record commit SHA, Run/number, job ID, exact source/version/hash and artifact/digest when relevant. Standalone `--version` or a narrow direct probe alone is never acceptance.
 
-Before causing a new heavy regression, confirm no useful run is queued/in-progress. Do not rerun blindly after failure: inspect jobs/logs and bounded diagnostics, establish a concrete root cause, apply the smallest justified correction, then allow exactly one complete primary regression. Do not increase timeouts blindly or weaken gates.
-
-Focused Calibre Run #1 is green and the focused workflow is retired. The temporary branch-only integration workflow performs one narrow job: copy only permanent Calibre scripts + README/AGENTS into the primary development branch, patch the existing primary workflow and bounded diagnostics, explicitly exclude all candidate-only workflow/script files, create one atomic development commit and push it once. That single push is the complete primary acceptance attempt.
-
-Integration attempt #1, Run `33744277709` / job `100613069064`, failed safely before any primary-branch write because the final package-validation anchor used a WeasyPrint block that legitimately appears three times. The corrected integrator uses the unique final LibreOffice validation followed immediately by `data/` cleanup as the insertion boundary. This is integration-automation-only: Calibre payload, MSI hash, native launcher, direct tests, live endpoints and acceptance gates are unchanged.
-
-Integration attempt #2, Run `33747081554` / job `100621923550`, also failed safely before any primary-branch write because the diagnostics selector targeted the `Stirling-PDF` literal, which legitimately occurs in two different inventories. The corrected integrator now replaces the complete unique `$hostProfilePaths` block. This remains integration-automation-only: no Calibre payload, MSI hash, native launcher, direct test, live endpoint or acceptance gate changed.
-
-Integration attempt #3, Run `33747627484` / job `100623670622`, passed all transformation/structural guards and created the intended local seven-file commit, but GitHub rejected the Actions token when it tried to update `.github/workflows/pdf-tunner-windows-portable.yml` because the GitHub App lacks `workflows` permission. This is a transport-permission failure only. The integrator now stages exact generated workflow/diagnostics snapshots outside `.github/workflows/`; the GitHub connector will reuse those exact blobs in the permanent atomic development commit. Calibre payload, hashes, launcher, endpoints and gates remain unchanged.
+Before causing a new heavy regression, confirm no useful run is queued/in-progress. Do not rerun blindly after failure: inspect jobs/logs and bounded diagnostics, establish a concrete root cause, apply the smallest justified correction, then run one complete primary regression. Do not increase timeouts blindly or weaken gates.
 
 ## CI artifact storage policy
 
-The primary workflow builds and validates the portable ZIP but ordinary CI uploads only lightweight evidence: package hash/size, provenance, dependency lock/inventory and layout summary. Do not upload the multi-gigabyte portable ZIP, Python wheelhouses, dependency archives or caches during ordinary iterations. Failure diagnostics are text-only, bounded to 2 MB and prioritize selected package-local backend log tails plus concise process/state inventories. Large artifacts require a concrete evidence need and quota review. Final portable ZIP is a Release asset only after all v1 gates and explicit user authorization.
+The primary workflow builds and validates the portable ZIP but ordinary CI uploads only lightweight evidence: package hash/size, provenance, dependency lock/inventory and layout summary. Do not upload the portable ZIP, Python wheelhouses, dependency archives or caches during ordinary iterations. Failure diagnostics are bounded/text-only. Final portable ZIP is a Release asset only after all v1 gates and explicit user authorization.
 
 ## Remaining v1 roadmap — do not collapse
 
 ### A. External toolchain
 
-1. **Calibre/`ebook-convert`** — focused green; complete primary regression is the active acceptance gate;
-2. `unpaper`;
-3. `pngquant`;
-4. conversion fonts;
-5. explicit VeraPDF E2E;
-6. investigate/build/package `jbig2enc` if viable;
-7. viable portable RAR/CBR or concrete documented limitation;
-8. any further exact dependency exposed during pinned-source parity audit.
+1. **unpaper 6.1 + pngquant 3.0.3** — active OCRmyPDF auxiliary candidate;
+2. conversion fonts;
+3. explicit VeraPDF E2E;
+4. investigate/build/package `jbig2enc` if viable;
+5. viable portable RAR/CBR or a concrete documented limitation;
+6. any further exact dependency exposed during pinned-source parity audit.
 
 ### B. Functional validation
 
-Office -> PDF; supported PDF -> Office; HTML/URL -> PDF; accepted WeasyPrint; accepted Poppler; Calibre/EPUB; Python/NumPy/OpenCV; regressions across accepted qpdf/Ghostscript/ImageMagick/Tesseract/OCRmyPDF; `pngquant`/`unpaper`; RAR/CBR and jbig2enc if integrated; representative Stirling API families; explicit proof runner software is not satisfying package tests. HTML/URL/base-URL and EML breadth remains part of this representative E2E phase even though WeasyPrint itself is accepted.
+Representative E2E must cover Office→PDF and supported PDF→Office, HTML/URL/base-URL/EML, accepted WeasyPrint, accepted Poppler, accepted Calibre/eBook, Python/NumPy/OpenCV, qpdf/Ghostscript/ImageMagick/Tesseract/OCRmyPDF regressions, `unpaper`/`pngquant`, RAR/CBR and jbig2enc if integrated, and representative Stirling API families. Prove runner-installed software is never satisfying package tests.
 
 ### C. Release readiness
 
 1. non-Enterprise parity audit against pinned Stirling 2.14.3;
 2. final branding audit;
 3. final portability/state/process audit;
-4. remove development push/status/focused diagnostic mechanisms;
+4. remove retired focused/integration/diagnostic mechanisms;
 5. final downstream diff/output hygiene;
 6. final README/AGENTS/provenance/version/hash record;
-7. integrate to `main` without reopening PR #1;
+7. integrate to `main` without reopening old PR #1;
 8. publish clean v1 ZIP only when all gates are complete and explicitly authorized;
 9. manual clean-machine Windows 10/11 checklist.
 
 ## Current handoff — 2026-09-03
 
-Accepted/closed: native portable/Tauri containment; Fixed WebView2; qpdf; ImageMagick; Ghostscript; Tesseract; Python 3.12.14 + OCRmyPDF 17.10.0; authenticated 28-package portable Python dependency lock with NumPy 2.5.2; OpenCV `opencv-python-headless 4.14.0.94` / runtime `4.14.0`; LibreOffice 26.2.5 + native `unoconvert`; Poppler 26.02.0; **WeasyPrint 69.0**.
+Accepted/closed: native portable/Tauri containment; Fixed WebView2; qpdf; ImageMagick; Ghostscript; Tesseract; Python 3.12.14 + OCRmyPDF 17.10.0; authenticated portable Python lock; NumPy 2.5.2; OpenCV `opencv-python-headless 4.14.0.94` / runtime `4.14.0`; LibreOffice 26.2.5 + native `unoconvert`; Poppler 26.02.0; WeasyPrint 69.0; **Calibre 9.14.0**.
 
-Latest green primary regression and WeasyPrint acceptance evidence: **Run #95** (`33695530172`), job `100463449110`, functional commit `a7a118e852277069c8ab13cc2f25121f9be87fea`; ZIP SHA-256 `CFD09D41CC5E074B7CEF1885F5A32ED58F08E2FE6FB9EEBC0C0AA07B2A16C0FE`, size `1,553,629,801` bytes; evidence artifact `9872300027` (`6,055` bytes), Actions digest `sha256:e54704632653500d4514dd41c24340d598c66de547ac81e1a06e8d3d30d3468f`, expires 2026-09-09. Layout: `30,051` package files / `3,569,719,817` payload bytes.
+Latest complete green primary: **Run #96** (`33748509811`), job `100626447125`, commit `0874881eaadcede5095e3db0052ce8b78cc23906`. ZIP SHA-256 `724C882195965A9F5676ADB6B4ED09FE1ED32EED09D74424D76DEF7B59C7CCAE`, size `1,837,322,506`; evidence artifact `9891758584`, `7,273` bytes, digest `sha256:d03923535d0b2d9e61aa4ea7ed3f82e84ae241d8380abd4a62d77b2874431bf7`.
 
-Run #95 passed every earlier gate plus authenticated WeasyPrint source/hash, AMD64 identity, isolated package-first resolution, exact Stirling CLI execution, real HTML→PDF, relocation, live Stirling HTML→PDF + Markdown→PDF and dependency-log/command evidence. **WeasyPrint is formally accepted.**
-
-Active candidate: **Calibre 9.14.0 / `ebook-convert`**. Exact pinned-source audit is complete: `/api/v1/convert/pdf/epub` uses `ebook-convert` with Poppler `pdftohtml`; `/api/v1/convert/ebook/pdf` uses the same literal command; runtime dependency detection enables/disables the `Calibre` group from command availability. Focused Run #1 (`33743422083`), job `100610347852`, commit `e329e3c128ab9d26437f5dffad8a47e80b0c6362` is green with lightweight evidence artifact `9888693480` / digest `sha256:4fcec246dd9a55263bd4b609a1053d18e72908dd40a7ad9c9ca291480c3c2694`. Integration Runs `33744277709` and `33747081554` failed safely on non-unique temporary anchors; Run `33747627484` passed all guards but was blocked only by the Actions token's missing `workflows` permission. Exact generated snapshot transport is now the active promotion mechanism. Do not call Calibre accepted until the complete primary workflow is green.
+Active candidate: **unpaper 6.1 + pngquant 3.0.3** as OCRmyPDF auxiliaries. The next complete primary run is the acceptance gate. If it passes, update README + AGENTS in one `[skip ci]` documentation-only commit to record formal acceptance and move the active block to conversion fonts; do not spend another heavy CI run merely to record documentation.
 
 ## Compact changelog
 
-- **2026-08-21–23:** real fork/base confirmed; Stirling Tauri + JLink architecture selected; portable state containment and two-launch window-state proof established.
-- **2026-08-27:** Fixed WebView2 accepted #62; qpdf #66; ImageMagick #67; Ghostscript #68; Tesseract #70.
-- **2026-08-28:** primary Run #77 passed Python/OCRmyPDF with real OCR, relocation and backend acceptance.
-- **2026-09-01:** LibreOffice 26.2.5 + native `unoconvert` accepted via complete primary Run #83.
-- **2026-09-01:** Poppler 26.02.0 accepted via complete primary Run #86.
-- **2026-09-01:** authenticated portable Python dependency lock accepted via complete primary Run #87; NumPy 2.5.2 accepted via complete Run #90.
-- **2026-09-01:** OpenCV distribution/runtime semantic correction followed by complete primary Run #92; OpenCV formally accepted.
-- **2026-09-02:** WeasyPrint 69.0 candidate integrated from official Kozea Windows asset with native package-relative temp-containment shim, authenticated hash, AMD64/PATH/direct/relocation and live-backend HTML→PDF + Markdown→PDF gates.
-- **2026-09-02:** Run #94 bounded diagnostics proved WeasyPrint runtime/backend/routes healthy and isolated the only failure to patch-normalized dependency-log version formatting.
-- **2026-09-03:** corrective commit `a7a118e852277069c8ab13cc2f25121f9be87fea` preserved payload and all gates; complete primary Run #95 (`33695530172`), job `100463449110`, passed every step. **WeasyPrint 69.0 formally accepted; Calibre is next.**
-- **2026-09-03:** exact Stirling 2.14.3 Calibre audit completed; Calibre 9.14.0 Windows x64 candidate pinned with MSI SHA-256 `4ccaf2a49a0069b5e78291ee7248dcd8967896d316d6432ddf657b6feae8f32d`, administrative extraction and package-relative `ebook-convert` launcher.
-- **2026-09-03:** focused Calibre Run #1 (`33743422083`), job `100610347852`, commit `e329e3c128ab9d26437f5dffad8a47e80b0c6362`, passed package-only direct conversions and relocation; artifact `9888693480`, 1,469 bytes, digest `sha256:4fcec246dd9a55263bd4b609a1053d18e72908dd40a7ad9c9ca291480c3c2694`. Complete primary acceptance remains pending.
-- **2026-09-03:** integration Run `33744277709` / job `100613069064` aborted before any development-branch write because the final WeasyPrint anchor matched three phases; corrected to a unique LibreOffice-to-final-cleanup anchor with no Calibre payload or gate changes.
-- **2026-09-03:** integration Run `33747081554` / job `100621923550` also aborted before any development-branch write because the diagnostics `Stirling-PDF` literal appeared in two inventories; corrected to the complete unique `$hostProfilePaths` block, again with no Calibre payload or gate changes.
-- **2026-09-03:** integration Run `33747627484` / job `100623670622` passed every transformation/guard and created the intended local seven-file commit; GitHub rejected only the workflow-path push because the Actions app lacks `workflows` permission. Promotion switches to exact generated snapshot blobs plus connector Git-data commit; Calibre itself remains unchanged.
+- 2026-08-21–27: fork/Tauri architecture and portable containment established; WebView2, qpdf, ImageMagick, Ghostscript and Tesseract accepted.
+- 2026-08-28: Python 3.12.14 + OCRmyPDF 17.10.0 accepted via complete Run #77.
+- 2026-09-01: LibreOffice/unoconvert accepted #83; Poppler #86; Python lock/NumPy #87/#90; OpenCV #92.
+- 2026-09-03: WeasyPrint 69.0 formally accepted via complete Run #95.
+- **2026-09-03: Calibre 9.14.0 formally accepted via complete Run #96 (`33748509811`), job `100626447125`, commit `0874881eaadcede5095e3db0052ce8b78cc23906`.**
+- **2026-09-03: opened the combined OCRmyPDF auxiliary block for unpaper 6.1 + pngquant 3.0.3 with authenticated Windows payloads, package-first validation, exact OCRmyPDF wrapper tests and relocation gate.**
