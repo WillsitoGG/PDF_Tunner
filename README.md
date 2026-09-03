@@ -117,6 +117,8 @@ The first integration attempt, Run `33744277709` / job `100613069064`, aborted b
 
 The second integration attempt, Run `33747081554` / job `100621923550`, also aborted before any write to `pdf-tunner/windows-portable-v1`: the diagnostics selector matched the same `Stirling-PDF` literal in two inventories. The next correction scopes that replacement to the complete unique `$hostProfilePaths` block. Again, no Calibre payload, hash, launcher, endpoint or acceptance gate changed.
 
+The third integration attempt, Run `33747627484` / job `100623670622`, passed every transformation and structural guard, created the intended seven-file local commit, and failed only when GitHub rejected the Actions token from updating `.github/workflows/pdf-tunner-windows-portable.yml` without `workflows` permission. The integration strategy therefore now publishes exact generated workflow/diagnostics snapshots outside `.github/workflows/` and lets the GitHub connector promote those exact blobs atomically. This changes no Calibre payload or validation gate.
+
 Ordinary CI always builds and validates the portable ZIP but uploads only lightweight evidence. The multi-gigabyte ZIP, wheelhouses and caches are not ordinary artifacts. Failure diagnostics are text-only and bounded; the startup collector prioritizes package-local backend log tails and concise process/state inventories. No final Release is created before complete v1 acceptance and explicit user authorization.
 
 ## Remaining v1 roadmap

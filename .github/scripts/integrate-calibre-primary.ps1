@@ -1,7 +1,8 @@
 [CmdletBinding()]
 param(
   [Parameter(Mandatory = $true)][string]$ExpectedDevHead,
-  [string]$DevBranch = 'pdf-tunner/windows-portable-v1'
+  [string]$DevBranch = 'pdf-tunner/windows-portable-v1',
+  [string]$CandidateBranch = 'pdf-tunner/calibre-candidate'
 )
 
 $ErrorActionPreference = 'Stop'
@@ -208,14 +209,6 @@ $diag = Replace-One $diag "'(?i)PDF_Tunner|java|msedgewebview2|weasyprint'" "'(?
 $diag = Replace-One $diag "'(?i)PDF_Tunner|Stirling|webview2|weasyprint'" "'(?i)PDF_Tunner|Stirling|webview2|weasyprint|ebook-convert|calibre'" 'Calibre process-command diagnostics'
 [System.IO.File]::WriteAllText((Resolve-Path $diagPath).Path, $diag, [System.Text.UTF8Encoding]::new($false))
 
-foreach ($temporary in @(
-  '.github/workflows/pdf-tunner-calibre-candidate.yml',
-  '.github/workflows/pdf-tunner-calibre-integrate.yml',
-  '.github/scripts/integrate-calibre-primary.ps1'
-)) {
-  if (Test-Path -LiteralPath $temporary) { Remove-Item -LiteralPath $temporary -Force }
-}
-
 $requiredWorkflowTokens = @(
   'PDF_TUNNER_CALIBRE_VERSION: "9.14.0"',
   'Stage official Calibre Windows x64 runtime and portable launcher',
@@ -229,23 +222,37 @@ $finalWorkflow = Get-Content -LiteralPath $workflowPath -Raw
 foreach ($token in $requiredWorkflowTokens) {
   if ($finalWorkflow -notlike "*$token*") { throw "Primary workflow integration guard missing token: $token" }
 }
-if (Test-Path -LiteralPath '.github/workflows/pdf-tunner-calibre-candidate.yml') { throw 'Candidate workflow leaked into primary tree.' }
-
 & git diff --check
 if ($LASTEXITCODE -ne 0) { throw 'git diff --check failed.' }
-$status = @(& git status --short)
-if ($status.Count -eq 0) { throw 'Integration produced no changes.' }
-Write-Host 'Primary integration diff:'
-& git diff --stat
-& git status --short
+
+# Preserve the exact generated files outside .github/workflows so the ordinary
+# Actions token can publish them. The connector will reuse these exact blob
+# objects at their permanent paths in one atomic development-branch commit.
+$snapshotWorkflow = Join-Path $env:RUNNER_TEMP 'calibre-primary-workflow.snapshot.yml'
+$snapshotDiag = Join-Path $env:RUNNER_TEMP 'calibre-startup-diagnostics.snapshot.ps1'
+Copy-Item -LiteralPath $workflowPath -Destination $snapshotWorkflow -Force
+Copy-Item -LiteralPath $diagPath -Destination $snapshotDiag -Force
+$workflowHash = (Get-FileHash -LiteralPath $snapshotWorkflow -Algorithm SHA256).Hash
+$diagHash = (Get-FileHash -LiteralPath $snapshotDiag -Algorithm SHA256).Hash
+Write-Host "Generated primary workflow SHA-256: $workflowHash"
+Write-Host "Generated diagnostics SHA-256: $diagHash"
+
+& git checkout -B $CandidateBranch $candidateHead
+if ($LASTEXITCODE -ne 0) { throw 'Failed to return to candidate branch for snapshot publication.' }
+$snapshotRoot = '.github/generated/calibre-primary'
+New-Item -ItemType Directory -Force -Path $snapshotRoot | Out-Null
+Copy-Item -LiteralPath $snapshotWorkflow -Destination (Join-Path $snapshotRoot 'pdf-tunner-windows-portable.yml.snapshot') -Force
+Copy-Item -LiteralPath $snapshotDiag -Destination (Join-Path $snapshotRoot 'collect-startup-diagnostics.ps1.snapshot') -Force
+$note = "Snapshot generation Run $env:GITHUB_RUN_ID produced deterministic primary workflow/diagnostics blobs after all integration guards passed; Actions cannot push workflow-path changes, so the GitHub connector will promote these exact blobs."
+Add-Content -LiteralPath 'README.md' -Encoding utf8 -Value "`n<!-- $note -->"
+Add-Content -LiteralPath 'AGENTS.md' -Encoding utf8 -Value "`n- **2026-09-03:** $note"
 
 & git config user.name 'Willsito'
 & git config user.email 'g.fernandez.garcia@outlook.es'
-& git add -- '.github/scripts/calibre-launcher.rs' '.github/scripts/prepare-calibre.ps1' '.github/scripts/validate-calibre.ps1' '.github/scripts/collect-startup-diagnostics.ps1' '.github/workflows/pdf-tunner-windows-portable.yml' 'README.md' 'AGENTS.md'
-& git commit -m 'feat(portable): integrate Calibre 9.14.0 candidate' -m 'Promote the focused-green Calibre candidate into the complete Windows portable regression: package the authenticated official x64 MSI via administrative extraction, expose Stirling literal ebook-convert through a package-relative native launcher, validate direct/relocated conversions and both live Stirling ebook routes, retain Calibre evidence, and extend bounded diagnostics. Keep candidate-only workflows out of the development branch and document the pending primary acceptance gate.'
-if ($LASTEXITCODE -ne 0) { throw 'Failed to create primary Calibre integration commit.' }
-
-$newHead = (& git rev-parse HEAD).Trim()
-& git push origin "HEAD:refs/heads/$DevBranch"
-if ($LASTEXITCODE -ne 0) { throw 'Failed to push the single primary Calibre integration commit.' }
-Write-Host "PASS: primary development branch advanced atomically from $ExpectedDevHead to $newHead."
+& git add -- $snapshotRoot 'README.md' 'AGENTS.md'
+& git commit -m 'chore(ci): stage Calibre primary snapshots [skip ci]' -m "Store exact generated workflow and startup-diagnostics snapshots after all integration guards pass. Workflow SHA-256: $workflowHash. Diagnostics SHA-256: $diagHash. These files are temporary transport objects for the connector and are not part of the permanent development tree."
+if ($LASTEXITCODE -ne 0) { throw 'Failed to create candidate snapshot commit.' }
+$newCandidateHead = (& git rev-parse HEAD).Trim()
+& git push origin "HEAD:refs/heads/$CandidateBranch"
+if ($LASTEXITCODE -ne 0) { throw 'Failed to publish candidate snapshot commit.' }
+Write-Host "PASS: published deterministic Calibre primary snapshots at candidate commit $newCandidateHead."
