@@ -11,6 +11,7 @@
 - Target: **Windows 10/11 x64 portable ZIP**
 - No final PDF_Tunner v1 Release exists yet; `main` remains the clean upstream base during portable development.
 - Latest complete green primary regression: **Run #95** (`33695530172`), job `100463449110`, functional commit `a7a118e852277069c8ab13cc2f25121f9be87fea`.
+- Active external-toolchain candidate: **Calibre `9.14.0` / `ebook-convert`** on temporary branch `pdf-tunner/calibre-candidate`; it is not accepted until the complete primary workflow is green with all previous gates enabled.
 
 ## Accepted portable layers
 
@@ -74,6 +75,14 @@ Run #94 (`33666446582`), job `100369276881`, commit `3afffbc52eb2450eede8ea112ce
 
 Run #95 generated and validated `PDF_Tunner-2.14.3-bootstrap-Windows-x64-Portable.zip`, size `1,553,629,801` bytes, SHA-256 `CFD09D41CC5E074B7CEF1885F5A32ED58F08E2FE6FB9EEBC0C0AA07B2A16C0FE`. The ZIP itself was not uploaded. Retained lightweight artifact `9872300027`, `PDF_Tunner-Windows-x64-CI-evidence`, is `6,055` bytes with Actions digest `sha256:e54704632653500d4514dd41c24340d598c66de547ac81e1a06e8d3d30d3468f`, expires 2026-09-09, and includes WeasyPrint provenance/checksums plus existing package evidence. Layout summary: `30,051` package files / `3,569,719,817` payload bytes.
 
+### Calibre 9.14.0 / `ebook-convert` — candidate
+
+Pinned Stirling 2.14.3 resolves literal `ebook-convert`. Its PDF→EPUB route invokes Calibre with `--pdf-engine pdftohtml`, so the candidate deliberately reuses the already accepted package-local Poppler; eBook→PDF accepts EPUB/MOBI/AZW3/FB2/TXT/DOCX and can subsequently use Ghostscript optimization.
+
+Candidate payload: official Calibre Windows x64 MSI `calibre-64bit-9.14.0.msi`, URL `https://download.calibre-ebook.com/9.14.0/calibre-64bit-9.14.0.msi`, pinned SHA-256 `4ccaf2a49a0069b5e78291ee7248dcd8967896d316d6432ddf657b6feae8f32d`. CI performs MSI administrative extraction only and stages the runtime under `tools/calibre`; it does not install Calibre on the runner.
+
+A native package-relative `tools/bin/ebook-convert.exe` launcher forwards the exact Stirling CLI to `tools/calibre/ebook-convert.exe`, places config/cache under `data/calibre/`, creates per-invocation temp under `data/tmp/calibre/`, sets `CALIBRE_NO_DEFAULT_PROGRAMS=1`, and removes invocation temp after exit. Candidate validation requires AMD64 identity, package-first command resolution, exact version, TXT→EPUB, EPUB→PDF, Stirling-shaped PDF→EPUB through bundled Poppler, no host-profile leakage/orphan processes and relocation to a path containing spaces. Real Stirling `/ebook/pdf` and `/pdf/epub` routes remain required in the complete primary regression before acceptance.
+
 ## Architecture and portable boundary
 
 PDF_Tunner uses Stirling's own Tauri desktop app in `frontend/editor/src-tauri`. Portable mode activates when `PDF_TUNNER_PORTABLE` exists beside `PDF_Tunner.exe`.
@@ -90,7 +99,7 @@ State is localized component by component; do not globally replace user-profile 
 - LibreOffice -> `tools/libreoffice/`; `unoconvert.exe` -> `tools/bin/`; transient state -> package-local temp/profile paths;
 - Poppler -> `tools/poppler/Library/bin/`;
 - WeasyPrint backend -> `tools/weasyprint/`; literal command shim -> `tools/bin/weasyprint.exe`; per-invocation temp -> `data/tmp/weasyprint/`;
-- Calibre config -> `data/calibre/` when added.
+- Calibre -> `tools/calibre/`; literal command launcher -> `tools/bin/ebook-convert.exe`; config/cache -> `data/calibre/`; per-invocation temp -> `data/tmp/calibre/`.
 
 Portable mode skips runtime `pdf-tunner://` protocol registration. Primary CI rejects new tracked host AppData/TEMP/registry state and package-local orphan processes.
 
@@ -100,11 +109,13 @@ Primary workflow: `.github/workflows/pdf-tunner-windows-portable.yml`.
 
 A dependency is accepted only when the **complete current primary workflow** is green with every earlier accepted gate enabled. `--version` alone is never sufficient; require real operation and package-first isolation wherever practical.
 
+The temporary `.github/workflows/pdf-tunner-calibre-candidate.yml` runs only on `pdf-tunner/calibre-candidate` to de-risk Calibre packaging before one expensive primary regression. It is development-only and must be removed when Calibre is integrated into the primary workflow.
+
 Ordinary CI always builds and validates the portable ZIP but uploads only lightweight evidence. The multi-gigabyte ZIP, wheelhouses and caches are not ordinary artifacts. Failure diagnostics are text-only and bounded; the startup collector prioritizes package-local backend log tails and concise process/state inventories. No final Release is created before complete v1 acceptance and explicit user authorization.
 
 ## Remaining v1 roadmap
 
-1. **Calibre/`ebook-convert`** is the next external-toolchain block.
+1. **Calibre/`ebook-convert`** is the active external-toolchain candidate; focused candidate success is not acceptance, which requires the complete primary workflow.
 2. `unpaper`; `pngquant`; conversion fonts; explicit VeraPDF E2E; investigate/package `jbig2enc` if viable; establish viable portable RAR/CBR support or document the limitation; add any further dependency exposed by exact pinned-source audit.
 3. Representative E2E operations across OCR, Office, HTML/URL -> PDF, accepted Poppler and WeasyPrint, Calibre/EPUB, Python/OpenCV and representative Stirling API families; HTML/URL/base-URL and EML breadth remains here even though WeasyPrint itself is accepted.
 4. Non-Enterprise parity audit against Stirling 2.14.3.

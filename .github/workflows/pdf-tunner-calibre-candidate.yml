@@ -1,0 +1,125 @@
+name: PDF_Tunner Calibre Candidate
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - pdf-tunner/calibre-candidate
+
+concurrency:
+  group: pdf-tunner-calibre-candidate-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  PDF_TUNNER_POPPLER_VERSION: "26.02.0"
+  PDF_TUNNER_POPPLER_VARIANT: "windows-x64"
+  PDF_TUNNER_POPPLER_URL: "https://github.com/oschwartz10612/poppler-windows/releases/download/v26.02.0-0/Release-26.02.0-0.zip"
+  PDF_TUNNER_POPPLER_SHA256: "993e4a94376ed712fafc7058d724ea0b943d118bbd2305cd9ed55174eb85cda5"
+  PDF_TUNNER_CALIBRE_VERSION: "9.14.0"
+  PDF_TUNNER_CALIBRE_MSI_URL: "https://download.calibre-ebook.com/9.14.0/calibre-64bit-9.14.0.msi"
+  PDF_TUNNER_CALIBRE_MSI_SHA256: "4ccaf2a49a0069b5e78291ee7248dcd8967896d316d6432ddf657b6feae8f32d"
+
+jobs:
+  calibre-candidate:
+    runs-on: windows-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout candidate
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@4be9e76fd7c4901c61fb841f559994984270fce7 # stable
+        with:
+          toolchain: stable
+
+      - name: Preflight Calibre scripts and launcher
+        shell: pwsh
+        run: |
+          foreach ($script in @('./.github/scripts/prepare-calibre.ps1', './.github/scripts/validate-calibre.ps1')) {
+            $tokens = $null
+            $errors = $null
+            [void][System.Management.Automation.Language.Parser]::ParseFile((Resolve-Path -LiteralPath $script).Path, [ref]$tokens, [ref]$errors)
+            if ($errors.Count -gt 0) {
+              $errors | Format-List | Out-Host
+              throw "PowerShell syntax preflight failed: $script"
+            }
+          }
+          $metadata = Join-Path $env:RUNNER_TEMP 'calibre-launcher.rmeta'
+          try {
+            & rustc.exe --edition 2021 --emit metadata './.github/scripts/calibre-launcher.rs' -o $metadata
+            if ($LASTEXITCODE -ne 0) { throw "Rust Calibre launcher syntax preflight failed with exit code $LASTEXITCODE." }
+          }
+          finally { Remove-Item -LiteralPath $metadata -Force -ErrorAction SilentlyContinue }
+
+      - name: Create minimal portable candidate root
+        shell: pwsh
+        run: |
+          $portable = Join-Path $PWD 'dist/PDF_Tunner'
+          Remove-Item -LiteralPath $portable -Recurse -Force -ErrorAction SilentlyContinue
+          New-Item -ItemType Directory -Force -Path (Join-Path $portable 'data'), (Join-Path $portable 'tools/bin') | Out-Null
+          New-Item -ItemType File -Force -Path (Join-Path $portable 'PDF_TUNNER_PORTABLE') | Out-Null
+
+      - name: Stage accepted Poppler dependency
+        shell: pwsh
+        run: |
+          & './.github/scripts/prepare-poppler.ps1' `
+            -PortableRoot './dist/PDF_Tunner' `
+            -Version $env:PDF_TUNNER_POPPLER_VERSION `
+            -PackageVariant $env:PDF_TUNNER_POPPLER_VARIANT `
+            -DownloadUrl $env:PDF_TUNNER_POPPLER_URL `
+            -ExpectedSha256 $env:PDF_TUNNER_POPPLER_SHA256
+
+      - name: Validate accepted Poppler dependency
+        shell: pwsh
+        run: |
+          & './.github/scripts/validate-poppler.ps1' `
+            -PortableRoot './dist/PDF_Tunner' `
+            -Version $env:PDF_TUNNER_POPPLER_VERSION `
+            -ExpectedArchiveSha256 $env:PDF_TUNNER_POPPLER_SHA256
+
+      - name: Stage Calibre Windows x64 candidate
+        shell: pwsh
+        run: |
+          & './.github/scripts/prepare-calibre.ps1' `
+            -PortableRoot './dist/PDF_Tunner' `
+            -CalibreVersion $env:PDF_TUNNER_CALIBRE_VERSION `
+            -CalibreMsiUrl $env:PDF_TUNNER_CALIBRE_MSI_URL `
+            -CalibreMsiSha256 $env:PDF_TUNNER_CALIBRE_MSI_SHA256 `
+            -LauncherSource './.github/scripts/calibre-launcher.rs'
+
+      - name: Validate Calibre candidate package-only and relocated
+        shell: pwsh
+        run: |
+          & './.github/scripts/validate-calibre.ps1' `
+            -PortableRoot './dist/PDF_Tunner' `
+            -CalibreVersion $env:PDF_TUNNER_CALIBRE_VERSION `
+            -CalibreMsiSha256 $env:PDF_TUNNER_CALIBRE_MSI_SHA256 `
+            -RequireRelocation
+
+      - name: Create lightweight candidate evidence
+        shell: pwsh
+        run: |
+          $evidence = Join-Path $PWD 'dist/calibre-evidence'
+          New-Item -ItemType Directory -Force -Path $evidence | Out-Null
+          @(
+            "COMMIT=$env:GITHUB_SHA",
+            "CALIBRE_VERSION=$env:PDF_TUNNER_CALIBRE_VERSION",
+            "CALIBRE_MSI_SHA256=$env:PDF_TUNNER_CALIBRE_MSI_SHA256",
+            "POPPLER_VERSION=$env:PDF_TUNNER_POPPLER_VERSION",
+            "POPPLER_ARCHIVE_SHA256=$env:PDF_TUNNER_POPPLER_SHA256"
+          ) | Set-Content -LiteralPath (Join-Path $evidence 'CANDIDATE_EVIDENCE.txt') -Encoding ascii
+          Copy-Item './dist/PDF_Tunner/tools/calibre/PROVENANCE.txt' $evidence -Force
+          Copy-Item './dist/PDF_Tunner/tools/calibre/SHA256SUMS.txt' $evidence -Force
+          Copy-Item './dist/PDF_Tunner/tools/bin/CALIBRE_PROVENANCE.txt' $evidence -Force
+
+      - name: Upload lightweight candidate evidence
+        uses: actions/upload-artifact@v7.0.1
+        with:
+          name: PDF_Tunner-Calibre-candidate-evidence
+          path: dist/calibre-evidence
+          if-no-files-found: error
+          retention-days: 3
