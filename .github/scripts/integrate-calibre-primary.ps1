@@ -139,20 +139,32 @@ $workflow = Replace-One $workflow @'
             'tools/weasyprint/weasyprint.exe',
 '@ 'final Calibre layout requirements'
 
+# Anchor the final package-only Calibre validation to the unique LibreOffice ->
+# final data-cleanup boundary. The previous WeasyPrint-only anchor occurs in
+# three validation phases and correctly caused the first integrator attempt to
+# abort before any primary-branch write.
 $cleanupAnchor = @'
-          & './.github/scripts/validate-weasyprint.ps1' `
+          & './.github/scripts/validate-libreoffice.ps1' `
             -PortableRoot './dist/PDF_Tunner' `
-            -Version $env:PDF_TUNNER_WEASYPRINT_VERSION `
-            -ExpectedArchiveSha256 $env:PDF_TUNNER_WEASYPRINT_SHA256
+            -LibreOfficeVersion $env:PDF_TUNNER_LIBREOFFICE_VERSION `
+            -LibreOfficeMsiSha256 $env:PDF_TUNNER_LIBREOFFICE_MSI_SHA256
+
+          Remove-Item -LiteralPath $data -Recurse -Force -ErrorAction Stop
 '@
 $calibreCleanup = @'
+          & './.github/scripts/validate-libreoffice.ps1' `
+            -PortableRoot './dist/PDF_Tunner' `
+            -LibreOfficeVersion $env:PDF_TUNNER_LIBREOFFICE_VERSION `
+            -LibreOfficeMsiSha256 $env:PDF_TUNNER_LIBREOFFICE_MSI_SHA256
+
           & './.github/scripts/validate-calibre.ps1' `
             -PortableRoot './dist/PDF_Tunner' `
             -CalibreVersion $env:PDF_TUNNER_CALIBRE_VERSION `
             -CalibreMsiSha256 $env:PDF_TUNNER_CALIBRE_MSI_SHA256
 
+          Remove-Item -LiteralPath $data -Recurse -Force -ErrorAction Stop
 '@
-$workflow = Replace-One $workflow $cleanupAnchor ($calibreCleanup + $cleanupAnchor) 'final Calibre package validation'
+$workflow = Replace-One $workflow $cleanupAnchor $calibreCleanup 'final Calibre package validation at unique cleanup boundary'
 
 $workflow = Replace-One $workflow @'
             "POPPLER_ARCHIVE_SHA256=$env:PDF_TUNNER_POPPLER_SHA256",

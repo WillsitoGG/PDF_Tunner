@@ -113,6 +113,8 @@ A dependency is accepted only when the **complete current primary workflow** is 
 
 Focused Calibre Run #1 is green and the focused workflow is now retired. A branch-only one-shot integration workflow advances `pdf-tunner/windows-portable-v1` with one atomic commit containing only permanent Calibre scripts, the primary workflow changes, bounded diagnostics and README+AGENTS; candidate-only workflow/script files are explicitly excluded from that primary commit. The resulting single development-branch push triggers the complete primary regression.
 
+The first integration attempt, Run `33744277709` / job `100613069064`, aborted before any write to `pdf-tunner/windows-portable-v1`: its final package-validation selector matched three legitimate WeasyPrint validation blocks instead of exactly one. The corrected integrator anchors that insertion to the unique final LibreOffice-to-`data/` cleanup boundary. No Calibre payload, hash, launcher, endpoint or acceptance gate was changed.
+
 Ordinary CI always builds and validates the portable ZIP but uploads only lightweight evidence. The multi-gigabyte ZIP, wheelhouses and caches are not ordinary artifacts. Failure diagnostics are text-only and bounded; the startup collector prioritizes package-local backend log tails and concise process/state inventories. No final Release is created before complete v1 acceptance and explicit user authorization.
 
 ## Remaining v1 roadmap
