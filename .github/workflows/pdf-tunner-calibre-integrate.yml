@@ -1,0 +1,32 @@
+name: PDF_Tunner Calibre Integrate
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - pdf-tunner/calibre-candidate
+
+concurrency:
+  group: pdf-tunner-calibre-integrate-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+
+jobs:
+  integrate-calibre:
+    runs-on: windows-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout Calibre candidate
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 0
+
+      - name: Integrate focused-green Calibre candidate into primary development branch
+        shell: pwsh
+        run: |
+          $runnerScript = Join-Path $env:RUNNER_TEMP 'integrate-calibre-primary.ps1'
+          Copy-Item -LiteralPath './.github/scripts/integrate-calibre-primary.ps1' -Destination $runnerScript -Force
+          & $runnerScript -ExpectedDevHead '12d73ef5b264e2e688c59ecbb8844043af2c8588'
