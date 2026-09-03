@@ -30,4 +30,64 @@ foreach ($key in $PSBoundParameters.Keys) {
 }
 
 & $core @coreParams
-& $aux -PortableRoot $PortableRoot
+
+$portable = (Resolve-Path -LiteralPath $PortableRoot).Path
+$diagnosticRoot = Join-Path $portable 'data\logs'
+$diagnosticLog = Join-Path $diagnosticRoot 'ocr-aux-diagnostic.log'
+New-Item -ItemType Directory -Force -Path $diagnosticRoot | Out-Null
+
+@(
+    'STATUS=starting',
+    'PHASE=invoke-prepare-ocr-aux',
+    "UTC=$([DateTime]::UtcNow.ToString('o'))",
+    "CORE=$core",
+    "AUX=$aux",
+    "PORTABLE_ROOT=$portable"
+) | Set-Content -LiteralPath $diagnosticLog -Encoding utf8
+
+try {
+    & $aux -PortableRoot $PortableRoot
+    @(
+        'STATUS=success',
+        'PHASE=invoke-prepare-ocr-aux',
+        "UTC=$([DateTime]::UtcNow.ToString('o'))",
+        "AUX=$aux"
+    ) | Set-Content -LiteralPath $diagnosticLog -Encoding utf8
+}
+catch {
+    $errorRecord = $_
+    $exceptionType = if ($null -ne $errorRecord.Exception) { $errorRecord.Exception.GetType().FullName } else { '' }
+    $exceptionMessage = if ($null -ne $errorRecord.Exception) { $errorRecord.Exception.Message } else { '' }
+    $scriptName = if ($null -ne $errorRecord.InvocationInfo) { $errorRecord.InvocationInfo.ScriptName } else { '' }
+    $scriptLine = if ($null -ne $errorRecord.InvocationInfo) { $errorRecord.InvocationInfo.ScriptLineNumber } else { '' }
+    $offsetInLine = if ($null -ne $errorRecord.InvocationInfo) { $errorRecord.InvocationInfo.OffsetInLine } else { '' }
+    $lineText = if ($null -ne $errorRecord.InvocationInfo) { $errorRecord.InvocationInfo.Line } else { '' }
+    $positionMessage = if ($null -ne $errorRecord.InvocationInfo) { $errorRecord.InvocationInfo.PositionMessage } else { '' }
+    $stackTrace = if ($null -ne $errorRecord.ScriptStackTrace) { $errorRecord.ScriptStackTrace } else { '' }
+    $recordText = ($errorRecord | Format-List * -Force | Out-String -Width 4096).TrimEnd()
+
+    @(
+        'STATUS=failure',
+        'PHASE=invoke-prepare-ocr-aux',
+        "UTC=$([DateTime]::UtcNow.ToString('o'))",
+        "AUX=$aux",
+        "EXCEPTION_TYPE=$exceptionType",
+        "EXCEPTION_MESSAGE=$exceptionMessage",
+        "FULLY_QUALIFIED_ERROR_ID=$($errorRecord.FullyQualifiedErrorId)",
+        "CATEGORY=$($errorRecord.CategoryInfo.Category)",
+        "SCRIPT_NAME=$scriptName",
+        "SCRIPT_LINE=$scriptLine",
+        "OFFSET_IN_LINE=$offsetInLine",
+        '--- LINE ---',
+        $lineText,
+        '--- POSITION ---',
+        $positionMessage,
+        '--- SCRIPT STACK TRACE ---',
+        $stackTrace,
+        '--- ERROR RECORD ---',
+        $recordText
+    ) | Set-Content -LiteralPath $diagnosticLog -Encoding utf8
+
+    Write-Host "OCR auxiliary diagnostic captured at $diagnosticLog"
+    throw
+}

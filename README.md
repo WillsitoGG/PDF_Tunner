@@ -14,6 +14,7 @@
 - Latest complete green primary regression: **Run #96** (`33748509811`), job `100626447125`, functional commit `0874881eaadcede5095e3db0052ce8b78cc23906`.
 - **Calibre 9.14.0 / `ebook-convert` is formally accepted by Run #96.**
 - Active external-toolchain candidate: **unpaper 6.1 + pngquant 3.0.3**, integrated as OCRmyPDF 17.10.0 auxiliary tools. They are not accepted until the complete primary workflow is green with all previous gates enabled.
+- Run #97 (`33753982510`), job `100643848626`, commit `f2259ad2456dcba4c03ec0a7d2bbb19e1422c05d`, failed during `Stage portable Python, OCRmyPDF and NumPy` after the accepted core had already populated the portable Python runtime. The failure is therefore inside the new auxiliary invocation path, not a reopening of the accepted Python/OCRmyPDF core.
 
 ## Accepted portable layers
 
@@ -92,6 +93,12 @@ Candidate validation requires:
 
 To reduce regression risk, the previously accepted `.github/scripts/prepare-ocrmypdf.ps1` implementation is preserved byte-for-byte as `.github/scripts/prepare-ocrmypdf-core.ps1`. The existing workflow entry path remains `.github/scripts/prepare-ocrmypdf.ps1`, now a narrow wrapper that executes the accepted core and then `.github/scripts/prepare-ocr-aux.ps1`.
 
+### Run #97 — failed candidate and bounded diagnostic correction
+
+Run #97 (`33753982510`), job `100643848626`, commit `f2259ad2456dcba4c03ec0a7d2bbb19e1422c05d`, failed in the combined Python/OCRmyPDF staging step. Its bounded artifact `9893464267` proved that the accepted Python/OCRmyPDF core had already populated the portable runtime and generated Python cache entries, including OCRmyPDF's `unpaper` and `pngquant` modules. The artifact did **not** retain the exception text emitted by the newly invoked auxiliary script, so #97 does not identify a defensible line-level root cause and does not accept the candidate.
+
+The next diagnostic revision keeps the accepted core untouched and changes only the narrow wrapper. Immediately before invoking `.github/scripts/prepare-ocr-aux.ps1`, it creates `data/logs/ocr-aux-diagnostic.log`; on failure it records exception type/message, fully-qualified error ID, category, script/line/offset, source line, position message, PowerShell script stack trace and the formatted error record, then rethrows the original failure. The existing bounded startup-diagnostics collector already retains package-local `.log` tails, so no large artifact or extra workflow is required. On a green run the temporary diagnostic log is removed by the existing final `data/` cleanup and is not shipped in the portable ZIP.
+
 ## Portable architecture
 
 Portable mode activates when `PDF_TUNNER_PORTABLE` exists beside `PDF_Tunner.exe`. State is localized component by component rather than by globally replacing user-profile variables before Tauri/WebView2 initialization.
@@ -157,4 +164,5 @@ Representative E2E must cover OCR, Office↔PDF, HTML/URL/base-URL/EML paths, ac
 - 2026-09-01: LibreOffice/unoconvert accepted by #83; Poppler by #86; authenticated Python lock and NumPy by #87/#90; OpenCV by #92.
 - 2026-09-03: WeasyPrint 69.0 formally accepted by complete primary Run #95.
 - **2026-09-03: Calibre 9.14.0 formally accepted by complete primary Run #96 (`33748509811`), job `100626447125`, commit `0874881eaadcede5095e3db0052ce8b78cc23906`.**
-- **Current:** unpaper 6.1 + pngquant 3.0.3 are the active OCRmyPDF auxiliary candidate. Do not call them accepted until the complete primary workflow passes with this candidate and all earlier gates enabled.
+- **2026-09-03: Run #97 (`33753982510`) failed inside the new unpaper/pngquant auxiliary staging path after the accepted Python/OCRmyPDF core completed. Its bounded artifact lacked the actual exception text, so the candidate remains unaccepted.**
+- **Current:** the wrapper now captures a bounded package-local `ocr-aux-diagnostic.log` before rethrowing any auxiliary failure; the next complete primary run will either expose the exact line-level root cause or, if green, become the acceptance gate for unpaper 6.1 + pngquant 3.0.3.

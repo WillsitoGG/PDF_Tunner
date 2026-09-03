@@ -201,6 +201,14 @@ Candidate validation contract:
 
 CI implementation intentionally preserves the accepted Python/OCRmyPDF preparation logic byte-for-byte as `.github/scripts/prepare-ocrmypdf-core.ps1` (same blob as the previously accepted `.github/scripts/prepare-ocrmypdf.ps1`). The existing workflow entry path `.github/scripts/prepare-ocrmypdf.ps1` is now a narrow wrapper: run the accepted core, then `.github/scripts/prepare-ocr-aux.ps1`. This avoids rewriting the accepted Python/lock/OpenCV preparation logic while adding the new block.
 
+### Run #97 failure and diagnostic contract
+
+Run #97 (`33753982510`), job `100643848626`, commit `f2259ad2456dcba4c03ec0a7d2bbb19e1422c05d`, failed in `Stage portable Python, OCRmyPDF and NumPy`. Bounded artifact `9893464267` showed the accepted core had already built the portable Python/OCRmyPDF runtime and generated OCRmyPDF module cache entries, so do not reopen the accepted core without contrary evidence. The failure is in the new auxiliary invocation path.
+
+The #97 bounded artifact did not retain the actual exception text from `prepare-ocr-aux.ps1`; repeated connector attempts to fetch the job log did not expose usable decoded text. Do not repeat that dead-end as the primary diagnostic strategy.
+
+The next revision instruments only the narrow wrapper. Before invoking `prepare-ocr-aux.ps1`, create `data/logs/ocr-aux-diagnostic.log`. On auxiliary failure record, at minimum: exception type/message, fully-qualified error ID, category, script name, script line, offset, source line, position message, `ScriptStackTrace` and the formatted error record; then rethrow the original failure. The existing bounded startup-diagnostics collector automatically retains package-local `.log` tails, so this produces lightweight evidence without changing the heavy workflow or uploading the portable payload. On a green run the existing final `data/` cleanup removes this diagnostic log before packaging.
+
 **Do not call unpaper/pngquant accepted until the complete primary workflow is green with this candidate and every earlier gate enabled.**
 
 ## Primary workflow acceptance contract
@@ -248,7 +256,9 @@ Accepted/closed: native portable/Tauri containment; Fixed WebView2; qpdf; ImageM
 
 Latest complete green primary: **Run #96** (`33748509811`), job `100626447125`, commit `0874881eaadcede5095e3db0052ce8b78cc23906`. ZIP SHA-256 `724C882195965A9F5676ADB6B4ED09FE1ED32EED09D74424D76DEF7B59C7CCAE`, size `1,837,322,506`; evidence artifact `9891758584`, `7,273` bytes, digest `sha256:d03923535d0b2d9e61aa4ea7ed3f82e84ae241d8380abd4a62d77b2874431bf7`.
 
-Active candidate: **unpaper 6.1 + pngquant 3.0.3** as OCRmyPDF auxiliaries. The next complete primary run is the acceptance gate. If it passes, update README + AGENTS in one `[skip ci]` documentation-only commit to record formal acceptance and move the active block to conversion fonts; do not spend another heavy CI run merely to record documentation.
+Failed candidate evidence: **Run #97** (`33753982510`), job `100643848626`, commit `f2259ad2456dcba4c03ec0a7d2bbb19e1422c05d`; failure occurred after accepted Python/OCRmyPDF core preparation, inside the new auxiliary invocation path. Artifact `9893464267` was bounded but did not retain the exception text.
+
+Active candidate: **unpaper 6.1 + pngquant 3.0.3** as OCRmyPDF auxiliaries. The next complete primary run includes wrapper-level bounded exception capture. If it fails, inspect `ocr-aux-diagnostic.log` from the failure artifact and apply the smallest line-level correction. If it passes, update README + AGENTS in one `[skip ci]` documentation-only commit to record formal acceptance and move the active block to conversion fonts; do not spend another heavy CI run merely to record documentation.
 
 ## Compact changelog
 
@@ -258,3 +268,4 @@ Active candidate: **unpaper 6.1 + pngquant 3.0.3** as OCRmyPDF auxiliaries. The 
 - 2026-09-03: WeasyPrint 69.0 formally accepted via complete Run #95.
 - **2026-09-03: Calibre 9.14.0 formally accepted via complete Run #96 (`33748509811`), job `100626447125`, commit `0874881eaadcede5095e3db0052ce8b78cc23906`.**
 - **2026-09-03: opened the combined OCRmyPDF auxiliary block for unpaper 6.1 + pngquant 3.0.3 with authenticated Windows payloads, package-first validation, exact OCRmyPDF wrapper tests and relocation gate.**
+- **2026-09-03: Run #97 failed inside that auxiliary path after the accepted core completed; wrapper-level bounded exception capture was added so the next failure artifact exposes the exact PowerShell error instead of only package inventory.**
