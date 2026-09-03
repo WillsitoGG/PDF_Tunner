@@ -1,0 +1,992 @@
+name: PDF_Tunner Windows Portable
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - pdf-tunner/windows-portable-v1
+
+concurrency:
+  group: pdf-tunner-windows-portable-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  actions: read
+  contents: read
+  statuses: write
+
+env:
+  PDF_TUNNER_UPSTREAM_VERSION: "2.14.3"
+  PDF_TUNNER_UPSTREAM_COMMIT: "7fb29d002dbb8fa4b5945d1d1fe8dd164a9f7632"
+  PDF_TUNNER_WEBVIEW2_FIXED_VERSION: "151.0.4129.101"
+  PDF_TUNNER_WEBVIEW2_FIXED_ARCH: "x64"
+  PDF_TUNNER_WEBVIEW2_FIXED_URL: "https://msedge.sf.dl.delivery.mp.microsoft.com/filestreamingservice/files/d480b710-fe1e-4e4d-ae99-5b62e6391fd3/Microsoft.WebView2.FixedVersionRuntime.151.0.4129.101.x64.cab"
+  PDF_TUNNER_WEBVIEW2_FIXED_SHA256: "c386640d35f7a4604d088925a9bb01938400297f6da6fe985b72614daba87cda"
+  PDF_TUNNER_QPDF_VERSION: "12.4.0"
+  PDF_TUNNER_QPDF_VARIANT: "mingw64"
+  PDF_TUNNER_QPDF_URL: "https://github.com/qpdf/qpdf/releases/download/v12.4.0/qpdf-12.4.0-mingw64.zip"
+  PDF_TUNNER_QPDF_SHA256: "dcec940ce825b3b654d4936918190f52e7bfca85b7fb1c49bc24b3035185b4f5"
+  PDF_TUNNER_POPPLER_VERSION: "26.02.0"
+  PDF_TUNNER_POPPLER_VARIANT: "windows-x64"
+  PDF_TUNNER_POPPLER_URL: "https://github.com/oschwartz10612/poppler-windows/releases/download/v26.02.0-0/Release-26.02.0-0.zip"
+  PDF_TUNNER_POPPLER_SHA256: "993e4a94376ed712fafc7058d724ea0b943d118bbd2305cd9ed55174eb85cda5"
+  PDF_TUNNER_WEASYPRINT_VERSION: "69.0"
+  PDF_TUNNER_WEASYPRINT_URL: "https://github.com/Kozea/WeasyPrint/releases/download/v69.0/weasyprint-windows.zip"
+  PDF_TUNNER_WEASYPRINT_SHA256: "330101ff3ea50ebde4abf805283b6d703d5f3d71c77c983db94357ec4524a3ef"
+  PDF_TUNNER_IMAGEMAGICK_VERSION: "7.1.2-30"
+  PDF_TUNNER_IMAGEMAGICK_VARIANT: "portable-Q16-x64"
+  PDF_TUNNER_IMAGEMAGICK_URL: "https://github.com/ImageMagick/ImageMagick/releases/download/7.1.2-30/ImageMagick-7.1.2-30-portable-Q16-x64.7z"
+  PDF_TUNNER_IMAGEMAGICK_SHA256: "47a4ffd20f9360fc85817286df29019fad781df15002dcffdd260c9b27a9e4d8"
+  PDF_TUNNER_GHOSTSCRIPT_VERSION: "10.07.1"
+  PDF_TUNNER_GHOSTSCRIPT_VARIANT: "official-win64-nsis"
+  PDF_TUNNER_GHOSTSCRIPT_URL: "https://github.com/ArtifexSoftware/ghostpdl-downloads/releases/download/gs10071/gs10071w64.exe"
+  PDF_TUNNER_GHOSTSCRIPT_SHA256: "3a4c28d0aac47aa7cccd35a5932c55110376e9dbd966898dde388b7faba444a4"
+  PDF_TUNNER_TESSERACT_VERSION: "5.5.3"
+  PDF_TUNNER_TESSERACT_VARIANT: "official-win64-nsis"
+  PDF_TUNNER_TESSERACT_URL: "https://github.com/tesseract-ocr/tesseract/releases/download/5.5.3/tesseract-ocr-w64-setup-5.5.3.20260724.exe"
+  PDF_TUNNER_TESSERACT_SHA256: "bee9e3434bd94fd65387d9be28cd467a41f61b1275383b55b0f59a1331270ae4"
+  PDF_TUNNER_TESSDATA_FAST_COMMIT: "87416418657359cb625c412a48b6e1d6d41c29bd"
+  PDF_TUNNER_TESSDATA_ENG_BLOB: "bbef4675053b5b468cdb477053e28b1c698ba08e"
+  PDF_TUNNER_TESSDATA_SPA_BLOB: "72e901f13ca52cfe34cf239a368b9ed3c0ddaf26"
+  PDF_TUNNER_TESSDATA_OSD_BLOB: "527457ca8f8fe1fda7c2f88bce3c0e4be12be9d0"
+  PDF_TUNNER_PYTHON_VERSION: "3.12.14"
+  PDF_TUNNER_PYTHON_URL: "https://github.com/astral-sh/python-build-standalone/releases/download/20260825/cpython-3.12.14%2B20260825-x86_64-pc-windows-msvc-install_only_stripped.tar.gz"
+  PDF_TUNNER_PYTHON_SHA256: "8e6aad12ef6fc9685e67ce66253f8f72d6e8fa02cb7187e5850bd4db5ecd9e2a"
+  PDF_TUNNER_OCRMYPDF_VERSION: "17.10.0"
+  PDF_TUNNER_OCRMYPDF_WHEEL_SHA256: "34ba1b595ecacc94b6dc3c9d4fa51953de63082cd16cf8595251bd72120b930a"
+  PDF_TUNNER_NUMPY_VERSION: "2.5.2"
+  PDF_TUNNER_NUMPY_WHEEL_SHA256: "28ac63476ec7651484215ee7fa15a1f78b57c14621f01e392afe17b9a1390ce4"
+  PDF_TUNNER_PYTHON_DEPENDENCY_LOCK_SHA256: "ededb999049d81b85527f4d4aa679179e747669df300083d91bc2dd4e14e430f"
+  PDF_TUNNER_LIBREOFFICE_VERSION: "26.2.5"
+  PDF_TUNNER_LIBREOFFICE_MSI_URL: "https://download.documentfoundation.org/libreoffice/stable/26.2.5/win/x86_64/LibreOffice_26.2.5_Win_x86-64.msi"
+  PDF_TUNNER_LIBREOFFICE_MSI_SHA256: "f15ba07bfcb0186986cf3171063506f5d207c11f8cc051ba0d135209e9e915f9"
+  PDF_TUNNER_CALIBRE_VERSION: "9.14.0"
+  PDF_TUNNER_CALIBRE_MSI_URL: "https://download.calibre-ebook.com/9.14.0/calibre-64bit-9.14.0.msi"
+  PDF_TUNNER_CALIBRE_MSI_SHA256: "4ccaf2a49a0069b5e78291ee7248dcd8967896d316d6432ddf657b6feae8f32d"
+  CI: "true"
+
+jobs:
+  windows-portable:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout fork
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 0
+
+      - name: Publish connector-readable push-run statuses
+        shell: pwsh
+        timeout-minutes: 2
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          & './.github/scripts/publish-push-run-statuses.ps1'
+
+      - name: Verify documented upstream base
+        shell: pwsh
+        run: |
+          & git merge-base --is-ancestor $env:PDF_TUNNER_UPSTREAM_COMMIT HEAD
+          if ($LASTEXITCODE -ne 0) {
+            throw "Documented upstream base $env:PDF_TUNNER_UPSTREAM_COMMIT is not an ancestor of HEAD."
+          }
+          Write-Host "PDF_Tunner HEAD: $(& git rev-parse HEAD)"
+          Write-Host "Pinned upstream: $env:PDF_TUNNER_UPSTREAM_VERSION / $env:PDF_TUNNER_UPSTREAM_COMMIT"
+
+      - name: Setup Node.js 22
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: "22"
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@4be9e76fd7c4901c61fb841f559994984270fce7 # stable
+        with:
+          toolchain: stable
+
+      - name: Preflight portable dependency scripts and native shim
+        shell: pwsh
+        run: |
+          $scripts = @(
+            './.github/scripts/publish-push-run-statuses.ps1',
+            './.github/scripts/collect-startup-diagnostics.ps1',
+            './.github/scripts/prepare-ocrmypdf.ps1',
+            './.github/scripts/validate-ocrmypdf.ps1',
+            './.github/scripts/prepare-libreoffice.ps1',
+            './.github/scripts/validate-libreoffice.ps1',
+            './.github/scripts/prepare-poppler.ps1',
+            './.github/scripts/validate-poppler.ps1',
+            './.github/scripts/prepare-weasyprint.ps1',
+            './.github/scripts/validate-weasyprint.ps1',
+            './.github/scripts/prepare-calibre.ps1',
+            './.github/scripts/validate-calibre.ps1'
+          )
+          foreach ($script in $scripts) {
+            $tokens = $null
+            $errors = $null
+            [void][System.Management.Automation.Language.Parser]::ParseFile((Resolve-Path -LiteralPath $script).Path, [ref]$tokens, [ref]$errors)
+            if ($errors.Count -gt 0) {
+              $errors | Format-List | Out-Host
+              throw "PowerShell syntax preflight failed: $script"
+            }
+          }
+          foreach ($source in @('./.github/scripts/unoconvert-launcher.rs', './.github/scripts/weasyprint-launcher.rs', './.github/scripts/calibre-launcher.rs')) {
+            $metadata = Join-Path $env:RUNNER_TEMP ((Split-Path -Leaf $source) + '.rmeta')
+            try {
+              & rustc.exe --edition 2021 --emit metadata $source -o $metadata
+              if ($LASTEXITCODE -ne 0) { throw "Rust shim syntax preflight failed for $source with exit code $LASTEXITCODE." }
+            }
+            finally {
+              Remove-Item -LiteralPath $metadata -Force -ErrorAction SilentlyContinue
+            }
+          }
+
+      - name: Setup JDK 25
+        uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5.7.0
+        with:
+          distribution: temurin
+          java-version: "25"
+
+      - name: Setup Task
+        uses: go-task/setup-task@01a4adf9db2d14c1de7a560f09170b6e0df736aa # v2.1.0
+
+      - name: Prepare official Stirling desktop build
+        shell: pwsh
+        env:
+          DISABLE_ADDITIONAL_FEATURES: "true"
+          JPDFIUM_PLATFORMS: "windows-x64"
+        run: |
+          $maxAttempts = 3
+          for ($attempt = 1; $attempt -le $maxAttempts; $attempt++) {
+            $attemptLog = Join-Path $env:RUNNER_TEMP ("desktop-prepare-attempt-{0}.log" -f $attempt)
+            Write-Host "Running desktop preparation attempt $attempt of $maxAttempts."
+            & task desktop:prepare 2>&1 | Tee-Object -FilePath $attemptLog
+            $exitCode = $LASTEXITCODE
+            if ($exitCode -eq 0) {
+              Write-Host "Desktop preparation succeeded on attempt $attempt."
+              break
+            }
+
+            $attemptText = Get-Content -LiteralPath $attemptLog -Raw -ErrorAction SilentlyContinue
+            $isMavenRateLimit = $attemptText -match '(?i)(HTTP\s+429|status code\s+429|Too Many Requests)'
+            if (-not $isMavenRateLimit -or $attempt -eq $maxAttempts) {
+              throw "Desktop preparation failed with exit code $exitCode on attempt $attempt. Retryable Maven HTTP 429 detected: $isMavenRateLimit"
+            }
+
+            $delaySeconds = 45 * $attempt
+            Write-Warning "Maven repository rate-limited dependency resolution. Retrying in $delaySeconds seconds using only this runner's temporary Gradle state."
+            Start-Sleep -Seconds $delaySeconds
+          }
+
+      - name: Run official Tauri/Cargo tests
+        shell: pwsh
+        run: task desktop:test
+
+      - name: Build PDF_Tunner Tauri executable without installer
+        shell: pwsh
+        working-directory: frontend/editor
+        run: npx tauri build --no-bundle --config src-tauri/tauri.pdf-tunner.conf.json
+
+      - name: Assemble portable bootstrap
+        shell: pwsh
+        run: |
+          $target = Resolve-Path './frontend/editor/src-tauri/target/release'
+          $exe = Get-ChildItem -LiteralPath $target -Recurse -File -Filter 'PDF_Tunner.exe' | Select-Object -First 1
+          if (-not $exe) {
+            $exe = Get-ChildItem -LiteralPath $target -Recurse -File -Filter 'stirling-pdf.exe' | Select-Object -First 1
+          }
+          if (-not $exe) {
+            Write-Host 'Candidate executables:'
+            Get-ChildItem -LiteralPath $target -Recurse -File -Filter '*.exe' | ForEach-Object { Write-Host $_.FullName }
+            throw 'Tauri executable was not produced.'
+          }
+
+          $portable = Join-Path $PWD 'dist/PDF_Tunner'
+          Remove-Item -LiteralPath $portable -Recurse -Force -ErrorAction SilentlyContinue
+          New-Item -ItemType Directory -Force -Path $portable | Out-Null
+          New-Item -ItemType Directory -Force -Path (Join-Path $portable 'data') | Out-Null
+
+          Copy-Item -LiteralPath $exe.FullName -Destination (Join-Path $portable 'PDF_Tunner.exe') -Force
+          Copy-Item -LiteralPath './frontend/editor/src-tauri/libs' -Destination (Join-Path $portable 'libs') -Recurse -Force
+          Copy-Item -LiteralPath './frontend/editor/src-tauri/runtime' -Destination (Join-Path $portable 'runtime') -Recurse -Force
+
+          New-Item -ItemType File -Force -Path (Join-Path $portable 'PDF_TUNNER_PORTABLE') | Out-Null
+          Set-Content -LiteralPath (Join-Path $portable 'UPSTREAM_BASE.txt') -Encoding ascii -Value @(
+            "Stirling-PDF $env:PDF_TUNNER_UPSTREAM_VERSION",
+            $env:PDF_TUNNER_UPSTREAM_COMMIT
+          )
+
+          Write-Host "Portable root: $portable"
+          Write-Host "Executable source: $($exe.FullName)"
+          Get-ChildItem -LiteralPath $portable -Force | Format-Table Name, Length, Mode
+
+      - name: Stage official Microsoft Fixed WebView2 Runtime
+        shell: pwsh
+        run: |
+          & './.github/scripts/prepare-webview2-fixed-runtime.ps1' `
+            -PortableRoot './dist/PDF_Tunner' `
+            -Version $env:PDF_TUNNER_WEBVIEW2_FIXED_VERSION `
+            -Architecture $env:PDF_TUNNER_WEBVIEW2_FIXED_ARCH `
+            -DownloadUrl $env:PDF_TUNNER_WEBVIEW2_FIXED_URL `
+            -ExpectedSha256 $env:PDF_TUNNER_WEBVIEW2_FIXED_SHA256
+
+      - name: Validate staged Fixed WebView2 metadata and tree
+        shell: pwsh
+        run: |
+          & './.github/scripts/validate-webview2-fixed-runtime.ps1' `
+            -PortableRoot './dist/PDF_Tunner' `
+            -Version $env:PDF_TUNNER_WEBVIEW2_FIXED_VERSION `
+            -Architecture $env:PDF_TUNNER_WEBVIEW2_FIXED_ARCH `
+            -ExpectedCabSha256 $env:PDF_TUNNER_WEBVIEW2_FIXED_SHA256
+
+      - name: Stage official qpdf Windows runtime
+        shell: pwsh
+        run: |
+          & './.github/scripts/prepare-qpdf.ps1' `
+            -PortableRoot './dist/PDF_Tunner' `
+            -Version $env:PDF_TUNNER_QPDF_VERSION `
+            -PackageVariant $env:PDF_TUNNER_QPDF_VARIANT `
+            -DownloadUrl $env:PDF_TUNNER_QPDF_URL `
+            -ExpectedSha256 $env:PDF_TUNNER_QPDF_SHA256
+
+      - name: Validate packaged qpdf independently of runner PATH
+        shell: pwsh
+        run: |
+          & './.github/scripts/validate-qpdf.ps1' `
+            -PortableRoot './dist/PDF_Tunner' `
+            -Version $env:PDF_TUNNER_QPDF_VERSION `
+            -ExpectedArchiveSha256 $env:PDF_TUNNER_QPDF_SHA256 `
+            -SamplePdf './test_globalsign.pdf'
+
+      - name: Stage pinned Poppler Windows x64 runtime
+        shell: pwsh
+        run: |
+          & './.github/scripts/prepare-poppler.ps1' `
+            -PortableRoot './dist/PDF_Tunner' `
+            -Version $env:PDF_TUNNER_POPPLER_VERSION `
+            -PackageVariant $env:PDF_TUNNER_POPPLER_VARIANT `
+            -DownloadUrl $env:PDF_TUNNER_POPPLER_URL `
+            -ExpectedSha256 $env:PDF_TUNNER_POPPLER_SHA256
+
+      - name: Validate packaged Poppler independently of runner PATH
+        shell: pwsh
+        run: |
+          & './.github/scripts/validate-poppler.ps1' `
+            -PortableRoot './dist/PDF_Tunner' `
+            -Version $env:PDF_TUNNER_POPPLER_VERSION `
+            -ExpectedArchiveSha256 $env:PDF_TUNNER_POPPLER_SHA256 `
+            -RequireRelocation
+
+      - name: Stage official Calibre Windows x64 runtime and portable launcher
+        shell: pwsh
+        run: |
+          & './.github/scripts/prepare-calibre.ps1' `
+            -PortableRoot './dist/PDF_Tunner' `
+            -CalibreVersion $env:PDF_TUNNER_CALIBRE_VERSION `
+            -CalibreMsiUrl $env:PDF_TUNNER_CALIBRE_MSI_URL `
+            -CalibreMsiSha256 $env:PDF_TUNNER_CALIBRE_MSI_SHA256 `
+            -LauncherSource './.github/scripts/calibre-launcher.rs'
+
+      - name: Validate packaged Calibre independently of runner PATH
+        shell: pwsh
+        run: |
+          & './.github/scripts/validate-calibre.ps1' `
+            -PortableRoot './dist/PDF_Tunner' `
+            -CalibreVersion $env:PDF_TUNNER_CALIBRE_VERSION `
+            -CalibreMsiSha256 $env:PDF_TUNNER_CALIBRE_MSI_SHA256 `
+            -RequireRelocation
+      - name: Stage official WeasyPrint Windows runtime and portable shim
+        shell: pwsh
+        run: |
+          & './.github/scripts/prepare-weasyprint.ps1' `
+            -PortableRoot './dist/PDF_Tunner' `
+            -Version $env:PDF_TUNNER_WEASYPRINT_VERSION `
+            -DownloadUrl $env:PDF_TUNNER_WEASYPRINT_URL `
+            -ExpectedSha256 $env:PDF_TUNNER_WEASYPRINT_SHA256 `
+            -LauncherSource './.github/scripts/weasyprint-launcher.rs'
+
+      - name: Validate packaged WeasyPrint independently of runner PATH
+        shell: pwsh
+        run: |
+          & './.github/scripts/validate-weasyprint.ps1' `
+            -PortableRoot './dist/PDF_Tunner' `
+            -Version $env:PDF_TUNNER_WEASYPRINT_VERSION `
+            -ExpectedArchiveSha256 $env:PDF_TUNNER_WEASYPRINT_SHA256 `
+            -RequireRelocation
+
+      - name: Stage official ImageMagick Windows runtime
+        shell: pwsh
+        run: |
+          & './.github/scripts/prepare-imagemagick.ps1' `
+            -PortableRoot './dist/PDF_Tunner' `
+            -Version $env:PDF_TUNNER_IMAGEMAGICK_VERSION `
+            -PackageVariant $env:PDF_TUNNER_IMAGEMAGICK_VARIANT `
+            -DownloadUrl $env:PDF_TUNNER_IMAGEMAGICK_URL `
+            -ExpectedSha256 $env:PDF_TUNNER_IMAGEMAGICK_SHA256
+
+      - name: Validate packaged ImageMagick independently of runner PATH
+        shell: pwsh
+        run: |
+          & './.github/scripts/validate-imagemagick.ps1' `
+            -PortableRoot './dist/PDF_Tunner' `
+            -Version $env:PDF_TUNNER_IMAGEMAGICK_VERSION `
+            -ExpectedArchiveSha256 $env:PDF_TUNNER_IMAGEMAGICK_SHA256
+
+      - name: Stage official Ghostscript Windows runtime
+        shell: pwsh
+        run: |
+          & './.github/scripts/prepare-ghostscript.ps1' `
+            -PortableRoot './dist/PDF_Tunner' `
+            -Version $env:PDF_TUNNER_GHOSTSCRIPT_VERSION `
+            -PackageVariant $env:PDF_TUNNER_GHOSTSCRIPT_VARIANT `
+            -DownloadUrl $env:PDF_TUNNER_GHOSTSCRIPT_URL `
+            -ExpectedSha256 $env:PDF_TUNNER_GHOSTSCRIPT_SHA256
+
+      - name: Validate packaged Ghostscript independently of runner PATH
+        shell: pwsh
+        run: |
+          & './.github/scripts/validate-ghostscript.ps1' `
+            -PortableRoot './dist/PDF_Tunner' `
+            -Version $env:PDF_TUNNER_GHOSTSCRIPT_VERSION `
+            -ExpectedInstallerSha256 $env:PDF_TUNNER_GHOSTSCRIPT_SHA256
+
+      - name: Stage official Tesseract Windows runtime
+        shell: pwsh
+        run: |
+          & './.github/scripts/prepare-tesseract.ps1' `
+            -PortableRoot './dist/PDF_Tunner' `
+            -Version $env:PDF_TUNNER_TESSERACT_VERSION `
+            -PackageVariant $env:PDF_TUNNER_TESSERACT_VARIANT `
+            -DownloadUrl $env:PDF_TUNNER_TESSERACT_URL `
+            -ExpectedSha256 $env:PDF_TUNNER_TESSERACT_SHA256 `
+            -TessdataCommit $env:PDF_TUNNER_TESSDATA_FAST_COMMIT `
+            -EngBlobSha $env:PDF_TUNNER_TESSDATA_ENG_BLOB `
+            -SpaBlobSha $env:PDF_TUNNER_TESSDATA_SPA_BLOB `
+            -OsdBlobSha $env:PDF_TUNNER_TESSDATA_OSD_BLOB
+
+      - name: Validate packaged Tesseract independently of runner PATH
+        shell: pwsh
+        run: |
+          & './.github/scripts/validate-tesseract.ps1' `
+            -PortableRoot './dist/PDF_Tunner' `
+            -Version $env:PDF_TUNNER_TESSERACT_VERSION `
+            -ExpectedInstallerSha256 $env:PDF_TUNNER_TESSERACT_SHA256 `
+            -TessdataCommit $env:PDF_TUNNER_TESSDATA_FAST_COMMIT `
+            -EngBlobSha $env:PDF_TUNNER_TESSDATA_ENG_BLOB `
+            -SpaBlobSha $env:PDF_TUNNER_TESSDATA_SPA_BLOB `
+            -OsdBlobSha $env:PDF_TUNNER_TESSDATA_OSD_BLOB
+
+      - name: Stage portable Python, OCRmyPDF and NumPy
+        shell: pwsh
+        run: |
+          & './.github/scripts/prepare-ocrmypdf.ps1' `
+            -PortableRoot './dist/PDF_Tunner' `
+            -PythonVersion $env:PDF_TUNNER_PYTHON_VERSION `
+            -PythonDownloadUrl $env:PDF_TUNNER_PYTHON_URL `
+            -PythonSha256 $env:PDF_TUNNER_PYTHON_SHA256 `
+            -OcrMyPdfVersion $env:PDF_TUNNER_OCRMYPDF_VERSION `
+            -OcrMyPdfWheelSha256 $env:PDF_TUNNER_OCRMYPDF_WHEEL_SHA256 `
+            -NumPyVersion $env:PDF_TUNNER_NUMPY_VERSION `
+            -NumPyWheelSha256 $env:PDF_TUNNER_NUMPY_WHEEL_SHA256 `
+            -DependencyLockPath './.github/config/ocrmypdf-py312-windows-x64.lock.txt' `
+            -DependencyLockSha256 $env:PDF_TUNNER_PYTHON_DEPENDENCY_LOCK_SHA256 `
+            -LauncherSource './.github/scripts/ocrmypdf-launcher.rs'
+
+      - name: Validate packaged Python, OCRmyPDF and NumPy independently of runner PATH
+        shell: pwsh
+        run: |
+          & './.github/scripts/validate-ocrmypdf.ps1' `
+            -PortableRoot './dist/PDF_Tunner' `
+            -PythonVersion $env:PDF_TUNNER_PYTHON_VERSION `
+            -PythonSha256 $env:PDF_TUNNER_PYTHON_SHA256 `
+            -OcrMyPdfVersion $env:PDF_TUNNER_OCRMYPDF_VERSION `
+            -OcrMyPdfWheelSha256 $env:PDF_TUNNER_OCRMYPDF_WHEEL_SHA256 `
+            -NumPyVersion $env:PDF_TUNNER_NUMPY_VERSION `
+            -NumPyWheelSha256 $env:PDF_TUNNER_NUMPY_WHEEL_SHA256 `
+            -DependencyLockPath './.github/config/ocrmypdf-py312-windows-x64.lock.txt' `
+            -DependencyLockSha256 $env:PDF_TUNNER_PYTHON_DEPENDENCY_LOCK_SHA256 `
+            -RequireRelocation
+
+      - name: Stage LibreOffice portable runtime and native unoconvert shim
+        shell: pwsh
+        run: |
+          & './.github/scripts/prepare-libreoffice.ps1' `
+            -PortableRoot './dist/PDF_Tunner' `
+            -LibreOfficeVersion $env:PDF_TUNNER_LIBREOFFICE_VERSION `
+            -LibreOfficeMsiUrl $env:PDF_TUNNER_LIBREOFFICE_MSI_URL `
+            -LibreOfficeMsiSha256 $env:PDF_TUNNER_LIBREOFFICE_MSI_SHA256 `
+            -LauncherSource './.github/scripts/unoconvert-launcher.rs'
+
+      - name: Validate bundled LibreOffice and unoconvert independently of runner PATH
+        shell: pwsh
+        run: |
+          & './.github/scripts/validate-libreoffice.ps1' `
+            -PortableRoot './dist/PDF_Tunner' `
+            -LibreOfficeVersion $env:PDF_TUNNER_LIBREOFFICE_VERSION `
+            -LibreOfficeMsiSha256 $env:PDF_TUNNER_LIBREOFFICE_MSI_SHA256 `
+            -RequireRelocation
+
+      - name: Validate bundled Java runtime
+        shell: pwsh
+        run: |
+          $java = Resolve-Path './dist/PDF_Tunner/runtime/jre/bin/java.exe'
+          & $java -version
+          if ($LASTEXITCODE -ne 0) { throw 'Bundled JRE failed java -version.' }
+          $release = Get-Content './dist/PDF_Tunner/runtime/jre/release' -Raw
+          if ($release -notmatch 'JAVA_VERSION="25') {
+            throw 'Bundled JRE release metadata does not report Java 25.'
+          }
+
+      - name: Start PDF_Tunner and validate real backend
+        shell: pwsh
+        run: |
+          $portable = (Resolve-Path './dist/PDF_Tunner').Path
+          $exe = Join-Path $portable 'PDF_Tunner.exe'
+          $marker = Join-Path $portable 'PDF_TUNNER_PORTABLE'
+          if (-not (Test-Path -LiteralPath $marker -PathType Leaf)) { throw 'Portable marker is missing.' }
+
+          $hostLeak = Join-Path $env:APPDATA 'Stirling-PDF'
+          $hostLeakExisted = Test-Path -LiteralPath $hostLeak
+          $hostWebViewRoot = Join-Path $env:LOCALAPPDATA 'com.willsitogg.pdf-tunner'
+          $hostWebView = Join-Path $hostWebViewRoot 'EBWebView'
+          $hostWebViewExisted = Test-Path -LiteralPath $hostWebView
+          $hostTauriConfig = Join-Path $env:APPDATA 'com.willsitogg.pdf-tunner'
+          $hostTauriConfigExisted = Test-Path -LiteralPath $hostTauriConfig
+          $hostTempRoot = [System.IO.Path]::GetTempPath()
+          $hostTempPaths = @(
+            (Join-Path $hostTempRoot 'stirling-pdf'),
+            (Join-Path $hostTempRoot 'stirling-mobile-scanner')
+          )
+          $hostTempExisted = @{}
+          foreach ($path in $hostTempPaths) {
+            $hostTempExisted[$path] = Test-Path -LiteralPath $path
+          }
+          $protocolKey = 'HKCU:\Software\Classes\pdf-tunner'
+          $protocolExisted = Test-Path -LiteralPath $protocolKey
+
+          Write-Host "Pre-launch containment baseline:"
+          Write-Host "  Stirling AppData: $hostLeak (exists=$hostLeakExisted)"
+          Write-Host "  WebView2 EBWebView: $hostWebView (exists=$hostWebViewExisted)"
+          Write-Host "  Tauri Roaming config: $hostTauriConfig (exists=$hostTauriConfigExisted)"
+          Write-Host "  Protocol key: $protocolKey (exists=$protocolExisted)"
+
+          # Keep the backend's inherited PATH intentionally package-first and
+          # host-tool-free. Tauri prepends the same portable locations again;
+          # System32/SystemRoot remain only for ordinary Windows APIs.
+          $originalRuntimePath = $env:PATH
+          $system32 = Join-Path $env:SystemRoot 'System32'
+          $runtimePathSegments = @(
+            (Join-Path $portable 'tools/bin'),
+            (Join-Path $portable 'tools/python'),
+            (Join-Path $portable 'tools/python/Scripts'),
+            (Join-Path $portable 'tools/libreoffice/program'),
+            (Join-Path $portable 'tools/tesseract'),
+            (Join-Path $portable 'tools/ghostscript/bin'),
+            (Join-Path $portable 'tools/qpdf/bin'),
+            (Join-Path $portable 'tools/poppler/Library/bin'),
+            (Join-Path $portable 'tools/calibre'),
+            (Join-Path $portable 'tools/imagemagick'),
+            $system32,
+            $env:SystemRoot
+          ) | Where-Object { Test-Path -LiteralPath $_ }
+          $env:PATH = $runtimePathSegments -join ';'
+          Write-Host "Backend inherited package-only PATH: $env:PATH"
+
+          $process = Start-Process -FilePath $exe -WorkingDirectory $portable -PassThru
+          Write-Host "Started PDF_Tunner PID $($process.Id)"
+
+          $deadline = (Get-Date).AddSeconds(150)
+          $port = $null
+          $matchedLog = $null
+
+          while ((Get-Date) -lt $deadline -and -not $port) {
+            Start-Sleep -Seconds 2
+            $logs = Get-ChildItem -LiteralPath (Join-Path $portable 'data') -Recurse -File -Filter '*.log' -ErrorAction SilentlyContinue
+            foreach ($log in $logs) {
+              $match = Select-String -LiteralPath $log.FullName -Pattern 'running on port:\s*(\d+)' -AllMatches -ErrorAction SilentlyContinue | Select-Object -Last 1
+              if ($match -and $match.Matches.Count -gt 0) {
+                $port = [int]$match.Matches[0].Groups[1].Value
+                $matchedLog = $log.FullName
+                break
+              }
+            }
+            if ($process.HasExited) { break }
+          }
+
+          if (-not $port) {
+            Write-Host 'Portable data tree:'
+            Get-ChildItem -LiteralPath (Join-Path $portable 'data') -Recurse -Force -ErrorAction SilentlyContinue | ForEach-Object { Write-Host $_.FullName }
+            Write-Host 'Available log tails:'
+            Get-ChildItem -LiteralPath (Join-Path $portable 'data') -Recurse -File -Filter '*.log' -ErrorAction SilentlyContinue | ForEach-Object {
+              Write-Host "--- $($_.FullName) ---"
+              Get-Content -LiteralPath $_.FullName -Tail 120 -ErrorAction SilentlyContinue
+            }
+            if (-not $process.HasExited) { Stop-Process -Id $process.Id -Force -ErrorAction SilentlyContinue }
+            throw 'Backend startup port was not detected from package-local logs.'
+          }
+
+          Write-Host "Backend detected on port $port via $matchedLog"
+          $statusUri = "http://127.0.0.1:$port/api/v1/info/status"
+          $response = Invoke-WebRequest -Uri $statusUri -UseBasicParsing -TimeoutSec 30
+          if ($response.StatusCode -ne 200) {
+            throw "Backend health endpoint returned HTTP $($response.StatusCode)."
+          }
+          Write-Host "Backend health check OK: $statusUri"
+
+          & './.github/scripts/validate-webview2-fixed-runtime.ps1' `
+            -PortableRoot './dist/PDF_Tunner' `
+            -Version $env:PDF_TUNNER_WEBVIEW2_FIXED_VERSION `
+            -Architecture $env:PDF_TUNNER_WEBVIEW2_FIXED_ARCH `
+            -ExpectedCabSha256 $env:PDF_TUNNER_WEBVIEW2_FIXED_SHA256 `
+            -RequireLiveProcess
+          Write-Host 'Fixed WebView2 live validation completed successfully.'
+
+          & './.github/scripts/validate-qpdf.ps1' `
+            -PortableRoot './dist/PDF_Tunner' `
+            -Version $env:PDF_TUNNER_QPDF_VERSION `
+            -ExpectedArchiveSha256 $env:PDF_TUNNER_QPDF_SHA256 `
+            -SamplePdf './test_globalsign.pdf' `
+            -BackendLogRoot (Join-Path $portable 'data') `
+            -RequireBackendProbe
+          Write-Host 'Packaged qpdf runtime and Stirling dependency probe validated successfully.'
+
+          & './.github/scripts/validate-imagemagick.ps1' `
+            -PortableRoot './dist/PDF_Tunner' `
+            -Version $env:PDF_TUNNER_IMAGEMAGICK_VERSION `
+            -ExpectedArchiveSha256 $env:PDF_TUNNER_IMAGEMAGICK_SHA256 `
+            -BackendLogRoot (Join-Path $portable 'data') `
+            -RequireBackendProbe
+          Write-Host 'Packaged ImageMagick runtime and Stirling dependency probe validated successfully.'
+
+          & './.github/scripts/validate-ghostscript.ps1' `
+            -PortableRoot './dist/PDF_Tunner' `
+            -Version $env:PDF_TUNNER_GHOSTSCRIPT_VERSION `
+            -ExpectedInstallerSha256 $env:PDF_TUNNER_GHOSTSCRIPT_SHA256 `
+            -BackendLogRoot (Join-Path $portable 'data') `
+            -RequireBackendProbe
+          Write-Host 'Packaged Ghostscript runtime and Stirling dependency probe validated successfully.'
+
+          & './.github/scripts/validate-tesseract.ps1' `
+            -PortableRoot './dist/PDF_Tunner' `
+            -Version $env:PDF_TUNNER_TESSERACT_VERSION `
+            -ExpectedInstallerSha256 $env:PDF_TUNNER_TESSERACT_SHA256 `
+            -TessdataCommit $env:PDF_TUNNER_TESSDATA_FAST_COMMIT `
+            -EngBlobSha $env:PDF_TUNNER_TESSDATA_ENG_BLOB `
+            -SpaBlobSha $env:PDF_TUNNER_TESSDATA_SPA_BLOB `
+            -OsdBlobSha $env:PDF_TUNNER_TESSDATA_OSD_BLOB `
+            -BackendLogRoot (Join-Path $portable 'data') `
+            -RequireBackendProbe
+          Write-Host 'Packaged Tesseract runtime, tessdata path and Stirling dependency probe validated successfully.'
+
+          & './.github/scripts/validate-ocrmypdf.ps1' `
+            -PortableRoot './dist/PDF_Tunner' `
+            -PythonVersion $env:PDF_TUNNER_PYTHON_VERSION `
+            -PythonSha256 $env:PDF_TUNNER_PYTHON_SHA256 `
+            -OcrMyPdfVersion $env:PDF_TUNNER_OCRMYPDF_VERSION `
+            -OcrMyPdfWheelSha256 $env:PDF_TUNNER_OCRMYPDF_WHEEL_SHA256 `
+            -NumPyVersion $env:PDF_TUNNER_NUMPY_VERSION `
+            -NumPyWheelSha256 $env:PDF_TUNNER_NUMPY_WHEEL_SHA256 `
+            -DependencyLockPath './.github/config/ocrmypdf-py312-windows-x64.lock.txt' `
+            -DependencyLockSha256 $env:PDF_TUNNER_PYTHON_DEPENDENCY_LOCK_SHA256
+
+          & './.github/scripts/validate-libreoffice.ps1' `
+            -PortableRoot './dist/PDF_Tunner' `
+            -LibreOfficeVersion $env:PDF_TUNNER_LIBREOFFICE_VERSION `
+            -LibreOfficeMsiSha256 $env:PDF_TUNNER_LIBREOFFICE_MSI_SHA256 `
+            -BackendBaseUrl "http://127.0.0.1:$port" `
+            -BackendLogRoot (Join-Path $portable 'data')
+
+          & './.github/scripts/validate-poppler.ps1' `
+            -PortableRoot './dist/PDF_Tunner' `
+            -Version $env:PDF_TUNNER_POPPLER_VERSION `
+            -ExpectedArchiveSha256 $env:PDF_TUNNER_POPPLER_SHA256 `
+            -BackendBaseUrl "http://127.0.0.1:$port" `
+            -BackendLogRoot (Join-Path $portable 'data')
+
+          & './.github/scripts/validate-calibre.ps1' `
+            -PortableRoot './dist/PDF_Tunner' `
+            -CalibreVersion $env:PDF_TUNNER_CALIBRE_VERSION `
+            -CalibreMsiSha256 $env:PDF_TUNNER_CALIBRE_MSI_SHA256 `
+            -BackendBaseUrl "http://127.0.0.1:$port" `
+            -BackendLogRoot (Join-Path $portable 'data')
+          & './.github/scripts/validate-weasyprint.ps1' `
+            -PortableRoot './dist/PDF_Tunner' `
+            -Version $env:PDF_TUNNER_WEASYPRINT_VERSION `
+            -ExpectedArchiveSha256 $env:PDF_TUNNER_WEASYPRINT_SHA256 `
+            -BackendBaseUrl "http://127.0.0.1:$port" `
+            -BackendLogRoot (Join-Path $portable 'data')
+
+          $backendLogs = @(Get-ChildItem -LiteralPath (Join-Path $portable 'data') -Recurse -Force -File -Filter '*.log' -ErrorAction SilentlyContinue)
+          if ($backendLogs.Count -eq 0) { throw 'No backend logs were available for OCRmyPDF dependency acceptance.' }
+          $backendLogText = ($backendLogs | ForEach-Object { Get-Content -LiteralPath $_.FullName -Raw -ErrorAction SilentlyContinue }) -join "`n"
+          if ($backendLogText -match '(?im)Missing dependency:\s*ocrmypdf\b') {
+            throw 'Stirling backend reported Missing dependency: ocrmypdf.'
+          }
+          if ($backendLogText -match '(?im)Disabling group:\s*OCRmyPDF\b') {
+            throw 'Stirling backend disabled the OCRmyPDF group.'
+          }
+          Write-Host 'Packaged Python/OCRmyPDF completed real OCR and the Stirling backend did not disable the OCRmyPDF dependency group.'
+
+          Write-Host 'Containment check: Stirling AppData'
+          if (-not $hostLeakExisted -and (Test-Path -LiteralPath $hostLeak)) {
+            throw "Portable startup leaked runtime state into host APPDATA: $hostLeak"
+          }
+
+          $portableWebView = Join-Path $portable 'data/webview2'
+          Write-Host "Containment check: package-local WebView2 profile at $portableWebView"
+          if (-not (Test-Path -LiteralPath $portableWebView -PathType Container)) {
+            throw "Portable WebView2 user-data directory was not created: $portableWebView"
+          }
+          $portableWebViewFiles = @(Get-ChildItem -LiteralPath $portableWebView -Recurse -Force -File -ErrorAction SilentlyContinue)
+          $portableWebViewBytes = ($portableWebViewFiles | Measure-Object -Property Length -Sum).Sum
+          if ($portableWebViewFiles.Count -eq 0) {
+            throw "Portable WebView2 user-data directory remained empty: $portableWebView"
+          }
+          Write-Host "Portable WebView2 profile populated: $($portableWebViewFiles.Count) files / $portableWebViewBytes bytes"
+
+          Write-Host "Containment check: default host WebView2 EBWebView at $hostWebView"
+          if (-not $hostWebViewExisted -and (Test-Path -LiteralPath $hostWebView)) {
+            throw "Portable WebView2 created its default host EBWebView profile: $hostWebView"
+          }
+          if (-not $hostWebViewExisted -and (Test-Path -LiteralPath $hostWebViewRoot)) {
+            Write-Host "Host LocalAppData app root exists without a new EBWebView profile; recording as non-WebView Tauri evidence: $hostWebViewRoot"
+            Get-ChildItem -LiteralPath $hostWebViewRoot -Force -ErrorAction SilentlyContinue | Select-Object FullName, Length, LastWriteTime | Format-Table -AutoSize
+          }
+
+          $portableTemp = Join-Path $portable 'data/tmp'
+          $expectedPortableTempPaths = @(
+            (Join-Path $portableTemp 'stirling-pdf'),
+            (Join-Path $portableTemp 'stirling-mobile-scanner')
+          )
+          $portableLogText = (
+            Get-ChildItem -LiteralPath (Join-Path $portable 'data/logs') -File -Filter '*.log' -ErrorAction SilentlyContinue |
+              ForEach-Object { Get-Content -LiteralPath $_.FullName -Raw -ErrorAction SilentlyContinue }
+          ) -join "`n"
+          Write-Host 'Containment check: Java temp paths'
+          foreach ($path in $expectedPortableTempPaths) {
+            if (-not (Test-Path -LiteralPath $path -PathType Container)) {
+              throw "Expected package-local Java temp directory was not created: $path"
+            }
+            if ($portableLogText -notlike "*$path*") {
+              throw "Package-local logs did not confirm Java temp path: $path"
+            }
+          }
+
+          foreach ($path in $hostTempPaths) {
+            if (-not $hostTempExisted[$path] -and (Test-Path -LiteralPath $path)) {
+              throw "Portable Java startup leaked Stirling temp state into host TEMP: $path"
+            }
+          }
+
+          Write-Host 'Containment check: protocol registry state'
+          if (-not $protocolExisted -and (Test-Path -LiteralPath $protocolKey)) {
+            throw "Portable startup registered pdf-tunner protocol in the host registry: $protocolKey"
+          }
+
+          $portableDataItems = @(Get-ChildItem -LiteralPath (Join-Path $portable 'data') -Recurse -Force -ErrorAction SilentlyContinue)
+          if ($portableDataItems.Count -eq 0) {
+            throw 'Portable startup did not create any package-local runtime data.'
+          }
+
+          $hostTauriConfigNow = Test-Path -LiteralPath $hostTauriConfig
+          Write-Host "Tauri Roaming config before close: existed before=$hostTauriConfigExisted; exists now=$hostTauriConfigNow; path=$hostTauriConfig"
+          if (-not $hostTauriConfigExisted -and $hostTauriConfigNow) {
+            Get-ChildItem -LiteralPath $hostTauriConfig -Recurse -Force -ErrorAction SilentlyContinue | Select-Object FullName, Length, LastWriteTime | Format-Table -AutoSize
+          }
+
+          $closed = $process.CloseMainWindow()
+          Write-Host "CloseMainWindow returned: $closed"
+          if (-not $process.WaitForExit(20000)) {
+            Stop-Process -Id $process.Id -Force -ErrorAction SilentlyContinue
+            throw 'PDF_Tunner did not close within 20 seconds after requesting window close.'
+          }
+
+          Start-Sleep -Seconds 3
+          $escapedRoot = [Regex]::Escape($portable)
+          $leftovers = @(Get-CimInstance Win32_Process | Where-Object {
+            $_.CommandLine -and $_.CommandLine -match $escapedRoot
+          })
+          if ($leftovers.Count -gt 0) {
+            $leftovers | Select-Object ProcessId, Name, CommandLine | Format-List
+            throw 'Portable child processes remained after PDF_Tunner exit.'
+          }
+
+          Write-Host 'Post-shutdown containment check: WebView2 EBWebView'
+          if (-not $hostWebViewExisted -and (Test-Path -LiteralPath $hostWebView)) {
+            throw "Portable WebView2 left a default host EBWebView profile after shutdown: $hostWebView"
+          }
+
+          $hostTauriConfigAfter = Test-Path -LiteralPath $hostTauriConfig
+          Write-Host "Host Tauri Roaming config existed before launch: $hostTauriConfigExisted; exists after shutdown: $hostTauriConfigAfter; path: $hostTauriConfig"
+          if (-not $hostTauriConfigExisted -and $hostTauriConfigAfter) {
+            $hostTauriItems = @(Get-ChildItem -LiteralPath $hostTauriConfig -Recurse -Force -ErrorAction SilentlyContinue)
+            if ($hostTauriItems.Count -gt 0) {
+              $hostTauriItems | Select-Object FullName, PSIsContainer, Length, LastWriteTime | Format-Table -AutoSize
+              throw "Portable startup/shutdown created Tauri Roaming AppData content: $hostTauriConfig"
+            }
+            Write-Host "Host Tauri identifier directory is empty; no Roaming AppData state was persisted."
+          }
+
+          if (-not $protocolExisted -and (Test-Path -LiteralPath $protocolKey)) {
+            throw "Portable shutdown left pdf-tunner protocol state in the host registry: $protocolKey"
+          }
+
+          $env:PATH = $originalRuntimePath
+
+      - name: Validate portable window-state persistence and second-launch restore
+        shell: pwsh
+        run: |
+          & './.github/scripts/validate-portable-window-state.ps1' -PortableRoot './dist/PDF_Tunner' -Tolerance 16
+
+      - name: Require pinned Fixed WebView2 CAB SHA
+        shell: pwsh
+        run: |
+          $provenance = Join-Path $PWD 'dist/PDF_Tunner/runtime/webview2/PROVENANCE.txt'
+          $text = Get-Content -LiteralPath $provenance -Raw
+          if ($text -notmatch '(?m)^CAB_SHA256=([0-9a-fA-F]{64})\s*$') {
+            throw 'Fixed WebView2 provenance does not contain CAB_SHA256.'
+          }
+          $actual = $Matches[1].ToLowerInvariant()
+          $expected = $env:PDF_TUNNER_WEBVIEW2_FIXED_SHA256.ToLowerInvariant()
+          if ($actual -ne $expected) {
+            throw "Fixed WebView2 CAB SHA mismatch at final acceptance: expected $expected, got $actual."
+          }
+
+      - name: Verify final portable layout contains no downloaded WebView2 CAB
+        shell: pwsh
+        run: |
+          $portable = Resolve-Path './dist/PDF_Tunner'
+          $cabs = @(Get-ChildItem -LiteralPath $portable -Recurse -Force -File -Filter '*.cab' -ErrorAction SilentlyContinue)
+          if ($cabs.Count -gt 0) {
+            $cabs | Select-Object FullName, Length | Format-Table -AutoSize
+            throw 'Downloaded WebView2 CAB leaked into the portable package.'
+          }
+          Write-Host 'PASS: portable package contains normalized Fixed WebView2 runtime only; no CAB archive remains.'
+
+      - name: Collect bounded portable startup diagnostics
+        if: failure()
+        shell: pwsh
+        run: |
+          & './.github/scripts/collect-startup-diagnostics.ps1' `
+            -PortableRoot './dist/PDF_Tunner' `
+            -OutputRoot './dist/startup-diagnostics'
+
+      - name: Upload bounded portable startup diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v7.0.1
+        with:
+          name: PDF_Tunner-startup-diagnostics
+          path: dist/startup-diagnostics
+          if-no-files-found: error
+          include-hidden-files: true
+          retention-days: 3
+
+      - name: Clean runtime data and verify portable layout
+        shell: pwsh
+        run: |
+          $portable = (Resolve-Path './dist/PDF_Tunner').Path
+          $data = Join-Path $portable 'data'
+          Remove-Item -LiteralPath $data -Recurse -Force -ErrorAction Stop
+          New-Item -ItemType Directory -Force -Path $data | Out-Null
+
+          $required = @(
+            'PDF_Tunner.exe',
+            'PDF_TUNNER_PORTABLE',
+            'UPSTREAM_BASE.txt',
+            'libs',
+            'runtime/jre/bin/java.exe',
+            'runtime/webview2/fixed/msedgewebview2.exe',
+            'runtime/webview2/PROVENANCE.txt',
+            'runtime/webview2/SHA256SUMS.txt',
+            'runtime/webview2/version.txt',
+            'tools/qpdf/bin/qpdf.exe',
+            'tools/qpdf/PROVENANCE.txt',
+            'tools/qpdf/SHA256SUMS.txt',
+            'tools/qpdf/version.txt',
+            'tools/poppler/Library/bin/pdftohtml.exe',
+            'tools/poppler/Library/bin/pdfinfo.exe',
+            'tools/poppler/Library/bin/pdfimages.exe',
+            'tools/poppler/PROVENANCE.txt',
+            'tools/poppler/SHA256SUMS.txt',
+            'tools/poppler/VERSION.txt',
+            'tools/calibre/ebook-convert.exe',
+            'tools/calibre/PROVENANCE.txt',
+            'tools/calibre/SHA256SUMS.txt',
+            'tools/calibre/VERSION.txt',
+            'tools/bin/ebook-convert.exe',
+            'tools/bin/CALIBRE_PROVENANCE.txt',
+            'tools/weasyprint/weasyprint.exe',
+            'tools/weasyprint/PROVENANCE.txt',
+            'tools/weasyprint/SHA256SUMS.txt',
+            'tools/weasyprint/VERSION.txt',
+            'tools/bin/weasyprint.exe',
+            'tools/bin/WEASYPRINT_PROVENANCE.txt',
+            'tools/imagemagick/magick.exe',
+            'tools/imagemagick/PROVENANCE.txt',
+            'tools/imagemagick/SHA256SUMS.txt',
+            'tools/imagemagick/version.txt',
+            'tools/ghostscript/bin/gswin64c.exe',
+            'tools/ghostscript/bin/gs.exe',
+            'tools/ghostscript/PROVENANCE.txt',
+            'tools/ghostscript/SHA256SUMS.txt',
+            'tools/ghostscript/version.txt',
+            'tools/tesseract/tesseract.exe',
+            'tools/tesseract/tessdata/eng.traineddata',
+            'tools/tesseract/tessdata/spa.traineddata',
+            'tools/tesseract/tessdata/osd.traineddata',
+            'tools/tesseract/PROVENANCE.txt',
+            'tools/tesseract/SHA256SUMS.txt',
+            'tools/tesseract/version.txt',
+            'tools/python/python.exe',
+            'tools/python/ocrmypdf.exe',
+            'tools/python/PROVENANCE.txt',
+            'tools/python/SHA256SUMS.txt',
+            'tools/python/PYTHON_VERSION.txt',
+            'tools/python/OCRMY_PDF_VERSION.txt',
+            'tools/python/DEPENDENCIES.txt',
+            'tools/python/DEPENDENCY_LOCK.txt',
+            'tools/libreoffice/program/soffice.com',
+            'tools/libreoffice/program/soffice.exe',
+            'tools/libreoffice/PROVENANCE.txt',
+            'tools/libreoffice/SHA256SUMS.txt',
+            'tools/libreoffice/VERSION.txt',
+            'tools/bin/unoconvert.exe',
+            'tools/bin/UNOCONVERT_PROVENANCE.txt',
+            'data'
+          )
+          foreach ($relative in $required) {
+            $path = Join-Path $portable $relative
+            if (-not (Test-Path -LiteralPath $path)) { throw "Portable layout missing: $relative" }
+          }
+
+          & './.github/scripts/validate-qpdf.ps1' `
+            -PortableRoot './dist/PDF_Tunner' `
+            -Version $env:PDF_TUNNER_QPDF_VERSION `
+            -ExpectedArchiveSha256 $env:PDF_TUNNER_QPDF_SHA256 `
+            -SamplePdf './test_globalsign.pdf'
+
+          & './.github/scripts/validate-poppler.ps1' `
+            -PortableRoot './dist/PDF_Tunner' `
+            -Version $env:PDF_TUNNER_POPPLER_VERSION `
+            -ExpectedArchiveSha256 $env:PDF_TUNNER_POPPLER_SHA256
+
+          & './.github/scripts/validate-weasyprint.ps1' `
+            -PortableRoot './dist/PDF_Tunner' `
+            -Version $env:PDF_TUNNER_WEASYPRINT_VERSION `
+            -ExpectedArchiveSha256 $env:PDF_TUNNER_WEASYPRINT_SHA256
+
+          & './.github/scripts/validate-imagemagick.ps1' `
+            -PortableRoot './dist/PDF_Tunner' `
+            -Version $env:PDF_TUNNER_IMAGEMAGICK_VERSION `
+            -ExpectedArchiveSha256 $env:PDF_TUNNER_IMAGEMAGICK_SHA256
+
+          & './.github/scripts/validate-ghostscript.ps1' `
+            -PortableRoot './dist/PDF_Tunner' `
+            -Version $env:PDF_TUNNER_GHOSTSCRIPT_VERSION `
+            -ExpectedInstallerSha256 $env:PDF_TUNNER_GHOSTSCRIPT_SHA256
+
+          & './.github/scripts/validate-tesseract.ps1' `
+            -PortableRoot './dist/PDF_Tunner' `
+            -Version $env:PDF_TUNNER_TESSERACT_VERSION `
+            -ExpectedInstallerSha256 $env:PDF_TUNNER_TESSERACT_SHA256 `
+            -TessdataCommit $env:PDF_TUNNER_TESSDATA_FAST_COMMIT `
+            -EngBlobSha $env:PDF_TUNNER_TESSDATA_ENG_BLOB `
+            -SpaBlobSha $env:PDF_TUNNER_TESSDATA_SPA_BLOB `
+            -OsdBlobSha $env:PDF_TUNNER_TESSDATA_OSD_BLOB
+
+          & './.github/scripts/validate-ocrmypdf.ps1' `
+            -PortableRoot './dist/PDF_Tunner' `
+            -PythonVersion $env:PDF_TUNNER_PYTHON_VERSION `
+            -PythonSha256 $env:PDF_TUNNER_PYTHON_SHA256 `
+            -OcrMyPdfVersion $env:PDF_TUNNER_OCRMYPDF_VERSION `
+            -OcrMyPdfWheelSha256 $env:PDF_TUNNER_OCRMYPDF_WHEEL_SHA256 `
+            -NumPyVersion $env:PDF_TUNNER_NUMPY_VERSION `
+            -NumPyWheelSha256 $env:PDF_TUNNER_NUMPY_WHEEL_SHA256 `
+            -DependencyLockPath './.github/config/ocrmypdf-py312-windows-x64.lock.txt' `
+            -DependencyLockSha256 $env:PDF_TUNNER_PYTHON_DEPENDENCY_LOCK_SHA256
+
+          & './.github/scripts/validate-libreoffice.ps1' `
+            -PortableRoot './dist/PDF_Tunner' `
+            -LibreOfficeVersion $env:PDF_TUNNER_LIBREOFFICE_VERSION `
+            -LibreOfficeMsiSha256 $env:PDF_TUNNER_LIBREOFFICE_MSI_SHA256
+
+          & './.github/scripts/validate-calibre.ps1' `
+            -PortableRoot './dist/PDF_Tunner' `
+            -CalibreVersion $env:PDF_TUNNER_CALIBRE_VERSION `
+            -CalibreMsiSha256 $env:PDF_TUNNER_CALIBRE_MSI_SHA256
+
+          Remove-Item -LiteralPath $data -Recurse -Force -ErrorAction Stop
+          New-Item -ItemType Directory -Force -Path $data | Out-Null
+          if (@(Get-ChildItem -LiteralPath $data -Force -ErrorAction SilentlyContinue).Count -ne 0) {
+            throw 'Final portable data directory is not empty after validation cleanup.'
+          }
+
+      - name: Create portable ZIP and SHA-256
+        id: package
+        shell: pwsh
+        run: |
+          $name = "PDF_Tunner-$env:PDF_TUNNER_UPSTREAM_VERSION-bootstrap-Windows-x64-Portable.zip"
+          $zip = Join-Path $PWD "dist/$name"
+          Remove-Item -LiteralPath $zip -Force -ErrorAction SilentlyContinue
+          Compress-Archive -Path './dist/PDF_Tunner/*' -DestinationPath $zip -CompressionLevel Optimal
+          $hash = Get-FileHash -LiteralPath $zip -Algorithm SHA256
+          "$($hash.Hash)  $name" | Set-Content -LiteralPath "$zip.sha256" -Encoding ascii
+          Write-Host "SHA-256: $($hash.Hash)"
+          "zip=$name" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+          "sha256=$($hash.Hash)" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+          "size_bytes=$((Get-Item -LiteralPath $zip).Length)" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+
+      - name: Create lightweight CI evidence
+        shell: pwsh
+        env:
+          PACKAGE_ZIP: ${{ steps.package.outputs.zip }}
+          PACKAGE_SHA256: ${{ steps.package.outputs.sha256 }}
+          PACKAGE_SIZE_BYTES: ${{ steps.package.outputs.size_bytes }}
+        run: |
+          $evidence = Join-Path $PWD 'dist/ci-evidence'
+          New-Item -ItemType Directory -Force -Path $evidence | Out-Null
+          @(
+            "WORKFLOW=$env:GITHUB_WORKFLOW",
+            "RUN_ID=$env:GITHUB_RUN_ID",
+            "RUN_ATTEMPT=$env:GITHUB_RUN_ATTEMPT",
+            "COMMIT=$env:GITHUB_SHA",
+            "UPSTREAM_VERSION=$env:PDF_TUNNER_UPSTREAM_VERSION",
+            "UPSTREAM_COMMIT=$env:PDF_TUNNER_UPSTREAM_COMMIT",
+            "POPPLER_VERSION=$env:PDF_TUNNER_POPPLER_VERSION",
+            "POPPLER_ARCHIVE_SHA256=$env:PDF_TUNNER_POPPLER_SHA256",
+            "CALIBRE_VERSION=$env:PDF_TUNNER_CALIBRE_VERSION",
+            "CALIBRE_MSI_SHA256=$env:PDF_TUNNER_CALIBRE_MSI_SHA256",
+            "WEASYPRINT_VERSION=$env:PDF_TUNNER_WEASYPRINT_VERSION",
+            "WEASYPRINT_ARCHIVE_SHA256=$env:PDF_TUNNER_WEASYPRINT_SHA256",
+            "NUMPY_VERSION=$env:PDF_TUNNER_NUMPY_VERSION",
+            "NUMPY_WHEEL_SHA256=$env:PDF_TUNNER_NUMPY_WHEEL_SHA256",
+            "PYTHON_DEPENDENCY_LOCK_SHA256=$env:PDF_TUNNER_PYTHON_DEPENDENCY_LOCK_SHA256",
+            "ZIP_NAME=$env:PACKAGE_ZIP",
+            "ZIP_SHA256=$env:PACKAGE_SHA256",
+            "ZIP_SIZE_BYTES=$env:PACKAGE_SIZE_BYTES"
+          ) | Set-Content -LiteralPath (Join-Path $evidence 'PACKAGE_EVIDENCE.txt') -Encoding ascii
+          Copy-Item -LiteralPath "dist/$($env:PACKAGE_ZIP).sha256" -Destination (Join-Path $evidence "$($env:PACKAGE_ZIP).sha256") -Force
+          Copy-Item -LiteralPath './dist/PDF_Tunner/tools/poppler/PROVENANCE.txt' -Destination (Join-Path $evidence 'POPPLER_PROVENANCE.txt') -Force
+          Copy-Item -LiteralPath './dist/PDF_Tunner/tools/poppler/SHA256SUMS.txt' -Destination (Join-Path $evidence 'POPPLER_SHA256SUMS.txt') -Force
+          Copy-Item -LiteralPath './dist/PDF_Tunner/tools/calibre/PROVENANCE.txt' -Destination (Join-Path $evidence 'CALIBRE_PROVENANCE.txt') -Force
+          Copy-Item -LiteralPath './dist/PDF_Tunner/tools/calibre/SHA256SUMS.txt' -Destination (Join-Path $evidence 'CALIBRE_SHA256SUMS.txt') -Force
+          Copy-Item -LiteralPath './dist/PDF_Tunner/tools/bin/CALIBRE_PROVENANCE.txt' -Destination (Join-Path $evidence 'CALIBRE_SHIM_PROVENANCE.txt') -Force
+          Copy-Item -LiteralPath './dist/PDF_Tunner/tools/weasyprint/PROVENANCE.txt' -Destination (Join-Path $evidence 'WEASYPRINT_PROVENANCE.txt') -Force
+          Copy-Item -LiteralPath './dist/PDF_Tunner/tools/weasyprint/SHA256SUMS.txt' -Destination (Join-Path $evidence 'WEASYPRINT_SHA256SUMS.txt') -Force
+          Copy-Item -LiteralPath './dist/PDF_Tunner/tools/bin/WEASYPRINT_PROVENANCE.txt' -Destination (Join-Path $evidence 'WEASYPRINT_SHIM_PROVENANCE.txt') -Force
+          Copy-Item -LiteralPath './dist/PDF_Tunner/tools/python/PROVENANCE.txt' -Destination (Join-Path $evidence 'PYTHON_PROVENANCE.txt') -Force
+          Copy-Item -LiteralPath './dist/PDF_Tunner/tools/python/DEPENDENCY_LOCK.txt' -Destination (Join-Path $evidence 'PYTHON_DEPENDENCY_LOCK.txt') -Force
+          Copy-Item -LiteralPath './dist/PDF_Tunner/tools/python/DEPENDENCIES.txt' -Destination (Join-Path $evidence 'PYTHON_DEPENDENCIES.txt') -Force
+          $layout = Get-ChildItem -LiteralPath './dist/PDF_Tunner' -Recurse -File | Measure-Object -Property Length -Sum
+          @(
+            "PORTABLE_FILE_COUNT=$($layout.Count)",
+            "PORTABLE_PAYLOAD_BYTES=$($layout.Sum)"
+          ) | Set-Content -LiteralPath (Join-Path $evidence 'PORTABLE_LAYOUT_SUMMARY.txt') -Encoding ascii
+
+      - name: Upload lightweight CI evidence
+        uses: actions/upload-artifact@v7.0.1
+        with:
+          name: PDF_Tunner-Windows-x64-CI-evidence
+          path: dist/ci-evidence
+          if-no-files-found: error
+          retention-days: 7

@@ -136,3 +136,5 @@ Ordinary CI always builds and validates the portable ZIP but uploads only lightw
 ## Mandatory documentation rule
 
 **Every PDF_Tunner-specific repository change must update both `README.md` and `AGENTS.md` in the same final commit.**
+
+<!-- Snapshot generation Run 33748234868 produced deterministic primary workflow/diagnostics blobs after all integration guards passed; Actions cannot push workflow-path changes, so the GitHub connector will promote these exact blobs. -->
