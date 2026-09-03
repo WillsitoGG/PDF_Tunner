@@ -180,11 +180,12 @@ Candidate identity:
 - staged files: `tools/bin/unpaper.exe`, `LIBBZ2-1.DLL`, `LIBWINPTHREAD-1.DLL`, `ZLIB1.DLL`;
 - provenance exception: this is a community Windows x64 build. Current official upstream unpaper release `7.0.0` publishes source only and has no Windows binary asset. Do not label 6.1 as an official upstream Windows binary.
 
-### pngquant 3.0.3 Windows
+### pngquant 2.17.0 Windows
 
 - source: official `https://pngquant.org/pngquant-windows.zip`;
 - SHA-256: `bd0257aeeccfe446a4cd764927e26f8af6051796f28abed104307284107b120d`;
-- staged executable: `tools/bin/pngquant.exe`.
+- staged executable: `tools/bin/pngquant.exe`;
+- measured identity: Run #98 proved that `pngquant.exe --version` from this exact authenticated archive returns `2.17.0 (September 2021)`. Earlier candidate metadata incorrectly called the same payload 3.0.3; use the executable's self-reported identity.
 
 Candidate validation contract:
 
@@ -201,15 +202,20 @@ Candidate validation contract:
 
 CI implementation intentionally preserves the accepted Python/OCRmyPDF preparation logic byte-for-byte as `.github/scripts/prepare-ocrmypdf-core.ps1` (same blob as the previously accepted `.github/scripts/prepare-ocrmypdf.ps1`). The existing workflow entry path `.github/scripts/prepare-ocrmypdf.ps1` is now a narrow wrapper: run the accepted core, then `.github/scripts/prepare-ocr-aux.ps1`. This avoids rewriting the accepted Python/lock/OpenCV preparation logic while adding the new block.
 
-### Run #97 failure and diagnostic contract
+### Runs #97–#98 failure diagnosis
 
-Run #97 (`33753982510`), job `100643848626`, commit `f2259ad2456dcba4c03ec0a7d2bbb19e1422c05d`, failed in `Stage portable Python, OCRmyPDF and NumPy`. Bounded artifact `9893464267` showed the accepted core had already built the portable Python/OCRmyPDF runtime and generated OCRmyPDF module cache entries, so do not reopen the accepted core without contrary evidence. The failure is in the new auxiliary invocation path.
+Run #97 (`33753982510`), job `100643848626`, commit `f2259ad2456dcba4c03ec0a7d2bbb19e1422c05d`, failed in `Stage portable Python, OCRmyPDF and NumPy`. Bounded artifact `9893464267` showed the accepted core had already built the portable Python/OCRmyPDF runtime and generated OCRmyPDF module cache entries, so do not reopen the accepted core without contrary evidence. The #97 artifact did not retain the actual exception text.
 
-The #97 bounded artifact did not retain the actual exception text from `prepare-ocr-aux.ps1`; repeated connector attempts to fetch the job log did not expose usable decoded text. Do not repeat that dead-end as the primary diagnostic strategy.
+The wrapper-only bounded diagnostic added after #97 worked in Run #98 (`33783066274`), job `100741166478`, commit `9a205cac8f3b3e1dd6a960ec0a57229879d95c20`. Artifact `9905244757` is `11,106` bytes with Actions digest `sha256:63ad17193ab3d309c5914177e3d4ec9f058b5255f19cadb5650bf399c3a394a7`. `ocr-aux-diagnostic.log` captured:
 
-The next revision instruments only the narrow wrapper. Before invoking `prepare-ocr-aux.ps1`, create `data/logs/ocr-aux-diagnostic.log`. On auxiliary failure record, at minimum: exception type/message, fully-qualified error ID, category, script name, script line, offset, source line, position message, `ScriptStackTrace` and the formatted error record; then rethrow the original failure. The existing bounded startup-diagnostics collector automatically retains package-local `.log` tails, so this produces lightweight evidence without changing the heavy workflow or uploading the portable payload. On a green run the existing final `data/` cleanup removes this diagnostic log before packaging.
+- exception: `pngquant version validation failed: '2.17.0 (September 2021)'`;
+- script: `.github/scripts/prepare-ocr-aux.ps1`;
+- line: `118`;
+- stack: `Test-OcrAuxRuntime` → auxiliary script → wrapper.
 
-**Do not call unpaper/pngquant accepted until the complete primary workflow is green with this candidate and every earlier gate enabled.**
+Because the archive SHA check, extraction and prior runtime construction had already completed, the defensible root cause is the candidate's incorrect expected version (`3.0.3`), not the authenticated pngquant archive, accepted Python/OCRmyPDF core or runner PATH. Correct only the expected/self-recorded identity to `2.17.0`; retain every package-first, AMD64, ToolProbe, functional wrapper, real OCR and relocation gate. Do not weaken validation to accept arbitrary versions.
+
+**Do not call unpaper/pngquant accepted until the complete primary workflow is green with this corrected candidate and every earlier gate enabled.**
 
 ## Primary workflow acceptance contract
 
@@ -227,7 +233,7 @@ The primary workflow builds and validates the portable ZIP but ordinary CI uploa
 
 ### A. External toolchain
 
-1. **unpaper 6.1 + pngquant 3.0.3** — active OCRmyPDF auxiliary candidate;
+1. **unpaper 6.1 + pngquant 2.17.0** — active OCRmyPDF auxiliary candidate;
 2. conversion fonts;
 3. explicit VeraPDF E2E;
 4. investigate/build/package `jbig2enc` if viable;
@@ -256,9 +262,9 @@ Accepted/closed: native portable/Tauri containment; Fixed WebView2; qpdf; ImageM
 
 Latest complete green primary: **Run #96** (`33748509811`), job `100626447125`, commit `0874881eaadcede5095e3db0052ce8b78cc23906`. ZIP SHA-256 `724C882195965A9F5676ADB6B4ED09FE1ED32EED09D74424D76DEF7B59C7CCAE`, size `1,837,322,506`; evidence artifact `9891758584`, `7,273` bytes, digest `sha256:d03923535d0b2d9e61aa4ea7ed3f82e84ae241d8380abd4a62d77b2874431bf7`.
 
-Failed candidate evidence: **Run #97** (`33753982510`), job `100643848626`, commit `f2259ad2456dcba4c03ec0a7d2bbb19e1422c05d`; failure occurred after accepted Python/OCRmyPDF core preparation, inside the new auxiliary invocation path. Artifact `9893464267` was bounded but did not retain the exception text.
+Failed candidate evidence: Run #97 (`33753982510`) localized failure to the auxiliary path; **Run #98 (`33783066274`), job `100741166478` established the exact cause as the wrong pngquant expected version.** Artifact `9905244757` retained the exception and stack trace. The official pngquant.org archive and SHA remain unchanged; its executable identity is corrected to 2.17.0.
 
-Active candidate: **unpaper 6.1 + pngquant 3.0.3** as OCRmyPDF auxiliaries. The next complete primary run includes wrapper-level bounded exception capture. If it fails, inspect `ocr-aux-diagnostic.log` from the failure artifact and apply the smallest line-level correction. If it passes, update README + AGENTS in one `[skip ci]` documentation-only commit to record formal acceptance and move the active block to conversion fonts; do not spend another heavy CI run merely to record documentation.
+Active candidate: **unpaper 6.1 + pngquant 2.17.0** as OCRmyPDF auxiliaries. The next complete primary run keeps all prior gates and validates the corrected exact identity. If it passes, update README + AGENTS in one `[skip ci]` documentation-only commit to record formal acceptance and move the active block to conversion fonts; do not spend another heavy CI run merely to record documentation.
 
 ## Compact changelog
 
@@ -267,5 +273,6 @@ Active candidate: **unpaper 6.1 + pngquant 3.0.3** as OCRmyPDF auxiliaries. The 
 - 2026-09-01: LibreOffice/unoconvert accepted #83; Poppler #86; Python lock/NumPy #87/#90; OpenCV #92.
 - 2026-09-03: WeasyPrint 69.0 formally accepted via complete Run #95.
 - **2026-09-03: Calibre 9.14.0 formally accepted via complete Run #96 (`33748509811`), job `100626447125`, commit `0874881eaadcede5095e3db0052ce8b78cc23906`.**
-- **2026-09-03: opened the combined OCRmyPDF auxiliary block for unpaper 6.1 + pngquant 3.0.3 with authenticated Windows payloads, package-first validation, exact OCRmyPDF wrapper tests and relocation gate.**
-- **2026-09-03: Run #97 failed inside that auxiliary path after the accepted core completed; wrapper-level bounded exception capture was added so the next failure artifact exposes the exact PowerShell error instead of only package inventory.**
+- **2026-09-03: opened the combined OCRmyPDF auxiliary block for unpaper 6.1 + pngquant with authenticated Windows payloads, package-first validation, exact OCRmyPDF wrapper tests and relocation gate.**
+- **2026-09-03: Run #97 failed inside that auxiliary path after the accepted core completed; wrapper-level bounded exception capture was added.**
+- **2026-09-03: Run #98 captured the exact failure at auxiliary line 118: the authenticated pngquant.org archive self-reports 2.17.0, not the incorrectly assumed 3.0.3. Candidate identity is corrected to 2.17.0 without weakening any validation gate.**

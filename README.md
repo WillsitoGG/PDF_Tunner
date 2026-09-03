@@ -13,8 +13,9 @@
 - No final PDF_Tunner v1 Release exists yet.
 - Latest complete green primary regression: **Run #96** (`33748509811`), job `100626447125`, functional commit `0874881eaadcede5095e3db0052ce8b78cc23906`.
 - **Calibre 9.14.0 / `ebook-convert` is formally accepted by Run #96.**
-- Active external-toolchain candidate: **unpaper 6.1 + pngquant 3.0.3**, integrated as OCRmyPDF 17.10.0 auxiliary tools. They are not accepted until the complete primary workflow is green with all previous gates enabled.
+- Active external-toolchain candidate: **unpaper 6.1 + pngquant 2.17.0**, integrated as OCRmyPDF 17.10.0 auxiliary tools. They are not accepted until the complete primary workflow is green with all previous gates enabled.
 - Run #97 (`33753982510`), job `100643848626`, commit `f2259ad2456dcba4c03ec0a7d2bbb19e1422c05d`, failed during `Stage portable Python, OCRmyPDF and NumPy` after the accepted core had already populated the portable Python runtime. The failure is therefore inside the new auxiliary invocation path, not a reopening of the accepted Python/OCRmyPDF core.
+- Run #98 (`33783066274`), job `100741166478`, commit `9a205cac8f3b3e1dd6a960ec0a57229879d95c20`, exposed the exact auxiliary root cause: the authenticated official `pngquant-windows.zip` passed its pinned SHA-256 but its `pngquant.exe --version` self-reports **2.17.0 (September 2021)**, while the candidate metadata incorrectly required 3.0.3. Artifact `9905244757` retained the exact exception and stack trace; the functional gates were not weakened.
 
 ## Accepted portable layers
 
@@ -75,7 +76,7 @@ Pinned Stirling 2.14.3 installs `unpaper` and `pngquant` in its standard runtime
 Candidate payloads:
 
 - **unpaper 6.1 Windows x86_64 community build** from `rodrigost23/unpaper`, archive `unpaper-6.1-windows-x86_64.zip`, SHA-256 `a760fa1fb5a076c7dad24c643aaec5330473ab03fbf6ede50e124978d840ee65`. The current upstream release is 7.0.0 but its official release publishes source only, not a Windows binary; this exception is therefore explicit rather than misrepresented as an official binary.
-- **pngquant 3.0.3 official Windows archive** from `https://pngquant.org/pngquant-windows.zip`, SHA-256 `bd0257aeeccfe446a4cd764927e26f8af6051796f28abed104307284107b120d`.
+- **pngquant 2.17.0**, from the official `https://pngquant.org/pngquant-windows.zip`, SHA-256 `bd0257aeeccfe446a4cd764927e26f8af6051796f28abed104307284107b120d`. Run #98 proved that the executable inside this exact authenticated archive self-identifies as `2.17.0 (September 2021)`. Earlier candidate documentation incorrectly called this same archive 3.0.3; PDF_Tunner now records the executable's measured identity instead of the external package label.
 
 Both are staged under `tools/bin/`, which the portable bootstrap already places before host PATH. unpaper's required sibling DLLs remain beside `unpaper.exe`.
 
@@ -93,11 +94,13 @@ Candidate validation requires:
 
 To reduce regression risk, the previously accepted `.github/scripts/prepare-ocrmypdf.ps1` implementation is preserved byte-for-byte as `.github/scripts/prepare-ocrmypdf-core.ps1`. The existing workflow entry path remains `.github/scripts/prepare-ocrmypdf.ps1`, now a narrow wrapper that executes the accepted core and then `.github/scripts/prepare-ocr-aux.ps1`.
 
-### Run #97 — failed candidate and bounded diagnostic correction
+### Runs #97–#98 — failed candidate diagnosis
 
-Run #97 (`33753982510`), job `100643848626`, commit `f2259ad2456dcba4c03ec0a7d2bbb19e1422c05d`, failed in the combined Python/OCRmyPDF staging step. Its bounded artifact `9893464267` proved that the accepted Python/OCRmyPDF core had already populated the portable runtime and generated Python cache entries, including OCRmyPDF's `unpaper` and `pngquant` modules. The artifact did **not** retain the exception text emitted by the newly invoked auxiliary script, so #97 does not identify a defensible line-level root cause and does not accept the candidate.
+Run #97 (`33753982510`), job `100643848626`, commit `f2259ad2456dcba4c03ec0a7d2bbb19e1422c05d`, failed in the combined Python/OCRmyPDF staging step. Its bounded artifact `9893464267` proved that the accepted Python/OCRmyPDF core had already populated the portable runtime and generated Python cache entries, including OCRmyPDF's `unpaper` and `pngquant` modules. The artifact did **not** retain the exception text emitted by the newly invoked auxiliary script, so #97 did not identify a defensible line-level root cause.
 
-The next diagnostic revision keeps the accepted core untouched and changes only the narrow wrapper. Immediately before invoking `.github/scripts/prepare-ocr-aux.ps1`, it creates `data/logs/ocr-aux-diagnostic.log`; on failure it records exception type/message, fully-qualified error ID, category, script/line/offset, source line, position message, PowerShell script stack trace and the formatted error record, then rethrows the original failure. The existing bounded startup-diagnostics collector already retains package-local `.log` tails, so no large artifact or extra workflow is required. On a green run the temporary diagnostic log is removed by the existing final `data/` cleanup and is not shipped in the portable ZIP.
+The narrow wrapper was therefore instrumented, without changing the accepted core, to retain `data/logs/ocr-aux-diagnostic.log` in the existing bounded failure artifact. Run #98 (`33783066274`), job `100741166478`, commit `9a205cac8f3b3e1dd6a960ec0a57229879d95c20`, then produced artifact `9905244757` (`11,106` bytes; Actions digest `sha256:63ad17193ab3d309c5914177e3d4ec9f058b5255f19cadb5650bf399c3a394a7`). The retained exception is exact: `pngquant version validation failed: '2.17.0 (September 2021)'`, at `.github/scripts/prepare-ocr-aux.ps1` line 118. This establishes the root cause as incorrect candidate version metadata, not a broken archive, architecture, Python/OCRmyPDF core or missing dependency.
+
+The correction changes the expected pngquant identity from 3.0.3 to the measured 2.17.0 while retaining the same authenticated official archive/SHA, AMD64 check, package-first isolation, OCRmyPDF ToolProbe, exact `pngquant.quantize` wrapper test, real OCRmyPDF clean path and relocation gate. The diagnostic wrapper remains bounded and will be removed before final `main` integration.
 
 ## Portable architecture
 
@@ -134,7 +137,7 @@ Ordinary CI always builds and validates the portable ZIP but uploads only lightw
 
 ### A. External toolchain
 
-1. **unpaper 6.1 + pngquant 3.0.3** — active OCRmyPDF auxiliary candidate; complete primary regression is the acceptance gate;
+1. **unpaper 6.1 + pngquant 2.17.0** — active OCRmyPDF auxiliary candidate; complete primary regression is the acceptance gate;
 2. conversion fonts required by pinned Stirling functionality;
 3. explicit VeraPDF E2E;
 4. investigate/build/package `jbig2enc` if technically viable;
@@ -164,5 +167,6 @@ Representative E2E must cover OCR, Office↔PDF, HTML/URL/base-URL/EML paths, ac
 - 2026-09-01: LibreOffice/unoconvert accepted by #83; Poppler by #86; authenticated Python lock and NumPy by #87/#90; OpenCV by #92.
 - 2026-09-03: WeasyPrint 69.0 formally accepted by complete primary Run #95.
 - **2026-09-03: Calibre 9.14.0 formally accepted by complete primary Run #96 (`33748509811`), job `100626447125`, commit `0874881eaadcede5095e3db0052ce8b78cc23906`.**
-- **2026-09-03: Run #97 (`33753982510`) failed inside the new unpaper/pngquant auxiliary staging path after the accepted Python/OCRmyPDF core completed. Its bounded artifact lacked the actual exception text, so the candidate remains unaccepted.**
-- **Current:** the wrapper now captures a bounded package-local `ocr-aux-diagnostic.log` before rethrowing any auxiliary failure; the next complete primary run will either expose the exact line-level root cause or, if green, become the acceptance gate for unpaper 6.1 + pngquant 3.0.3.
+- **2026-09-03: Run #97 (`33753982510`) failed inside the new unpaper/pngquant auxiliary staging path after the accepted Python/OCRmyPDF core completed. Its bounded artifact lacked the actual exception text, so the candidate remained unaccepted.**
+- **2026-09-03: Run #98 (`33783066274`) captured the exact failure: the authenticated pngquant.org Windows archive self-reports pngquant 2.17.0, not the incorrectly documented 3.0.3. Candidate metadata and exact version probes are corrected to 2.17.0 without weakening any functional gate.**
+- **Current:** unpaper 6.1 + pngquant 2.17.0 remain the active candidate until one complete primary regression passes every earlier gate.

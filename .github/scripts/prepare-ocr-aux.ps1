@@ -9,7 +9,7 @@ Set-StrictMode -Version Latest
 $unpaperVersion = '6.1'
 $unpaperUrl = 'https://github.com/rodrigost23/unpaper/releases/download/unpaper-6.1/unpaper-6.1-windows-x86_64.zip'
 $unpaperSha256 = 'a760fa1fb5a076c7dad24c643aaec5330473ab03fbf6ede50e124978d840ee65'
-$pngquantVersion = '3.0.3'
+$pngquantVersion = '2.17.0'
 $pngquantUrl = 'https://pngquant.org/pngquant-windows.zip'
 $pngquantSha256 = 'bd0257aeeccfe446a4cd764927e26f8af6051796f28abed104307284107b120d'
 $unpaperRuntimeFiles = @('unpaper.exe', 'LIBBZ2-1.DLL', 'LIBWINPTHREAD-1.DLL', 'ZLIB1.DLL')
@@ -114,14 +114,14 @@ function Test-OcrAuxRuntime {
             throw "unpaper version validation failed: '$unpaperVersionOutput'."
         }
         $pngquantVersionOutput = (@(& pngquant --version 2>&1) -join ' ').Trim()
-        if ($LASTEXITCODE -ne 0 -or $pngquantVersionOutput -notmatch '(?<!\d)3\.0\.3(?!\d)') {
+        if ($LASTEXITCODE -ne 0 -or $pngquantVersionOutput -notmatch '(?<!\d)2\.17\.0(?!\d)') {
             throw "pngquant version validation failed: '$pngquantVersionOutput'."
         }
 
         $probe = @(& $python -c "from ocrmypdf._exec import unpaper, pngquant; assert unpaper.available(); assert pngquant.available(); print('unpaper=' + str(unpaper.version())); print('pngquant=' + str(pngquant.version()))" 2>&1)
         if ($LASTEXITCODE -ne 0) { $probe | Out-Host; throw 'OCRmyPDF did not detect packaged unpaper/pngquant.' }
         $probeText = ($probe -join ' ')
-        if ($probeText -notmatch 'unpaper=6\.1' -or $probeText -notmatch 'pngquant=3\.0\.3') {
+        if ($probeText -notmatch 'unpaper=6\.1' -or $probeText -notmatch 'pngquant=2\.17\.0') {
             throw "OCRmyPDF dependency probe returned unexpected versions: $probeText"
         }
 
@@ -219,7 +219,7 @@ try {
         "UNPAPER_ARCHIVE_SHA256=$actualUnpaperArchiveHash",
         'UNPAPER_ROLE=OCRmyPDF --clean and --clean-final',
         "PNGQUANT_VERSION=$pngquantVersion",
-        'PNGQUANT_DISTRIBUTION=official pngquant.org Windows archive',
+        'PNGQUANT_DISTRIBUTION=official pngquant.org Windows archive; executable self-reports 2.17.0',
         "PNGQUANT_SOURCE_URL=$pngquantUrl",
         "PNGQUANT_ARCHIVE_SHA256=$actualPngquantArchiveHash",
         'PNGQUANT_ROLE=OCRmyPDF optimize levels 2 and 3'
@@ -244,6 +244,7 @@ try {
         "PNGQUANT_VERSION=$pngquantVersion",
         "PNGQUANT_SOURCE_URL=$pngquantUrl",
         "PNGQUANT_ARCHIVE_SHA256=$actualPngquantArchiveHash",
+        'PNGQUANT_PROVENANCE=official pngquant.org Windows archive; executable self-reports 2.17.0',
         'VALIDATION=package-first PATH; AMD64 PE; OCRmyPDF ToolProbe; exact OCRmyPDF unpaper/pngquant wrappers; OCRmyPDF --clean + --clean-final; relocated path with spaces'
     )
 
