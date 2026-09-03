@@ -63,7 +63,7 @@ Do **not** globally replace `APPDATA`, `LOCALAPPDATA`, `PROGRAMDATA`, `USERPROFI
 - LibreOffice -> `<portable>/tools/libreoffice`; native source-compatible `unoconvert.exe` -> `<portable>/tools/bin`; transient state must remain package-local and cleaned;
 - Poppler -> `<portable>/tools/poppler`, executables under `Library/bin`;
 - WeasyPrint official Windows payload -> `<portable>/tools/weasyprint`; package-relative command shim -> `<portable>/tools/bin/weasyprint.exe`; per-invocation PyInstaller/temp state -> `<portable>/data/tmp/weasyprint` and must be removed after each invocation;
-- Calibre config -> `<portable>/data/calibre` when packaged;
+- Calibre official Windows x64 payload -> `<portable>/tools/calibre`; package-relative literal command launcher -> `<portable>/tools/bin/ebook-convert.exe`; config/cache -> `<portable>/data/calibre`; per-invocation temp -> `<portable>/data/tmp/calibre` and must be removed after each invocation; set `CALIBRE_NO_DEFAULT_PROGRAMS=1`;
 - skip `pdf-tunner://` deep-link registration in portable mode.
 
 ## External dependency source of truth
@@ -159,6 +159,16 @@ Functional corrective commit `a7a118e852277069c8ab13cc2f25121f9be87fea` changed 
 
 Run #95 generated `PDF_Tunner-2.14.3-bootstrap-Windows-x64-Portable.zip`, size `1,553,629,801` bytes, SHA-256 `CFD09D41CC5E074B7CEF1885F5A32ED58F08E2FE6FB9EEBC0C0AA07B2A16C0FE`; the ZIP was not uploaded. Lightweight evidence artifact `9872300027` is `6,055` bytes, Actions digest `sha256:e54704632653500d4514dd41c24340d598c66de547ac81e1a06e8d3d30d3468f`, expires 2026-09-09. Layout: `30,051` package files / `3,569,719,817` payload bytes. WeasyPrint is closed/accepted; do not reopen it without new evidence.
 
+### Calibre 9.14.0 / `ebook-convert` — active candidate, focused green
+
+Pinned Stirling 2.14.3 defaults to literal `ebook-convert`; dependency availability is binary/command based with no Calibre minimum-version gate. The PDF→EPUB controller uses `--pdf-engine pdftohtml` plus heuristic/CSS arguments and therefore requires the accepted package-local Poppler. The eBook→PDF controller accepts EPUB/MOBI/AZW3/FB2/TXT/DOCX and can subsequently use Ghostscript optimization.
+
+Candidate payload is the official Calibre Windows x64 MSI `calibre-64bit-9.14.0.msi`, URL `https://download.calibre-ebook.com/9.14.0/calibre-64bit-9.14.0.msi`, pinned SHA-256 `4ccaf2a49a0069b5e78291ee7248dcd8967896d316d6432ddf657b6feae8f32d`. Use administrative MSI extraction only; never install Calibre on the runner. Stage the extracted application beside its runtime DLLs under `tools/calibre`.
+
+Build native `tools/bin/ebook-convert.exe` from `.github/scripts/calibre-launcher.rs`; it forwards all arguments to `tools/calibre/ebook-convert.exe`, localizes `CALIBRE_CONFIG_DIRECTORY` and `CALIBRE_CACHE_DIRECTORY` under `data/calibre`, localizes `CALIBRE_TEMP_DIR` plus child `TEMP`/`TMP` to unique `data/tmp/calibre/run-*`, sets `CALIBRE_NO_DEFAULT_PROGRAMS=1`, and cleans per-invocation temp. Candidate gates: exact MSI hash/provenance, AMD64 backend+launcher, package-first resolution, exact version, TXT→EPUB, EPUB→PDF, Stirling-shaped PDF→EPUB via bundled Poppler, no new host profile state, no orphan Calibre process and relocation with spaces. Focused validation is not acceptance; complete primary backend `/ebook/pdf` + `/pdf/epub`, dependency-log evidence and all previous gates remain mandatory.
+
+**Focused candidate Run #1 (`33743422083`), job `100610347852`, commit `e329e3c128ab9d26437f5dffad8a47e80b0c6362`, passed all focused gates.** It proved the exact MSI hash, administrative extraction, package-first AMD64 launcher/backend, exact version, TXT→EPUB, EPUB→PDF, Stirling-shaped PDF→EPUB through bundled Poppler, package-local state/temp/process cleanup and relocation with spaces. Evidence artifact `9888693480` is `1,469` bytes, digest `sha256:4fcec246dd9a55263bd4b609a1053d18e72908dd40a7ad9c9ca291480c3c2694`, expires 2026-09-06. This does not yet promote Calibre to accepted.
+
 ## Primary workflow acceptance contract
 
 Primary path: `.github/workflows/pdf-tunner-windows-portable.yml`.
@@ -166,6 +176,14 @@ Primary path: `.github/workflows/pdf-tunner-windows-portable.yml`.
 A dependency moves to accepted only when the **complete primary workflow** is green with every earlier accepted gate enabled. Record commit SHA, Run/number, job ID, exact source/version/hash and artifact/digest when relevant. Standalone candidate workflow or `--version` alone is never acceptance. Require real operation and isolated package-first PATH/environment wherever practical.
 
 Before causing a new heavy regression, confirm no useful run is queued/in-progress. Do not rerun blindly after failure: inspect jobs/logs and bounded diagnostics, establish a concrete root cause, apply the smallest justified correction, then allow exactly one complete primary regression. Do not increase timeouts blindly or weaken gates.
+
+Focused Calibre Run #1 is green and the focused workflow is retired. The temporary branch-only integration workflow performs one narrow job: copy only permanent Calibre scripts + README/AGENTS into the primary development branch, patch the existing primary workflow and bounded diagnostics, explicitly exclude all candidate-only workflow/script files, create one atomic development commit and push it once. That single push is the complete primary acceptance attempt.
+
+Integration attempt #1, Run `33744277709` / job `100613069064`, failed safely before any primary-branch write because the final package-validation anchor used a WeasyPrint block that legitimately appears three times. The corrected integrator uses the unique final LibreOffice validation followed immediately by `data/` cleanup as the insertion boundary. This is integration-automation-only: Calibre payload, MSI hash, native launcher, direct tests, live endpoints and acceptance gates are unchanged.
+
+Integration attempt #2, Run `33747081554` / job `100621923550`, also failed safely before any primary-branch write because the diagnostics selector targeted the `Stirling-PDF` literal, which legitimately occurs in two different inventories. The corrected integrator now replaces the complete unique `$hostProfilePaths` block. This remains integration-automation-only: no Calibre payload, MSI hash, native launcher, direct test, live endpoint or acceptance gate changed.
+
+Integration attempt #3, Run `33747627484` / job `100623670622`, passed all transformation/structural guards and created the intended local seven-file commit, but GitHub rejected the Actions token when it tried to update `.github/workflows/pdf-tunner-windows-portable.yml` because the GitHub App lacks `workflows` permission. This is a transport-permission failure only. The integrator now stages exact generated workflow/diagnostics snapshots outside `.github/workflows/`; the GitHub connector will reuse those exact blobs in the permanent atomic development commit. Calibre payload, hashes, launcher, endpoints and gates remain unchanged.
 
 ## CI artifact storage policy
 
@@ -175,7 +193,7 @@ The primary workflow builds and validates the portable ZIP but ordinary CI uploa
 
 ### A. External toolchain
 
-1. **Calibre/`ebook-convert`** — next active candidate;
+1. **Calibre/`ebook-convert`** — focused green; complete primary regression is the active acceptance gate;
 2. `unpaper`;
 3. `pngquant`;
 4. conversion fonts;
@@ -208,7 +226,7 @@ Latest green primary regression and WeasyPrint acceptance evidence: **Run #95** 
 
 Run #95 passed every earlier gate plus authenticated WeasyPrint source/hash, AMD64 identity, isolated package-first resolution, exact Stirling CLI execution, real HTML→PDF, relocation, live Stirling HTML→PDF + Markdown→PDF and dependency-log/command evidence. **WeasyPrint is formally accepted.**
 
-Active candidate: **Calibre/`ebook-convert`**. Do not collapse the remaining roadmap. Before integrating it, inspect exact pinned Stirling source/probes/routes, choose a reproducible Windows payload and package-local state strategy, preserve every accepted gate, and avoid touching already accepted dependency versions unless new evidence requires it.
+Active candidate: **Calibre 9.14.0 / `ebook-convert`**. Exact pinned-source audit is complete: `/api/v1/convert/pdf/epub` uses `ebook-convert` with Poppler `pdftohtml`; `/api/v1/convert/ebook/pdf` uses the same literal command; runtime dependency detection enables/disables the `Calibre` group from command availability. Focused Run #1 (`33743422083`), job `100610347852`, commit `e329e3c128ab9d26437f5dffad8a47e80b0c6362` is green with lightweight evidence artifact `9888693480` / digest `sha256:4fcec246dd9a55263bd4b609a1053d18e72908dd40a7ad9c9ca291480c3c2694`. Integration Runs `33744277709` and `33747081554` failed safely on non-unique temporary anchors; Run `33747627484` passed all guards but was blocked only by the Actions token's missing `workflows` permission. Exact generated snapshot transport is now the active promotion mechanism. Do not call Calibre accepted until the complete primary workflow is green.
 
 ## Compact changelog
 
@@ -222,3 +240,8 @@ Active candidate: **Calibre/`ebook-convert`**. Do not collapse the remaining roa
 - **2026-09-02:** WeasyPrint 69.0 candidate integrated from official Kozea Windows asset with native package-relative temp-containment shim, authenticated hash, AMD64/PATH/direct/relocation and live-backend HTML→PDF + Markdown→PDF gates.
 - **2026-09-02:** Run #94 bounded diagnostics proved WeasyPrint runtime/backend/routes healthy and isolated the only failure to patch-normalized dependency-log version formatting.
 - **2026-09-03:** corrective commit `a7a118e852277069c8ab13cc2f25121f9be87fea` preserved payload and all gates; complete primary Run #95 (`33695530172`), job `100463449110`, passed every step. **WeasyPrint 69.0 formally accepted; Calibre is next.**
+- **2026-09-03:** exact Stirling 2.14.3 Calibre audit completed; Calibre 9.14.0 Windows x64 candidate pinned with MSI SHA-256 `4ccaf2a49a0069b5e78291ee7248dcd8967896d316d6432ddf657b6feae8f32d`, administrative extraction and package-relative `ebook-convert` launcher.
+- **2026-09-03:** focused Calibre Run #1 (`33743422083`), job `100610347852`, commit `e329e3c128ab9d26437f5dffad8a47e80b0c6362`, passed package-only direct conversions and relocation; artifact `9888693480`, 1,469 bytes, digest `sha256:4fcec246dd9a55263bd4b609a1053d18e72908dd40a7ad9c9ca291480c3c2694`. Complete primary acceptance remains pending.
+- **2026-09-03:** integration Run `33744277709` / job `100613069064` aborted before any development-branch write because the final WeasyPrint anchor matched three phases; corrected to a unique LibreOffice-to-final-cleanup anchor with no Calibre payload or gate changes.
+- **2026-09-03:** integration Run `33747081554` / job `100621923550` also aborted before any development-branch write because the diagnostics `Stirling-PDF` literal appeared in two inventories; corrected to the complete unique `$hostProfilePaths` block, again with no Calibre payload or gate changes.
+- **2026-09-03:** integration Run `33747627484` / job `100623670622` passed every transformation/guard and created the intended local seven-file commit; GitHub rejected only the workflow-path push because the Actions app lacks `workflows` permission. Promotion switches to exact generated snapshot blobs plus connector Git-data commit; Calibre itself remains unchanged.

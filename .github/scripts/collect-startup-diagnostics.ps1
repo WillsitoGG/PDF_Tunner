@@ -101,7 +101,10 @@ $hostProfilePaths = @(
     (Join-Path $env:LOCALAPPDATA 'com.willsitogg.pdf-tunner'),
     (Join-Path $env:LOCALAPPDATA 'com.willsitogg.pdf-tunner\EBWebView'),
     (Join-Path $env:APPDATA 'com.willsitogg.pdf-tunner'),
-    (Join-Path $env:APPDATA 'Stirling-PDF')
+    (Join-Path $env:APPDATA 'Stirling-PDF'),
+    (Join-Path $env:APPDATA 'calibre'),
+    (Join-Path $env:LOCALAPPDATA 'calibre'),
+    (Join-Path $env:LOCALAPPDATA 'calibre-cache')
 )
 $hostProfilePaths | ForEach-Object {
     [PSCustomObject]@{ Path = $_; Exists = Test-Path -LiteralPath $_ }
@@ -112,7 +115,7 @@ $hostInventory = @()
 foreach ($root in @($env:LOCALAPPDATA, $env:APPDATA)) {
     if (Test-Path -LiteralPath $root) {
         $hostInventory += Get-ChildItem -LiteralPath $root -Force -ErrorAction SilentlyContinue |
-            Where-Object { $_.Name -match '(?i)pdf.?tunner|stirling|willsitogg|pdf-tunner' } |
+            Where-Object { $_.Name -match '(?i)pdf.?tunner|stirling|willsitogg|pdf-tunner|calibre' } |
             Select-Object FullName, PSIsContainer, Length, LastWriteTime
     }
 }
@@ -138,8 +141,8 @@ Write-TableSnapshot -InputObject $hostAppTree -Path (Join-Path $diagnostics 'hos
 
 Get-CimInstance Win32_Process |
     Where-Object {
-        $_.Name -match '(?i)PDF_Tunner|java|msedgewebview2|weasyprint' -or
-        ($_.CommandLine -and $_.CommandLine -match '(?i)PDF_Tunner|Stirling|webview2|weasyprint')
+        $_.Name -match '(?i)PDF_Tunner|java|msedgewebview2|weasyprint|ebook-convert|calibre' -or
+        ($_.CommandLine -and $_.CommandLine -match '(?i)PDF_Tunner|Stirling|webview2|weasyprint|ebook-convert|calibre')
     } |
     Select-Object ProcessId, ParentProcessId, Name, ExecutablePath, CommandLine |
     Format-List |
