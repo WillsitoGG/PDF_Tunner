@@ -115,6 +115,8 @@ Focused Calibre Run #1 is green and the focused workflow is now retired. A branc
 
 The first integration attempt, Run `33744277709` / job `100613069064`, aborted before any write to `pdf-tunner/windows-portable-v1`: its final package-validation selector matched three legitimate WeasyPrint validation blocks instead of exactly one. The corrected integrator anchors that insertion to the unique final LibreOffice-to-`data/` cleanup boundary. No Calibre payload, hash, launcher, endpoint or acceptance gate was changed.
 
+The second integration attempt, Run `33747081554` / job `100621923550`, also aborted before any write to `pdf-tunner/windows-portable-v1`: the diagnostics selector matched the same `Stirling-PDF` literal in two inventories. The next correction scopes that replacement to the complete unique `$hostProfilePaths` block. Again, no Calibre payload, hash, launcher, endpoint or acceptance gate changed.
+
 Ordinary CI always builds and validates the portable ZIP but uploads only lightweight evidence. The multi-gigabyte ZIP, wheelhouses and caches are not ordinary artifacts. Failure diagnostics are text-only and bounded; the startup collector prioritizes package-local backend log tails and concise process/state inventories. No final Release is created before complete v1 acceptance and explicit user authorization.
 
 ## Remaining v1 roadmap

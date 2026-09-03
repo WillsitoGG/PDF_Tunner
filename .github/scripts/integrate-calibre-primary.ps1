@@ -32,8 +32,6 @@ if ($remoteDev -ne $ExpectedDevHead) {
 & git checkout -B $DevBranch "refs/remotes/origin/$DevBranch"
 if ($LASTEXITCODE -ne 0) { throw 'Failed to check out primary development branch.' }
 
-# Bring only permanent Calibre implementation plus mandatory docs from the
-# candidate. Candidate-only workflows never enter the primary branch.
 $carry = @(
   '.github/scripts/calibre-launcher.rs',
   '.github/scripts/prepare-calibre.ps1',
@@ -139,10 +137,6 @@ $workflow = Replace-One $workflow @'
             'tools/weasyprint/weasyprint.exe',
 '@ 'final Calibre layout requirements'
 
-# Anchor the final package-only Calibre validation to the unique LibreOffice ->
-# final data-cleanup boundary. The previous WeasyPrint-only anchor occurs in
-# three validation phases and correctly caused the first integrator attempt to
-# abort before any primary-branch write.
 $cleanupAnchor = @'
           & './.github/scripts/validate-libreoffice.ps1' `
             -PortableRoot './dist/PDF_Tunner' `
@@ -192,19 +186,28 @@ $workflow = Replace-One $workflow @'
 $diagPath = '.github/scripts/collect-startup-diagnostics.ps1'
 $diag = (Get-Content -LiteralPath $diagPath -Raw) -replace "`r`n", "`n"
 $diag = Replace-One $diag @'
+$hostProfilePaths = @(
+    (Join-Path $env:LOCALAPPDATA 'com.willsitogg.pdf-tunner'),
+    (Join-Path $env:LOCALAPPDATA 'com.willsitogg.pdf-tunner\EBWebView'),
+    (Join-Path $env:APPDATA 'com.willsitogg.pdf-tunner'),
     (Join-Path $env:APPDATA 'Stirling-PDF')
+)
 '@ @'
+$hostProfilePaths = @(
+    (Join-Path $env:LOCALAPPDATA 'com.willsitogg.pdf-tunner'),
+    (Join-Path $env:LOCALAPPDATA 'com.willsitogg.pdf-tunner\EBWebView'),
+    (Join-Path $env:APPDATA 'com.willsitogg.pdf-tunner'),
     (Join-Path $env:APPDATA 'Stirling-PDF'),
     (Join-Path $env:APPDATA 'calibre'),
     (Join-Path $env:LOCALAPPDATA 'calibre'),
     (Join-Path $env:LOCALAPPDATA 'calibre-cache')
-'@ 'Calibre host-profile diagnostics'
+)
+'@ 'Calibre host-profile diagnostics block'
 $diag = Replace-One $diag "'(?i)pdf.?tunner|stirling|willsitogg|pdf-tunner'" "'(?i)pdf.?tunner|stirling|willsitogg|pdf-tunner|calibre'" 'Calibre host inventory filter'
 $diag = Replace-One $diag "'(?i)PDF_Tunner|java|msedgewebview2|weasyprint'" "'(?i)PDF_Tunner|java|msedgewebview2|weasyprint|ebook-convert|calibre'" 'Calibre process-name diagnostics'
 $diag = Replace-One $diag "'(?i)PDF_Tunner|Stirling|webview2|weasyprint'" "'(?i)PDF_Tunner|Stirling|webview2|weasyprint|ebook-convert|calibre'" 'Calibre process-command diagnostics'
 [System.IO.File]::WriteAllText((Resolve-Path $diagPath).Path, $diag, [System.Text.UTF8Encoding]::new($false))
 
-# Candidate-only machinery must never appear in the primary branch.
 foreach ($temporary in @(
   '.github/workflows/pdf-tunner-calibre-candidate.yml',
   '.github/workflows/pdf-tunner-calibre-integrate.yml',
@@ -213,7 +216,6 @@ foreach ($temporary in @(
   if (Test-Path -LiteralPath $temporary) { Remove-Item -LiteralPath $temporary -Force }
 }
 
-# Structural guards before the single primary push.
 $requiredWorkflowTokens = @(
   'PDF_TUNNER_CALIBRE_VERSION: "9.14.0"',
   'Stage official Calibre Windows x64 runtime and portable launcher',
