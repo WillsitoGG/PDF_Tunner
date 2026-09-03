@@ -11,11 +11,9 @@
 - Target: **Windows 10/11 x64 portable ZIP**, extract and run without installation.
 - `main` remains the clean pinned upstream base during v1 development.
 - No final PDF_Tunner v1 Release exists yet.
-- Latest complete green primary regression: **Run #96** (`33748509811`), job `100626447125`, functional commit `0874881eaadcede5095e3db0052ce8b78cc23906`.
-- **Calibre 9.14.0 / `ebook-convert` is formally accepted by Run #96.**
-- Active external-toolchain candidate: **unpaper 6.1 + pngquant 2.17.0**, integrated as OCRmyPDF 17.10.0 auxiliary tools. They are not accepted until the complete primary workflow is green with all previous gates enabled.
-- Run #97 (`33753982510`), job `100643848626`, commit `f2259ad2456dcba4c03ec0a7d2bbb19e1422c05d`, failed during `Stage portable Python, OCRmyPDF and NumPy` after the accepted core had already populated the portable Python runtime. The failure is therefore inside the new auxiliary invocation path, not a reopening of the accepted Python/OCRmyPDF core.
-- Run #98 (`33783066274`), job `100741166478`, commit `9a205cac8f3b3e1dd6a960ec0a57229879d95c20`, exposed the exact auxiliary root cause: the authenticated official `pngquant-windows.zip` passed its pinned SHA-256 but its `pngquant.exe --version` self-reports **2.17.0 (September 2021)**, while the candidate metadata incorrectly required 3.0.3. Artifact `9905244757` retained the exact exception and stack trace; the functional gates were not weakened.
+- Latest complete green primary regression: **Run #99** (`33786563784`), job `100752651171`, commit `8d4d3906f6535c5a0e214cf96948e19de0678a23`.
+- **unpaper 6.1 + pngquant 2.17.0 are formally accepted by Run #99.**
+- Active external-toolchain candidate: **package-local conversion fonts**, focused on the CJK gap not already supplied by the accepted LibreOffice runtime.
 
 ## Accepted portable layers
 
@@ -29,97 +27,102 @@
 | Tesseract | release `5.5.3`, CLI `5.5.3.20260724`, pinned `eng`/`spa`/`osd`; Run #70 `33122172947` |
 | Python + OCRmyPDF | Python `3.12.14` x64 + OCRmyPDF `17.10.0`; Run #77 `33201568275` |
 | LibreOffice + UNO conversion | LibreOffice `26.2.5` + package-relative native `unoconvert.exe`; Run #83 `33497784837` |
-| Poppler | `26.02.0` Windows x64: `pdftohtml`, `pdfinfo`, `pdfimages`; Run #86 `33507551477` |
+| Poppler | `26.02.0` Windows x64; Run #86 `33507551477` |
 | Python dependency lock | authenticated 28-package Windows lock; Run #87 and later complete regressions |
 | NumPy | `2.5.2`; Run #90 `33530454097` |
 | OpenCV | `opencv-python-headless 4.14.0.94`, runtime/core `4.14.0`, real `split_photos.py`; Run #92 `33557169326` |
 | WeasyPrint | official Windows `69.0`, package-relative shim, real HTML→PDF + Markdown→PDF; Run #95 `33695530172` |
-| **Calibre** | official Windows x64 `9.14.0`, package-relative `ebook-convert` launcher, real PDF↔eBook routes; **Run #96 `33748509811`** |
+| Calibre | official Windows x64 `9.14.0`, package-relative `ebook-convert`, real PDF↔eBook routes; Run #96 `33748509811` |
+| **OCRmyPDF auxiliaries** | **unpaper `6.1` + pngquant `2.17.0`; Run #99 `33786563784`** |
 
-## Recent acceptance evidence
+## Latest acceptance — unpaper 6.1 + pngquant 2.17.0
 
-### WeasyPrint 69.0 — accepted
+Pinned Stirling 2.14.3 installs `unpaper` and `pngquant` in its standard runtime image. Their Windows portable behavior is mediated through the already accepted OCRmyPDF `17.10.0` runtime:
 
-Pinned Stirling 2.14.3 resolves literal `weasyprint`, requires version `58.0` or newer and executes `weasyprint -e utf-8 -v --pdf-forms INPUT OUTPUT`. PDF_Tunner pins the official Kozea WeasyPrint `69.0` Windows archive, SHA-256 `330101ff3ea50ebde4abf805283b6d703d5f3d71c77c983db94357ec4524a3ef`.
+- `unpaper` is used by OCRmyPDF for `--clean` / `--clean-final`;
+- `pngquant` is used by OCRmyPDF optimization levels 2 and 3;
+- OCRmyPDF probes literal commands on `PATH` and has no minimum-version gate for either utility.
 
-Complete primary Run #95 (`33695530172`), job `100463449110`, commit `a7a118e852277069c8ab13cc2f25121f9be87fea`, passed isolated package-only validation, real HTML→PDF, relocation with spaces, live Stirling HTML→PDF + Markdown→PDF, all prior dependency gates, portable state/process cleanup, final layout and ZIP generation. Run #95 ZIP SHA-256: `CFD09D41CC5E074B7CEF1885F5A32ED58F08E2FE6FB9EEBC0C0AA07B2A16C0FE`.
+Accepted payloads:
 
-### Calibre 9.14.0 / `ebook-convert` — accepted
+- **unpaper 6.1 Windows x86_64 community build** from `rodrigost23/unpaper`; archive SHA-256 `a760fa1fb5a076c7dad24c643aaec5330473ab03fbf6ede50e124978d840ee65`;
+- **pngquant 2.17.0** from the official `https://pngquant.org/pngquant-windows.zip`; archive SHA-256 `bd0257aeeccfe446a4cd764927e26f8af6051796f28abed104307284107b120d`. The authenticated executable self-reports `2.17.0 (September 2021)`.
 
-Pinned Stirling 2.14.3 resolves literal `ebook-convert`. PDF→EPUB uses Calibre with `--pdf-engine pdftohtml`, so the accepted package deliberately reuses the already accepted package-local Poppler. eBook→PDF accepts the formats exposed by Stirling and can subsequently use Ghostscript optimization.
+Runs #97 and #98 were diagnostic failures. #98 proved the candidate had incorrectly labelled the authenticated pngquant payload as 3.0.3. The version expectation was corrected without weakening archive authentication, AMD64 identity, package-first resolution, OCRmyPDF ToolProbe, real wrapper execution, `--clean --clean-final`, or relocation tests.
 
-PDF_Tunner packages the official Calibre Windows x64 MSI `calibre-64bit-9.14.0.msi`, URL `https://download.calibre-ebook.com/9.14.0/calibre-64bit-9.14.0.msi`, SHA-256 `4ccaf2a49a0069b5e78291ee7248dcd8967896d316d6432ddf657b6feae8f32d`. CI performs MSI administrative extraction only; Calibre is never installed on the runner.
+**Complete primary Run #99 (`33786563784`), job `100752651171`, commit `8d4d3906f6535c5a0e214cf96948e19de0678a23`, passed every primary step and formally accepts unpaper 6.1 + pngquant 2.17.0.**
 
-`tools/bin/ebook-convert.exe` is a native package-relative launcher for `tools/calibre/ebook-convert.exe`. It keeps config/cache under `data/calibre/`, per-invocation temp under `data/tmp/calibre/`, sets `CALIBRE_NO_DEFAULT_PROGRAMS=1`, and cleans invocation temp after exit.
-
-**Complete primary Run #96 (`33748509811`), job `100626447125`, commit `0874881eaadcede5095e3db0052ce8b78cc23906`, passed every primary step and formally accepts Calibre 9.14.0.** It passed authenticated MSI extraction, AMD64/package-first validation, direct conversions, relocation with spaces, both real Stirling eBook routes, all previously accepted dependency gates, backend startup, portable containment, final layout and ZIP generation.
-
-Run #96 evidence:
+Run #99 evidence:
 
 - ZIP: `PDF_Tunner-2.14.3-bootstrap-Windows-x64-Portable.zip`
-- ZIP size: `1,837,322,506` bytes
-- ZIP SHA-256: `724C882195965A9F5676ADB6B4ED09FE1ED32EED09D74424D76DEF7B59C7CCAE`
-- portable layout: `31,400` files / `4,228,817,694` payload bytes
-- Calibre backend `ebook-convert.exe` SHA-256: `4e786948f256e7d7b944540f6f131a2b77d6f6be515edb8987158496815754c1`
-- Calibre launcher SHA-256: `b6392ee2e1357f25e469eade1914a6162aecdabde52122fdd8192b3c48e3ffcd`
-- retained lightweight artifact: `9891758584`, `7,273` bytes, Actions digest `sha256:d03923535d0b2d9e61aa4ea7ed3f82e84ae241d8380abd4a62d77b2874431bf7`, expires 2026-09-10
-- the multi-gigabyte ZIP itself was **not uploaded**, by design.
+- ZIP size: `1,861,405,214` bytes
+- ZIP SHA-256: `5AFD552CFDF4DCEF48151470154541694AAFC5E1DD6650E913D2BDBD6D51496F`
+- portable layout: `31,468` files / `4,303,215,732` payload bytes
+- lightweight artifact: `9906859658`
+- artifact contains provenance with `UNPAPER_VERSION=6.1` and `PNGQUANT_VERSION=2.17.0`
+- the multi-gigabyte ZIP itself was not uploaded, by design.
 
-## Active candidate — OCRmyPDF auxiliaries
+## Active candidate — package-local conversion fonts
 
-Pinned Stirling 2.14.3 installs `unpaper` and `pngquant` in its standard runtime image, but does not expose them as independent dependency groups. Their relevant behavior comes through the already accepted OCRmyPDF `17.10.0` runtime:
+Pinned Stirling 2.14.3 installs the following Linux font packages in its normal runtime image:
 
-- `unpaper` is the external tool used by OCRmyPDF for `--clean` and `--clean-final`; Stirling's `/ocr-pdf` controller exposes both options.
-- `pngquant` is the external quantizer used by OCRmyPDF optimization levels 2 and 3.
-- OCRmyPDF 17.10.0 probes literal commands `unpaper` and `pngquant` on `PATH`; there is no OCRmyPDF minimum-version gate for either tool.
+- DejaVu;
+- Liberation 2;
+- Carlito and Caladea;
+- Noto core / mono / extra;
+- Noto CJK;
+- GNU FreeFont;
+- Terminus.
 
-Candidate payloads:
+The same Dockerfile later removes non-Regular Noto weights to save roughly 370 MB. The accepted official LibreOffice 26.2.5 Windows runtime already ships its own conversion-font baseline, including Carlito, Caladea, DejaVu and Liberation families. LibreOffice's own source notes that it does not have bundled CJK fonts for its CJK tests, so the Windows portable gap is CJK rather than the complete Linux font stack.
 
-- **unpaper 6.1 Windows x86_64 community build** from `rodrigost23/unpaper`, archive `unpaper-6.1-windows-x86_64.zip`, SHA-256 `a760fa1fb5a076c7dad24c643aaec5330473ab03fbf6ede50e124978d840ee65`. The current upstream release is 7.0.0 but its official release publishes source only, not a Windows binary; this exception is therefore explicit rather than misrepresented as an official binary.
-- **pngquant 2.17.0**, from the official `https://pngquant.org/pngquant-windows.zip`, SHA-256 `bd0257aeeccfe446a4cd764927e26f8af6051796f28abed104307284107b120d`. Run #98 proved that the executable inside this exact authenticated archive self-identifies as `2.17.0 (September 2021)`. Earlier candidate documentation incorrectly called this same archive 3.0.3; PDF_Tunner now records the executable's measured identity instead of the external package label.
+PDF_Tunner therefore keeps the accepted LibreOffice payload and adds only five regular regional Noto Sans CJK subsets from the pinned upstream `notofonts/noto-cjk` tag **`Sans2.004`**:
 
-Both are staged under `tools/bin/`, which the portable bootstrap already places before host PATH. unpaper's required sibling DLLs remain beside `unpaper.exe`.
+| Family | File | SHA-256 |
+| --- | --- | --- |
+| Noto Sans SC | `NotoSansSC-Regular.otf` | `faa6c9df652116dde789d351359f3d7e5d2285a2b2a1f04a2d7244df706d5ea9` |
+| Noto Sans TC | `NotoSansTC-Regular.otf` | `5bab0cb3c1cf89dde07c4a95a4054b195afbcfe784d69d75c340780712237537` |
+| Noto Sans HK | `NotoSansHK-Regular.otf` | `8a43afea92bb58dfd9027bd7ac6f5b0b2662e2ffb3e7c1edc02c62b2b21924f1` |
+| Noto Sans JP | `NotoSansJP-Regular.otf` | `dff723ba59d57d136764a04b9b2d03205544f7cd785a711442d6d2d085ac5073` |
+| Noto Sans KR | `NotoSansKR-Regular.otf` | `69975a0ac8472717870aefeab0a4d52739308d90856b9955313b2ad5e0148d68` |
+
+They are staged directly into `tools/libreoffice/share/fonts/truetype/`, so LibreOffice sees them from the portable tree without host installation. Metadata is kept under `tools/fonts/`.
 
 Candidate validation requires:
 
-1. exact archive hashes and provenance;
-2. AMD64 PE identity;
-3. isolated package-first `where.exe` resolution;
-4. exact version probes;
-5. OCRmyPDF 17.10.0 `ToolProbe` recognition;
-6. execution through OCRmyPDF's actual `unpaper.run_unpaper` and `pngquant.quantize` wrappers;
-7. real OCRmyPDF `--clean --clean-final` processing;
-8. relocation to a path containing spaces;
-9. all previously accepted primary gates, final layout and lightweight evidence.
+1. exact SHA-256 for every downloaded CJK font;
+2. proof that LibreOffice's packaged Carlito/Caladea/DejaVu/Liberation baseline is present before adding anything;
+3. no matching CJK font files in Windows system/user font directories during the gate;
+4. direct package-local LibreOffice DOCX→PDF with SC/TC/HK/JP/KR text;
+5. package-local Poppler `pdffonts` proof that all requested CJK families and Latin baseline are embedded;
+6. package-local `pdftotext` proof that the CJK text survives conversion;
+7. relocation to normal Windows paths containing spaces;
+8. when the backend is live, the real Stirling Office→PDF API route must preserve the same CJK font/text contract;
+9. all previously accepted gates remain enabled.
 
-To reduce regression risk, the previously accepted `.github/scripts/prepare-ocrmypdf.ps1` implementation is preserved byte-for-byte as `.github/scripts/prepare-ocrmypdf-core.ps1`. The existing workflow entry path remains `.github/scripts/prepare-ocrmypdf.ps1`, now a narrow wrapper that executes the accepted core and then `.github/scripts/prepare-ocr-aux.ps1`.
+`fonts-freefont-ttf` and `fonts-terminus` are present in Stirling's Linux Docker dependency list but are not named by a Stirling source dependency probe or feature gate. They remain documented Linux fallback packages rather than a justification for copying the whole Linux font stack into Windows. The candidate is deliberately tested on real document conversion rather than inferred from package names.
 
-### Runs #97–#98 — failed candidate diagnosis
-
-Run #97 (`33753982510`), job `100643848626`, commit `f2259ad2456dcba4c03ec0a7d2bbb19e1422c05d`, failed in the combined Python/OCRmyPDF staging step. Its bounded artifact `9893464267` proved that the accepted Python/OCRmyPDF core had already populated the portable runtime and generated Python cache entries, including OCRmyPDF's `unpaper` and `pngquant` modules. The artifact did **not** retain the exception text emitted by the newly invoked auxiliary script, so #97 did not identify a defensible line-level root cause.
-
-The narrow wrapper was therefore instrumented, without changing the accepted core, to retain `data/logs/ocr-aux-diagnostic.log` in the existing bounded failure artifact. Run #98 (`33783066274`), job `100741166478`, commit `9a205cac8f3b3e1dd6a960ec0a57229879d95c20`, then produced artifact `9905244757` (`11,106` bytes; Actions digest `sha256:63ad17193ab3d309c5914177e3d4ec9f058b5255f19cadb5650bf399c3a394a7`). The retained exception is exact: `pngquant version validation failed: '2.17.0 (September 2021)'`, at `.github/scripts/prepare-ocr-aux.ps1` line 118. This establishes the root cause as incorrect candidate version metadata, not a broken archive, architecture, Python/OCRmyPDF core or missing dependency.
-
-The correction changes the expected pngquant identity from 3.0.3 to the measured 2.17.0 while retaining the same authenticated official archive/SHA, AMD64 check, package-first isolation, OCRmyPDF ToolProbe, exact `pngquant.quantize` wrapper test, real OCRmyPDF clean path and relocation gate. The diagnostic wrapper remains bounded and will be removed before final `main` integration.
+To minimize regression risk, the accepted LibreOffice prepare/validation implementations are preserved byte-for-byte as `prepare-libreoffice-core.ps1` and `validate-libreoffice-core.ps1`. The original workflow entry filenames become narrow wrappers that run the accepted core and then the conversion-font auxiliary scripts.
 
 ## Portable architecture
 
-Portable mode activates when `PDF_TUNNER_PORTABLE` exists beside `PDF_Tunner.exe`. State is localized component by component rather than by globally replacing user-profile variables before Tauri/WebView2 initialization.
+Portable mode activates when `PDF_TUNNER_PORTABLE` exists beside `PDF_Tunner.exe`.
 
-Key paths:
+Key package-relative paths:
 
 - backend config/logs/working state → `data/`
 - Java temp → `data/tmp/`
 - WebView2 profile → `data/webview2/`
 - Tauri logs/store/cookies/window state → `data/tauri/...`
-- ImageMagick → `tools/imagemagick/`, temp → `data/tmp/imagemagick/`
+- ImageMagick → `tools/imagemagick/`
 - Tesseract → `tools/tesseract/`, models → `tools/tesseract/tessdata/`
-- Python/OCRmyPDF/NumPy/OpenCV → `tools/python/`; OCRmyPDF temp → `data/tmp/ocrmypdf/`; Python cache → `data/python-cache/`
+- Python/OCRmyPDF/NumPy/OpenCV → `tools/python/`
 - LibreOffice → `tools/libreoffice/`; `unoconvert.exe` → `tools/bin/`
+- conversion fonts → `tools/libreoffice/share/fonts/truetype/`; provenance → `tools/fonts/`
 - Poppler → `tools/poppler/Library/bin/`
-- WeasyPrint → `tools/weasyprint/`; literal shim → `tools/bin/weasyprint.exe`; temp → `data/tmp/weasyprint/`
-- Calibre → `tools/calibre/`; literal launcher → `tools/bin/ebook-convert.exe`; state → `data/calibre/`; temp → `data/tmp/calibre/`
-- OCRmyPDF auxiliaries → `tools/bin/unpaper.exe` + required DLLs and `tools/bin/pngquant.exe`
+- WeasyPrint → `tools/weasyprint/`; literal shim → `tools/bin/weasyprint.exe`
+- Calibre → `tools/calibre/`; literal launcher → `tools/bin/ebook-convert.exe`
+- OCRmyPDF auxiliaries → `tools/bin/unpaper.exe` + sibling DLLs and `tools/bin/pngquant.exe`
 
 Portable mode skips runtime `pdf-tunner://` protocol registration. Primary CI rejects new tracked host AppData/TEMP/registry state and package-local orphan processes.
 
@@ -127,46 +130,39 @@ Portable mode skips runtime `pdf-tunner://` protocol registration. Primary CI re
 
 Primary workflow: `.github/workflows/pdf-tunner-windows-portable.yml`.
 
-A dependency is accepted only when the **complete current primary workflow** is green with every earlier accepted gate enabled. Version output alone is never sufficient: validate authenticated source/hash, package-first isolation, real operation, relocation where practical, backend behavior where applicable, state/process containment and the final assembled package.
+A dependency is accepted only when the **complete current primary workflow** is green with every earlier accepted gate enabled. Version output alone is never sufficient: validate source/hash, package-first isolation, real operation, relocation where practical, backend behavior where applicable, state/process containment and the final assembled package.
 
-Heavy CI uses branch-scoped concurrency with `cancel-in-progress: true`. Do not launch redundant complete regressions.
-
-Ordinary CI always builds and validates the portable ZIP but uploads only lightweight evidence. Do not upload the multi-gigabyte portable ZIP, dependency archives, wheelhouses or caches during ordinary iterations. Final ZIP publication is a GitHub Release action only after all v1 gates pass and the user explicitly authorizes release.
+Heavy CI uses branch-scoped concurrency with `cancel-in-progress: true`. Do not launch redundant complete regressions. Ordinary CI builds and validates the portable ZIP but uploads only lightweight evidence; the multi-gigabyte ZIP itself is reserved for the final Release after all v1 gates and explicit user authorization.
 
 ## Remaining v1 roadmap
 
 ### A. External toolchain
 
-1. **unpaper 6.1 + pngquant 2.17.0** — active OCRmyPDF auxiliary candidate; complete primary regression is the acceptance gate;
-2. conversion fonts required by pinned Stirling functionality;
-3. explicit VeraPDF E2E;
-4. investigate/build/package `jbig2enc` if technically viable;
-5. viable portable RAR/CBR support or a concrete documented limitation;
-6. any further exact dependency exposed by the pinned-source parity audit.
+1. **conversion fonts** — active candidate;
+2. explicit VeraPDF E2E;
+3. investigate/build/package `jbig2enc` if technically viable;
+4. viable portable RAR/CBR support or a concrete documented limitation;
+5. any further exact dependency exposed by the pinned-source parity audit.
 
 ### B. Functional validation
 
-Representative E2E must cover OCR, Office↔PDF, HTML/URL/base-URL/EML paths, accepted WeasyPrint, accepted Poppler, accepted Calibre/eBook conversion, Python/NumPy/OpenCV, qpdf/Ghostscript/ImageMagick/Tesseract/OCRmyPDF regressions, `unpaper`/`pngquant`, and RAR/CBR or jbig2enc if integrated. Tests must prove that runner-preinstalled software is not satisfying package gates.
+Representative E2E must cover OCR, Office↔PDF, HTML/URL/base-URL/EML, WeasyPrint, Poppler, Calibre/eBook, Python/NumPy/OpenCV, qpdf/Ghostscript/ImageMagick/Tesseract/OCRmyPDF, conversion fonts, and RAR/CBR or jbig2enc if integrated. Tests must prove runner-installed software is not satisfying package gates.
 
 ### C. Release readiness
 
 1. non-Enterprise parity audit against pinned Stirling 2.14.3;
 2. final branding audit;
 3. final portability/state/process audit;
-4. remove retired focused/diagnostic/integration mechanisms;
-5. final downstream diff and output hygiene;
+4. remove retired diagnostic/integration mechanisms;
+5. final downstream diff/output hygiene;
 6. final README/AGENTS/provenance/version/hash record;
 7. integrate to `main` without reopening old PR #1;
 8. publish the clean v1 ZIP only when all gates are complete and explicitly authorized;
 9. manual clean-machine Windows 10/11 checklist.
 
-## Compact changelog / handoff
+## Compact handoff
 
-- 2026-08-21–27: real fork/Tauri architecture established; portable state containment, WebView2, qpdf, ImageMagick, Ghostscript and Tesseract accepted.
-- 2026-08-28: Python 3.12.14 + OCRmyPDF 17.10.0 accepted by Run #77.
-- 2026-09-01: LibreOffice/unoconvert accepted by #83; Poppler by #86; authenticated Python lock and NumPy by #87/#90; OpenCV by #92.
-- 2026-09-03: WeasyPrint 69.0 formally accepted by complete primary Run #95.
-- **2026-09-03: Calibre 9.14.0 formally accepted by complete primary Run #96 (`33748509811`), job `100626447125`, commit `0874881eaadcede5095e3db0052ce8b78cc23906`.**
-- **2026-09-03: Run #97 (`33753982510`) failed inside the new unpaper/pngquant auxiliary staging path after the accepted Python/OCRmyPDF core completed. Its bounded artifact lacked the actual exception text, so the candidate remained unaccepted.**
-- **2026-09-03: Run #98 (`33783066274`) captured the exact failure: the authenticated pngquant.org Windows archive self-reports pngquant 2.17.0, not the incorrectly documented 3.0.3. Candidate metadata and exact version probes are corrected to 2.17.0 without weakening any functional gate.**
-- **Current:** unpaper 6.1 + pngquant 2.17.0 remain the active candidate until one complete primary regression passes every earlier gate.
+- Latest accepted regression: **Run #99 `33786563784`**, job `100752651171`, commit `8d4d3906f6535c5a0e214cf96948e19de0678a23`.
+- Newly accepted: **unpaper 6.1 + pngquant 2.17.0**.
+- Active candidate: **conversion fonts**, adding only pinned Noto Sans CJK 2.004 Regular regional subsets while retaining and validating LibreOffice's packaged Latin baseline.
+- Next after fonts: **explicit VeraPDF E2E**.
