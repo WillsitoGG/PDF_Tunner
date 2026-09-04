@@ -187,6 +187,16 @@ Keep the existing workflow entry paths as narrow wrappers:
 
 Do not modify the heavy workflow merely to add this layer unless the wrapper approach proves insufficient.
 
+### Run #100 failure and diagnostic contract
+
+Run #100 (`33791580636`), job `100769194852`, commit `6b88a09cbd0ba286ca67c5378257171e17fd2931`, failed at primary step 32, `Stage LibreOffice portable runtime and native unoconvert shim`; steps 1–31 were green. The step executes the byte-for-byte accepted LibreOffice core before the new conversion-font preparer, so do not reopen the accepted LibreOffice implementation without contrary evidence.
+
+Artifact `9908663674` (`12,320` bytes, digest `sha256:15ae6e6230fdb0648222a1ed6c9b7601347430111ac207e6e6d077d807d25c88`) retained the standard bounded startup diagnostics but not the exception emitted by `prepare-conversion-fonts.ps1`. The five pinned Noto Sans CJK `Sans2.004` SHA-256 values were independently rechecked after #100 and remain correct. Do not alter authenticated hashes speculatively.
+
+The next revision instruments only the narrow `prepare-libreoffice.ps1` wrapper. On a conversion-font staging failure it writes `data/logs/conversion-fonts-diagnostic.log` with exception type/message, fully-qualified PowerShell error ID/category, script name/line/offset/source line, position message, stack trace and full formatted error record, then rethrows. The existing bounded startup-diagnostics collector retains package-local `.log` tails. On success the normal final `data/` cleanup removes the diagnostic log before packaging.
+
+Keep `prepare-libreoffice-core.ps1` byte-for-byte unchanged. If the next run fails, inspect `conversion-fonts-diagnostic.log`, establish the line-level cause and make the smallest correction; do not guess, weaken gates or change known-good hashes merely to pass CI.
+
 ### Conversion-font acceptance contract
 
 1. authenticate every CJK font by exact SHA-256;
@@ -240,11 +250,13 @@ Representative E2E must cover Office→PDF and supported PDF→Office, HTML/URL/
 8. publish clean v1 ZIP only when all gates are complete and explicitly authorized;
 9. manual clean-machine Windows 10/11 checklist.
 
-## Current handoff — 2026-09-03
+## Current handoff — 2026-09-04
 
 Accepted/closed: native portable/Tauri containment; Fixed WebView2; qpdf; ImageMagick; Ghostscript; Tesseract; Python 3.12.14 + OCRmyPDF 17.10.0; authenticated Python lock; NumPy 2.5.2; OpenCV `4.14.0.94`; LibreOffice 26.2.5 + native `unoconvert`; Poppler 26.02.0; WeasyPrint 69.0; Calibre 9.14.0; **unpaper 6.1 + pngquant 2.17.0**.
 
 Latest complete green primary: **Run #99** (`33786563784`), job `100752651171`, commit `8d4d3906f6535c5a0e214cf96948e19de0678a23`. ZIP SHA-256 `5AFD552CFDF4DCEF48151470154541694AAFC5E1DD6650E913D2BDBD6D51496F`, size `1,861,405,214`; layout `31,468` files / `4,303,215,732` bytes; evidence artifact `9906859658`.
+
+Failed candidate evidence: **Run #100** (`33791580636`), job `100769194852`, commit `6b88a09cbd0ba286ca67c5378257171e17fd2931`; failed at conversion-font staging after primary steps 1–31 remained green. Standard artifact `9908663674` did not retain the auxiliary exception, so wrapper-level bounded capture is now required.
 
 Active candidate: **package-local conversion fonts**: validate LibreOffice's existing Latin baseline, add only Noto Sans CJK 2.004 Regular regional subsets, prove direct + relocated + real Stirling Office→PDF behavior, then run one complete primary regression.
 
