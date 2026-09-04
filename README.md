@@ -14,7 +14,7 @@
 - Latest complete green primary regression: **Run #99** (`33786563784`), job `100752651171`, commit `8d4d3906f6535c5a0e214cf96948e19de0678a23`.
 - **unpaper 6.1 + pngquant 2.17.0 are formally accepted by Run #99.**
 - Active external-toolchain candidate: **package-local conversion fonts**, focused on the CJK gap not already supplied by the accepted LibreOffice runtime.
-- Run #100 (`33791580636`), job `100769194852`, candidate commit `6b88a09cbd0ba286ca67c5378257171e17fd2931`, failed only when the LibreOffice wrapper entered the new conversion-font staging layer; primary steps 1–31 remained green. Conversion fonts are therefore still a candidate, not accepted.
+- Run #100 (`33791580636`) and Run #101 (`33858332435`, job `100976698570`) both failed at primary step 32 after steps 1–31 were green. Conversion fonts remain a candidate, not accepted.
 
 ## Accepted portable layers
 
@@ -105,17 +105,17 @@ Candidate validation requires:
 
 To minimize regression risk, the accepted LibreOffice prepare/validation implementations are preserved byte-for-byte as `prepare-libreoffice-core.ps1` and `validate-libreoffice-core.ps1`. The original workflow entry filenames become narrow wrappers that run the accepted core and then the conversion-font auxiliary scripts.
 
-### Run #100 — localized staging failure
+### Runs #100–#101 — staging failure localization
 
-Run #100 (`33791580636`), job `100769194852`, commit `6b88a09cbd0ba286ca67c5378257171e17fd2931`, passed all primary steps through packaged Python/OCRmyPDF/NumPy validation and failed at step 32, `Stage LibreOffice portable runtime and native unoconvert shim`. That workflow entry first executes the byte-for-byte accepted LibreOffice preparation core and only then invokes `prepare-conversion-fonts.ps1`, so the failure is localized to the newly added staging path unless later evidence proves otherwise.
+Run #100 (`33791580636`) and Run #101 (`33858332435`, job `100976698570`, commit `da83d4a2129acba6ccafde58d486c5691c1e9d53`) both passed primary steps 1–31 and failed at step 32, `Stage LibreOffice portable runtime and native unoconvert shim`. Run #101 artifact `9931869873`, digest `sha256:a10a233fb55e2f1c24bc119a682a822b98d7b8231beaccb5c21db77a36785584`, retained only the prior OCR auxiliary diagnostic and did not contain `conversion-fonts-diagnostic.log`.
 
-The standard bounded artifact `9908663674` is `12,320` bytes, digest `sha256:15ae6e6230fdb0648222a1ed6c9b7601347430111ac207e6e6d077d807d25c88`, and did not contain the new preparer's stderr. The five pinned Noto Sans CJK 2.004 Regular SHA-256 values were independently rechecked after the failure and remain correct; do not change authenticated hashes merely to make CI pass.
+The accepted LibreOffice preparation identity has now been verified at the Git blob level: current `.github/scripts/prepare-libreoffice-core.ps1` and the `prepare-libreoffice.ps1` that passed complete Run #99 are the exact same blob, SHA `ea79085578b488b7a3f7e4f4aa47d3decefad3da`. Therefore the accepted core is not being edited to chase this failure, and the five authenticated CJK hashes also remain unchanged.
 
-The narrow LibreOffice wrapper now captures only conversion-font preparation failures to `data/logs/conversion-fonts-diagnostic.log`, including exception type/message, PowerShell error ID/category, source script/line/offset, position message, stack trace and formatted error record, then rethrows. Existing bounded failure collection will retain that small log. The accepted `prepare-libreoffice-core.ps1` remains untouched, and no functional gate is weakened.
+The wrapper now writes a phase journal before any core invocation and records `CORE_START`, `CORE_SUCCESS`, `FONTS_START` and `FONTS_SUCCESS`. Both core and font phases have independent guarded exception capture to `data/logs/libreoffice-stage-diagnostic.log`; even if rich diagnostic formatting fails, `data/logs/libreoffice-stage-phase.log` retains the last phase reached. This is a diagnostic-only observability change: no dependency gate, source, hash or accepted core implementation is weakened.
 
 ## Portable architecture
 
-Portable mode activates when `PDF_TUNNER_PORTABLE` exists beside `PDF_Tunner.exe`.
+Portable mode activates when `PDF_TUNNER_PORTABLE` exists beside the executable.
 
 Key package-relative paths:
 
@@ -174,5 +174,6 @@ Representative E2E must cover OCR, Office↔PDF, HTML/URL/base-URL/EML, WeasyPri
 - Latest accepted regression: **Run #99 `33786563784`**, job `100752651171`, commit `8d4d3906f6535c5a0e214cf96948e19de0678a23`.
 - Newly accepted: **unpaper 6.1 + pngquant 2.17.0**.
 - Active candidate: **conversion fonts**, adding only pinned Noto Sans CJK 2.004 Regular regional subsets while retaining and validating LibreOffice's packaged Latin baseline.
-- Failed candidate evidence: **Run #100 `33791580636`**, job `100769194852`, failed at the new LibreOffice-wrapper staging step after steps 1–31 were green; artifact `9908663674` lacked the auxiliary exception, so bounded wrapper-level capture is now enabled.
-- Next useful complete run must expose the exact staging exception if it still fails; if green, conversion fonts can be accepted and work moves to **explicit VeraPDF E2E**.
+- Failed candidate evidence: **Run #101 `33858332435`**, job `100976698570`, failed at step 32 after steps 1–31 were green; artifact `9931869873` lacked the expected font diagnostic.
+- Verified invariant: accepted LibreOffice core blob is still exactly `ea79085578b488b7a3f7e4f4aa47d3decefad3da`, identical to Run #99.
+- Next useful run is diagnostic: its phase journal must identify whether failure is in the accepted core execution path or in the new font preparer; only then apply the smallest functional correction. After fonts: **explicit VeraPDF E2E**.

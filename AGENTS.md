@@ -187,15 +187,15 @@ Keep the existing workflow entry paths as narrow wrappers:
 
 Do not modify the heavy workflow merely to add this layer unless the wrapper approach proves insufficient.
 
-### Run #100 failure and diagnostic contract
+### Runs #100–#101 failure and diagnostic contract
 
-Run #100 (`33791580636`), job `100769194852`, commit `6b88a09cbd0ba286ca67c5378257171e17fd2931`, failed at primary step 32, `Stage LibreOffice portable runtime and native unoconvert shim`; steps 1–31 were green. The step executes the byte-for-byte accepted LibreOffice core before the new conversion-font preparer, so do not reopen the accepted LibreOffice implementation without contrary evidence.
+Run #100 (`33791580636`) and Run #101 (`33858332435`, job `100976698570`, commit `da83d4a2129acba6ccafde58d486c5691c1e9d53`) failed at primary step 32, `Stage LibreOffice portable runtime and native unoconvert shim`; primary steps 1–31 were green in both. Run #101 artifact `9931869873`, digest `sha256:a10a233fb55e2f1c24bc119a682a822b98d7b8231beaccb5c21db77a36785584`, did not contain the expected `conversion-fonts-diagnostic.log` and retained only the previous OCR auxiliary diagnostic.
 
-Artifact `9908663674` (`12,320` bytes, digest `sha256:15ae6e6230fdb0648222a1ed6c9b7601347430111ac207e6e6d077d807d25c88`) retained the standard bounded startup diagnostics but not the exception emitted by `prepare-conversion-fonts.ps1`. The five pinned Noto Sans CJK `Sans2.004` SHA-256 values were independently rechecked after #100 and remain correct. Do not alter authenticated hashes speculatively.
+The accepted core identity has been verified exactly: current `.github/scripts/prepare-libreoffice-core.ps1` and the `.github/scripts/prepare-libreoffice.ps1` used by complete green Run #99 have identical Git blob SHA `ea79085578b488b7a3f7e4f4aa47d3decefad3da`. Therefore do not edit the accepted core without new evidence. The five pinned Noto Sans CJK `Sans2.004` SHA-256 values also remain authenticated and unchanged.
 
-The next revision instruments only the narrow `prepare-libreoffice.ps1` wrapper. On a conversion-font staging failure it writes `data/logs/conversion-fonts-diagnostic.log` with exception type/message, fully-qualified PowerShell error ID/category, script name/line/offset/source line, position message, stack trace and full formatted error record, then rethrows. The existing bounded startup-diagnostics collector retains package-local `.log` tails. On success the normal final `data/` cleanup removes the diagnostic log before packaging.
+The wrapper must now leave an unconditional package-local phase journal before invoking the core. Required markers are `WRAPPER_START`, `CORE_START`, `CORE_SUCCESS`, `FONTS_START`, `FONTS_SUCCESS`. Core and font phases each have guarded exception capture into `data/logs/libreoffice-stage-diagnostic.log`; if rich diagnostic formatting itself fails, `data/logs/libreoffice-stage-phase.log` must still retain the last phase and a minimal diagnostic-write failure marker. This instrumentation is diagnostic-only and must not alter hashes, sources, accepted core behavior or validation gates.
 
-Keep `prepare-libreoffice-core.ps1` byte-for-byte unchanged. If the next run fails, inspect `conversion-fonts-diagnostic.log`, establish the line-level cause and make the smallest correction; do not guess, weaken gates or change known-good hashes merely to pass CI.
+If the next run fails, inspect the phase journal and line-level diagnostic first. Apply the smallest functional correction only after the failing phase/cause is known; do not guess, increase timeouts blindly, weaken gates or change known-good hashes.
 
 ### Conversion-font acceptance contract
 
@@ -256,8 +256,6 @@ Accepted/closed: native portable/Tauri containment; Fixed WebView2; qpdf; ImageM
 
 Latest complete green primary: **Run #99** (`33786563784`), job `100752651171`, commit `8d4d3906f6535c5a0e214cf96948e19de0678a23`. ZIP SHA-256 `5AFD552CFDF4DCEF48151470154541694AAFC5E1DD6650E913D2BDBD6D51496F`, size `1,861,405,214`; layout `31,468` files / `4,303,215,732` bytes; evidence artifact `9906859658`.
 
-Failed candidate evidence: **Run #100** (`33791580636`), job `100769194852`, commit `6b88a09cbd0ba286ca67c5378257171e17fd2931`; failed at conversion-font staging after primary steps 1–31 remained green. Standard artifact `9908663674` did not retain the auxiliary exception, so wrapper-level bounded capture is now required.
+Failed candidate evidence: **Run #101** (`33858332435`), job `100976698570`, commit `da83d4a2129acba6ccafde58d486c5691c1e9d53`; failed at step 32 after primary steps 1–31 remained green. Artifact `9931869873` did not retain the expected conversion-font diagnostic. Accepted LibreOffice core blob remains exactly `ea79085578b488b7a3f7e4f4aa47d3decefad3da`, identical to Run #99.
 
-Active candidate: **package-local conversion fonts**: validate LibreOffice's existing Latin baseline, add only Noto Sans CJK 2.004 Regular regional subsets, prove direct + relocated + real Stirling Office→PDF behavior, then run one complete primary regression.
-
-Next after fonts: **explicit VeraPDF E2E**.
+Active candidate: **package-local conversion fonts**. Next run is diagnostic-only at the wrapper boundary: identify `CORE_*` versus `FONTS_*` phase, capture exact exception, then apply the smallest functional correction. Once fonts are accepted, proceed to **explicit VeraPDF E2E**.
