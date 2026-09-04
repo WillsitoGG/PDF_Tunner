@@ -11,10 +11,9 @@
 - Target: **Windows 10/11 x64 portable ZIP**, extract and run without installation.
 - `main` remains the clean pinned upstream base during v1 development.
 - No final PDF_Tunner v1 Release exists yet.
-- Latest complete green primary regression: **Run #99** (`33786563784`), job `100752651171`, commit `8d4d3906f6535c5a0e214cf96948e19de0678a23`.
-- **unpaper 6.1 + pngquant 2.17.0 are formally accepted by Run #99.**
-- Active external-toolchain candidate: **package-local conversion fonts**, focused on the CJK gap while preserving LibreOffice's authenticated Windows font payload.
-- Run #102 (`33861701712`), job `100987374348`, commit `05c5121e197fd43a25b70d8c25ceed3d1141357d`, passed primary steps 1–31 and then proved `CORE_SUCCESS` followed by `FONTS_FAILURE`: the MSI font payload had not been preserved under `tools/libreoffice/share/fonts/truetype`. Conversion fonts remain a candidate, not accepted.
+- Latest complete green primary regression: **Run #103** (`33896293861`), job `101099606785`, commit `1a0ad7b216d2b70b4bff0e4b8c9394b5d666797f`.
+- **Package-local conversion fonts are formally accepted by Run #103.**
+- Active candidate: **embedded VeraPDF 1.30.2 E2E**, using the real portable backend rather than adding another external executable.
 
 ## Accepted portable layers
 
@@ -33,51 +32,26 @@
 | NumPy | `2.5.2`; Run #90 `33530454097` |
 | OpenCV | `opencv-python-headless 4.14.0.94`, runtime/core `4.14.0`, real `split_photos.py`; Run #92 `33557169326` |
 | WeasyPrint | official Windows `69.0`, package-relative shim, real HTML→PDF + Markdown→PDF; Run #95 `33695530172` |
-| Calibre | official Windows x64 `9.14.0`, package-relative `ebook-convert`, real PDF↔eBook routes; Run #96 `33748509811` |
-| **OCRmyPDF auxiliaries** | **unpaper `6.1` + pngquant `2.17.0`; Run #99 `33786563784`** |
+| Calibre | official Windows x64 `9.14.0`, package-relative `ebook-convert`; Run #96 `33748509811` |
+| OCRmyPDF auxiliaries | unpaper `6.1` + pngquant `2.17.0`; Run #99 `33786563784` |
+| **Conversion fonts** | LibreOffice MSI Latin baseline + pinned Noto Sans CJK `Sans2.004` Regular regional subsets; **Run #103 `33896293861`** |
 
-## Latest acceptance — unpaper 6.1 + pngquant 2.17.0
+## Previously accepted milestone — unpaper 6.1 + pngquant 2.17.0
 
-Pinned Stirling 2.14.3 installs `unpaper` and `pngquant` in its standard runtime image. Their Windows portable behavior is mediated through the already accepted OCRmyPDF `17.10.0` runtime:
+Complete primary Run #99 (`33786563784`), job `100752651171`, commit `8d4d3906f6535c5a0e214cf96948e19de0678a23`, passed every primary step and formally accepted:
 
-- `unpaper` is used by OCRmyPDF for `--clean` / `--clean-final`;
-- `pngquant` is used by OCRmyPDF optimization levels 2 and 3;
-- OCRmyPDF probes literal commands on `PATH` and has no minimum-version gate for either utility.
+- unpaper `6.1` Windows x86_64 community build, archive SHA-256 `a760fa1fb5a076c7dad24c643aaec5330473ab03fbf6ede50e124978d840ee65`;
+- pngquant `2.17.0` official pngquant.org Windows archive, SHA-256 `bd0257aeeccfe446a4cd764927e26f8af6051796f28abed104307284107b120d`.
 
-Accepted payloads:
+Run #99 ZIP evidence: size `1,861,405,214` bytes, SHA-256 `5AFD552CFDF4DCEF48151470154541694AAFC5E1DD6650E913D2BDBD6D51496F`, layout `31,468` files / `4,303,215,732` payload bytes. The multi-gigabyte ZIP was not uploaded.
 
-- **unpaper 6.1 Windows x86_64 community build** from `rodrigost23/unpaper`; archive SHA-256 `a760fa1fb5a076c7dad24c643aaec5330473ab03fbf6ede50e124978d840ee65`;
-- **pngquant 2.17.0** from the official `https://pngquant.org/pngquant-windows.zip`; archive SHA-256 `bd0257aeeccfe446a4cd764927e26f8af6051796f28abed104307284107b120d`. The authenticated executable self-reports `2.17.0 (September 2021)`.
+## Latest acceptance — package-local conversion fonts
 
-Runs #97 and #98 were diagnostic failures. #98 proved the candidate had incorrectly labelled the authenticated pngquant payload as 3.0.3. The version expectation was corrected without weakening archive authentication, AMD64 identity, package-first resolution, OCRmyPDF ToolProbe, real wrapper execution, `--clean --clean-final`, or relocation tests.
+Pinned Stirling 2.14.3 installs DejaVu, Liberation, Carlito/Caladea, Noto and Noto CJK fonts in its Linux runtime. For Windows, the authenticated official LibreOffice 26.2.5 MSI contains the important Latin/Office baseline as a separate MSI `Fonts` payload because a normal installation targets the Windows font store.
 
-**Complete primary Run #99 (`33786563784`), job `100752651171`, commit `8d4d3906f6535c5a0e214cf96948e19de0678a23`, passed every primary step and formally accepts unpaper 6.1 + pngquant 2.17.0.**
+Runs #100 and #101 failed at primary step 32 without enough detail. Run #102 (`33861701712`), job `100987374348`, commit `05c5121e197fd43a25b70d8c25ceed3d1141357d`, retained bounded phase evidence proving `CORE_SUCCESS` followed by `FONTS_FAILURE`: `tools/libreoffice/share/fonts/truetype` did not exist after the administrative extraction.
 
-Run #99 evidence:
-
-- ZIP: `PDF_Tunner-2.14.3-bootstrap-Windows-x64-Portable.zip`
-- ZIP size: `1,861,405,214` bytes
-- ZIP SHA-256: `5AFD552CFDF4DCEF48151470154541694AAFC5E1DD6650E913D2BDBD6D51496F`
-- portable layout: `31,468` files / `4,303,215,732` payload bytes
-- lightweight artifact: `9906859658`
-- artifact contains provenance with `UNPAPER_VERSION=6.1` and `PNGQUANT_VERSION=2.17.0`
-- the multi-gigabyte ZIP itself was not uploaded, by design.
-
-## Active candidate — package-local conversion fonts
-
-Pinned Stirling 2.14.3 installs the following Linux font packages in its normal runtime image:
-
-- DejaVu;
-- Liberation 2;
-- Carlito and Caladea;
-- Noto core / mono / extra;
-- Noto CJK;
-- GNU FreeFont;
-- Terminus.
-
-The same Dockerfile later removes non-Regular Noto weights to save roughly 370 MB. The authenticated official LibreOffice 26.2.5 Windows MSI carries the important Latin/Office conversion baseline, including Carlito, Caladea, DejaVu and Liberation families. On Windows those fonts are a separate MSI `Fonts` payload because a normal installation targets the Windows font store; an administrative extraction therefore does not place them under the LibreOffice install root automatically.
-
-PDF_Tunner preserves that same authenticated MSI font payload inside `tools/libreoffice/share/fonts/truetype/` for portable use, then adds only five regular regional Noto Sans CJK subsets from the pinned upstream `notofonts/noto-cjk` tag **`Sans2.004`**:
+The correction in commit `1a0ad7b216d2b70b4bff0e4b8c9394b5d666797f` preserves the same authenticated MSI `Fonts` payload under `tools/libreoffice/share/fonts/truetype` while keeping the LibreOffice URL/SHA, launcher strategy and all validation gates unchanged. It then adds only the five pinned Noto Sans CJK `Sans2.004` Regular regional subsets:
 
 | Family | File | SHA-256 |
 | --- | --- | --- |
@@ -87,31 +61,36 @@ PDF_Tunner preserves that same authenticated MSI font payload inside `tools/libr
 | Noto Sans JP | `NotoSansJP-Regular.otf` | `dff723ba59d57d136764a04b9b2d03205544f7cd785a711442d6d2d085ac5073` |
 | Noto Sans KR | `NotoSansKR-Regular.otf` | `69975a0ac8472717870aefeab0a4d52739308d90856b9955313b2ad5e0148d68` |
 
-The CJK files are staged into the same package-local font directory and retain their exact SHA-256 authentication. Metadata remains under `tools/fonts/`.
+**Complete Run #103 passed every primary step**, including direct LibreOffice DOCX→PDF, Poppler font/text proof, relocation, the real Stirling Office→PDF route, startup/containment, final layout and ZIP creation. This formally accepts conversion fonts.
 
-Candidate validation requires:
+Run #103 evidence:
 
-1. exact SHA-256 for every downloaded CJK font;
-2. proof that LibreOffice's MSI-supplied Carlito/Caladea/DejaVu/Liberation baseline is physically package-local before adding anything;
-3. no matching CJK font files in Windows system/user font directories during the gate;
-4. direct package-local LibreOffice DOCX→PDF with SC/TC/HK/JP/KR text;
-5. package-local Poppler `pdffonts` proof that all requested CJK families and Latin baseline are embedded;
-6. package-local `pdftotext` proof that the CJK text survives conversion;
-7. relocation to normal Windows paths containing spaces;
-8. when the backend is live, the real Stirling Office→PDF API route must preserve the same CJK font/text contract;
-9. all previously accepted gates remain enabled.
+- run `33896293861`, job `101099606785`, commit `1a0ad7b216d2b70b4bff0e4b8c9394b5d666797f`;
+- ZIP name `PDF_Tunner-2.14.3-bootstrap-Windows-x64-Portable.zip`;
+- ZIP size `1,909,704,241` bytes;
+- ZIP SHA-256 `26F9CE12AB4A949F0FB0BBEE503F630AFF7D457D2EBB6AB990E57DC78B57FE00`;
+- portable layout `31,611` files / `4,387,634,585` payload bytes;
+- lightweight artifact `9947175939`, size `7,580` bytes, digest `sha256:4ab2522e4baa8a3de6fcbe421191a31f81274d3940112e8c7d7785e8be19c963`;
+- the multi-gigabyte ZIP itself was not uploaded.
 
-`fonts-freefont-ttf` and `fonts-terminus` are present in Stirling's Linux Docker dependency list but are not named by a Stirling source dependency probe or feature gate. They remain documented Linux fallback packages rather than a justification for copying the whole Linux font stack into Windows. The candidate is deliberately tested on real document conversion rather than inferred from package names.
+## Active candidate — embedded VeraPDF 1.30.2 E2E
 
-The accepted LibreOffice validation implementation remains isolated as `validate-libreoffice-core.ps1`, with the existing workflow entry wrapper running that core plus the conversion-font validation. Run #102 supplies the contrary evidence required to make one narrow additive change to preparation: preserve the already authenticated MSI `Fonts` payload during the same administrative extraction. No dependency URL, MSI SHA-256, launcher behavior, validation gate or CJK hash is changed.
+VeraPDF is **not an external executable dependency** in this Stirling base. `app/core/build.gradle` embeds `org.verapdf:validation-model:1.30.2` in the application, and the desktop JRE explicitly includes `jdk.dynalink`, required by VeraPDF at runtime.
 
-### Runs #100–#102 — exact staging diagnosis and correction
+The candidate adds `.github/scripts/validate-verapdf.ps1` and invokes it only during the existing live-backend validation path. The gate must:
 
-Run #100 (`33791580636`) and Run #101 (`33858332435`, job `100976698570`) both passed primary steps 1–31 and failed at step 32 without enough conversion-font detail. Commit `05c5121e197fd43a25b70d8c25ceed3d1141357d` therefore added only bounded CORE/FONTS phase journaling.
+1. confirm the pinned source still declares `validation-model:1.30.2`;
+2. prove the bundled JRE exposes `jdk.dynalink`;
+3. use the real portable backend with its package-first PATH;
+4. convert `test_globalsign.pdf` through `/api/v1/convert/pdf/pdfa` to `pdfa-2b`;
+5. submit that generated PDF/A to `/api/v1/security/verify-pdf`;
+6. require a declared PDF/A result, `compliant=true`, zero failures and PDF/A-2b identity;
+7. require backend logs to prove `VeraPDF Greenfield initialized successfully` and completion of the real verification controller;
+8. preserve every previously accepted gate, final cleanup and lightweight artifact policy.
 
-Run #102 (`33861701712`), job `100987374348`, then proved the split unambiguously. The lightweight diagnostic artifact `9933118561` records `CORE_SUCCESS`, then `FONTS_FAILURE`; `prepare-conversion-fonts.ps1` line 28 failed because `tools\libreoffice\share\fonts\truetype` did not exist. The five authenticated Noto CJK hashes were not reached and are not implicated.
+No additional VeraPDF binary, runtime download or package payload is added to the portable ZIP.
 
-The correction preserves the Windows MSI's separate `Fonts` payload while the authenticated MSI is already administratively extracted, staging its TTF/OTF files under `tools/libreoffice/share/fonts/truetype`. The resulting preparation-core blob is `09ac0286a77b2933f22ca376e8319515323d8af7`; the wrapper journal records that identity. This change is **pending acceptance** until one complete primary workflow is green.
+**Do not call VeraPDF E2E accepted until one complete primary workflow is green with this gate enabled.**
 
 ## Portable architecture
 
@@ -119,19 +98,19 @@ Portable mode activates when `PDF_TUNNER_PORTABLE` exists beside the executable.
 
 Key package-relative paths:
 
-- backend config/logs/working state → `data/`
-- Java temp → `data/tmp/`
-- WebView2 profile → `data/webview2/`
-- Tauri logs/store/cookies/window state → `data/tauri/...`
-- ImageMagick → `tools/imagemagick/`
-- Tesseract → `tools/tesseract/`, models → `tools/tesseract/tessdata/`
-- Python/OCRmyPDF/NumPy/OpenCV → `tools/python/`
-- LibreOffice → `tools/libreoffice/`; `unoconvert.exe` → `tools/bin/`
-- conversion fonts → `tools/libreoffice/share/fonts/truetype/`; provenance → `tools/fonts/`
-- Poppler → `tools/poppler/Library/bin/`
-- WeasyPrint → `tools/weasyprint/`; literal shim → `tools/bin/weasyprint.exe`
-- Calibre → `tools/calibre/`; literal launcher → `tools/bin/ebook-convert.exe`
-- OCRmyPDF auxiliaries → `tools/bin/unpaper.exe` + sibling DLLs and `tools/bin/pngquant.exe`
+- backend config/logs/working state → `data/`;
+- Java temp → `data/tmp/`;
+- WebView2 profile → `data/webview2/`;
+- Tauri logs/store/cookies/window state → `data/tauri/...`;
+- ImageMagick → `tools/imagemagick/`;
+- Tesseract → `tools/tesseract/`, models → `tools/tesseract/tessdata/`;
+- Python/OCRmyPDF/NumPy/OpenCV → `tools/python/`;
+- LibreOffice → `tools/libreoffice/`; `unoconvert.exe` → `tools/bin/`;
+- conversion fonts → `tools/libreoffice/share/fonts/truetype/`; provenance → `tools/fonts/`;
+- Poppler → `tools/poppler/Library/bin/`;
+- WeasyPrint → `tools/weasyprint/`; shim → `tools/bin/weasyprint.exe`;
+- Calibre → `tools/calibre/`; launcher → `tools/bin/ebook-convert.exe`;
+- OCRmyPDF auxiliaries → `tools/bin/unpaper.exe` + sibling DLLs and `tools/bin/pngquant.exe`.
 
 Portable mode skips runtime `pdf-tunner://` protocol registration. Primary CI rejects new tracked host AppData/TEMP/registry state and package-local orphan processes.
 
@@ -139,23 +118,22 @@ Portable mode skips runtime `pdf-tunner://` protocol registration. Primary CI re
 
 Primary workflow: `.github/workflows/pdf-tunner-windows-portable.yml`.
 
-A dependency is accepted only when the **complete current primary workflow** is green with every earlier accepted gate enabled. Version output alone is never sufficient: validate source/hash, package-first isolation, real operation, relocation where practical, backend behavior where applicable, state/process containment and the final assembled package.
+A dependency or functional layer is accepted only when the **complete current primary workflow** is green with every earlier accepted gate enabled. Version output alone is never sufficient: validate source/hash or embedded identity, package-first isolation, real operation, relocation where practical, backend behavior where applicable, state/process containment and the final assembled package.
 
 Heavy CI uses branch-scoped concurrency with `cancel-in-progress: true`. Do not launch redundant complete regressions. Ordinary CI builds and validates the portable ZIP but uploads only lightweight evidence; the multi-gigabyte ZIP itself is reserved for the final Release after all v1 gates and explicit user authorization.
 
 ## Remaining v1 roadmap
 
-### A. External toolchain
+### A. External toolchain / embedded runtime parity
 
-1. **conversion fonts** — active candidate;
-2. explicit VeraPDF E2E;
-3. investigate/build/package `jbig2enc` if technically viable;
-4. viable portable RAR/CBR support or a concrete documented limitation;
-5. any further exact dependency exposed by the pinned-source parity audit.
+1. **embedded VeraPDF E2E** — active candidate;
+2. investigate/build/package `jbig2enc` if technically viable;
+3. viable portable RAR/CBR support or a concrete documented limitation;
+4. any further exact dependency exposed by the pinned-source parity audit.
 
 ### B. Functional validation
 
-Representative E2E must cover OCR, Office↔PDF, HTML/URL/base-URL/EML, WeasyPrint, Poppler, Calibre/eBook, Python/NumPy/OpenCV, qpdf/Ghostscript/ImageMagick/Tesseract/OCRmyPDF, conversion fonts, and RAR/CBR or jbig2enc if integrated. Tests must prove runner-installed software is not satisfying package gates.
+Representative E2E must cover OCR, Office↔PDF, HTML/URL/base-URL/EML, WeasyPrint, Poppler, Calibre/eBook, Python/NumPy/OpenCV, qpdf/Ghostscript/ImageMagick/Tesseract/OCRmyPDF, conversion fonts, VeraPDF, and RAR/CBR or jbig2enc if integrated. Tests must prove runner-installed software is not satisfying package gates.
 
 ### C. Release readiness
 
@@ -171,9 +149,9 @@ Representative E2E must cover OCR, Office↔PDF, HTML/URL/base-URL/EML, WeasyPri
 
 ## Compact handoff
 
-- Latest accepted regression: **Run #99 `33786563784`**, job `100752651171`, commit `8d4d3906f6535c5a0e214cf96948e19de0678a23`.
-- Newly accepted: **unpaper 6.1 + pngquant 2.17.0**.
-- Active candidate: **conversion fonts**, preserving LibreOffice's authenticated MSI `Fonts` payload package-locally and adding only pinned Noto Sans CJK 2.004 Regular regional subsets.
-- Exact failed-candidate evidence: **Run #102 `33861701712`**, job `100987374348`, commit `05c5121e197fd43a25b70d8c25ceed3d1141357d`; `CORE_SUCCESS` then `FONTS_FAILURE` because the MSI `Fonts` payload had not been copied into `share/fonts/truetype`; lightweight artifact `9933118561`.
-- Functional correction: preparation-core blob `09ac0286a77b2933f22ca376e8319515323d8af7` preserves that authenticated MSI font payload without changing source/hash/gates. It is not accepted until the complete primary workflow is green.
-- Next after fonts: **explicit VeraPDF E2E**.
+- Latest complete green primary: **Run #103 `33896293861`**, job `101099606785`, commit `1a0ad7b216d2b70b4bff0e4b8c9394b5d666797f`.
+- Newly accepted: **package-local conversion fonts**.
+- Run #103 ZIP SHA-256: `26F9CE12AB4A949F0FB0BBEE503F630AFF7D457D2EBB6AB990E57DC78B57FE00`; size `1,909,704,241`; layout `31,611` files / `4,387,634,585` bytes; lightweight artifact `9947175939` digest `sha256:4ab2522e4baa8a3de6fcbe421191a31f81274d3940112e8c7d7785e8be19c963`.
+- Active candidate: **embedded VeraPDF 1.30.2 E2E**, no extra runtime payload; real PDF→PDF/A-2b→`verify-pdf` chain against the portable backend.
+- Next after VeraPDF: **`jbig2enc` feasibility/integration**.
+- No final Release has been published.

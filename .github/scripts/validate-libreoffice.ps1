@@ -13,9 +13,10 @@ Set-StrictMode -Version Latest
 
 $core = Join-Path $PSScriptRoot 'validate-libreoffice-core.ps1'
 $fonts = Join-Path $PSScriptRoot 'validate-conversion-fonts.ps1'
-foreach ($requiredScript in @($core, $fonts)) {
+$veraPdf = Join-Path $PSScriptRoot 'validate-verapdf.ps1'
+foreach ($requiredScript in @($core, $fonts, $veraPdf)) {
     if (-not (Test-Path -LiteralPath $requiredScript -PathType Leaf)) {
-        throw "Required PDF_Tunner LibreOffice validation script is missing: $requiredScript"
+        throw "Required PDF_Tunner LibreOffice/VeraPDF validation script is missing: $requiredScript"
     }
 }
 
@@ -27,3 +28,16 @@ foreach ($key in $PSBoundParameters.Keys) { $coreParams[$key] = $PSBoundParamete
     -BackendBaseUrl $BackendBaseUrl `
     -BackendLogRoot $BackendLogRoot `
     -RequireRelocation:$RequireRelocation
+
+# VeraPDF is embedded in app.jar rather than staged as an external executable.
+# Exercise it only in the live-backend invocation of this wrapper; standalone
+# LibreOffice validation remains independent of a running application.
+if (-not [string]::IsNullOrWhiteSpace($BackendBaseUrl)) {
+    if ([string]::IsNullOrWhiteSpace($BackendLogRoot)) {
+        throw 'BackendLogRoot is required when running the embedded VeraPDF E2E gate.'
+    }
+    & $veraPdf `
+        -PortableRoot $PortableRoot `
+        -BackendBaseUrl $BackendBaseUrl `
+        -BackendLogRoot $BackendLogRoot
+}
