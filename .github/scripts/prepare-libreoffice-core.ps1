@@ -46,6 +46,34 @@ try {
     New-Item -ItemType Directory -Force -Path $libreOfficeRoot | Out-Null
     Get-ChildItem -LiteralPath $installRoot -Force | Copy-Item -Destination $libreOfficeRoot -Recurse -Force
 
+    # The Windows MSI carries its bundled fonts as a separate Fonts payload because
+    # a normal installation targets the Windows font store. Administrative extraction
+    # therefore leaves that payload outside the LibreOffice install root. Preserve it
+    # explicitly in LibreOffice's package-local font directory for the portable build.
+    $fontPayloadCandidates = @(Get-ChildItem -LiteralPath $administrativeRoot -Recurse -Force -Directory |
+        Where-Object { $_.Name -ieq 'Fonts' })
+    $fontPayloadRoot = $null
+    $fontPayloadFiles = @()
+    foreach ($candidate in $fontPayloadCandidates) {
+        $candidateFiles = @(Get-ChildItem -LiteralPath $candidate.FullName -Recurse -Force -File |
+            Where-Object { $_.Extension -in @('.ttf', '.otf') })
+        if ($candidateFiles.Count -gt $fontPayloadFiles.Count) {
+            $fontPayloadRoot = $candidate.FullName
+            $fontPayloadFiles = $candidateFiles
+        }
+    }
+    if (-not $fontPayloadRoot -or $fontPayloadFiles.Count -eq 0) {
+        $candidateSummary = if ($fontPayloadCandidates.Count -eq 0) { '<none>' } else { ($fontPayloadCandidates.FullName -join '; ') }
+        throw "LibreOffice MSI administrative extraction did not expose a usable Fonts payload. Candidates: $candidateSummary"
+    }
+
+    $libreFontRoot = Join-Path $libreOfficeRoot 'share\fonts\truetype'
+    New-Item -ItemType Directory -Force -Path $libreFontRoot | Out-Null
+    foreach ($fontFile in $fontPayloadFiles) {
+        Copy-Item -LiteralPath $fontFile.FullName -Destination (Join-Path $libreFontRoot $fontFile.Name) -Force
+    }
+    Write-Host "Staged $($fontPayloadFiles.Count) LibreOffice MSI font files from '$fontPayloadRoot' into '$libreFontRoot'."
+
     $sofficeCom = Join-Path $libreOfficeRoot 'program\soffice.com'
     $sofficeExe = Join-Path $libreOfficeRoot 'program\soffice.exe'
     foreach ($path in @($sofficeCom, $sofficeExe)) {
@@ -70,6 +98,7 @@ try {
         "LIBREOFFICE_MSI_URL=$LibreOfficeMsiUrl",
         "LIBREOFFICE_MSI_SHA256=$msiHash",
         'EXTRACTION_MODE=MSI administrative extraction; LibreOffice is not installed on the runner',
+        "BUNDLED_FONT_SOURCE=MSI Fonts payload ($($fontPayloadFiles.Count) TTF/OTF files); staged package-locally under share/fonts/truetype",
         'UNOCONVERT_STRATEGY=tools/bin/unoconvert.exe package-relative native CLI compatibility shim -> tools/libreoffice/program/soffice.com (fallback soffice.exe)',
         'PATH_ORDER=tools/bin before tools/libreoffice/program before host PATH'
     )

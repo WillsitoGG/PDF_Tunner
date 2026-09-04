@@ -25,7 +25,7 @@ New-Item -ItemType Directory -Force -Path $logRoot | Out-Null
 Set-Content -LiteralPath $phaseLog -Encoding ascii -Value @(
     "UTC=$([DateTime]::UtcNow.ToString('o'))",
     'PHASE=WRAPPER_START',
-    "CORE_BLOB_EXPECTED=ea79085578b488b7a3f7e4f4aa47d3decefad3da"
+    "CORE_BLOB_EXPECTED=09ac0286a77b2933f22ca376e8319515323d8af7"
 )
 
 function Add-PhaseMarker {

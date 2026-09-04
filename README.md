@@ -13,8 +13,8 @@
 - No final PDF_Tunner v1 Release exists yet.
 - Latest complete green primary regression: **Run #99** (`33786563784`), job `100752651171`, commit `8d4d3906f6535c5a0e214cf96948e19de0678a23`.
 - **unpaper 6.1 + pngquant 2.17.0 are formally accepted by Run #99.**
-- Active external-toolchain candidate: **package-local conversion fonts**, focused on the CJK gap not already supplied by the accepted LibreOffice runtime.
-- Run #100 (`33791580636`) and Run #101 (`33858332435`, job `100976698570`) both failed at primary step 32 after steps 1–31 were green. Conversion fonts remain a candidate, not accepted.
+- Active external-toolchain candidate: **package-local conversion fonts**, focused on the CJK gap while preserving LibreOffice's authenticated Windows font payload.
+- Run #102 (`33861701712`), job `100987374348`, commit `05c5121e197fd43a25b70d8c25ceed3d1141357d`, passed primary steps 1–31 and then proved `CORE_SUCCESS` followed by `FONTS_FAILURE`: the MSI font payload had not been preserved under `tools/libreoffice/share/fonts/truetype`. Conversion fonts remain a candidate, not accepted.
 
 ## Accepted portable layers
 
@@ -75,9 +75,9 @@ Pinned Stirling 2.14.3 installs the following Linux font packages in its normal 
 - GNU FreeFont;
 - Terminus.
 
-The same Dockerfile later removes non-Regular Noto weights to save roughly 370 MB. The accepted official LibreOffice 26.2.5 Windows runtime already ships its own conversion-font baseline, including Carlito, Caladea, DejaVu and Liberation families. LibreOffice's own source notes that it does not have bundled CJK fonts for its CJK tests, so the Windows portable gap is CJK rather than the complete Linux font stack.
+The same Dockerfile later removes non-Regular Noto weights to save roughly 370 MB. The authenticated official LibreOffice 26.2.5 Windows MSI carries the important Latin/Office conversion baseline, including Carlito, Caladea, DejaVu and Liberation families. On Windows those fonts are a separate MSI `Fonts` payload because a normal installation targets the Windows font store; an administrative extraction therefore does not place them under the LibreOffice install root automatically.
 
-PDF_Tunner therefore keeps the accepted LibreOffice payload and adds only five regular regional Noto Sans CJK subsets from the pinned upstream `notofonts/noto-cjk` tag **`Sans2.004`**:
+PDF_Tunner preserves that same authenticated MSI font payload inside `tools/libreoffice/share/fonts/truetype/` for portable use, then adds only five regular regional Noto Sans CJK subsets from the pinned upstream `notofonts/noto-cjk` tag **`Sans2.004`**:
 
 | Family | File | SHA-256 |
 | --- | --- | --- |
@@ -87,12 +87,12 @@ PDF_Tunner therefore keeps the accepted LibreOffice payload and adds only five r
 | Noto Sans JP | `NotoSansJP-Regular.otf` | `dff723ba59d57d136764a04b9b2d03205544f7cd785a711442d6d2d085ac5073` |
 | Noto Sans KR | `NotoSansKR-Regular.otf` | `69975a0ac8472717870aefeab0a4d52739308d90856b9955313b2ad5e0148d68` |
 
-They are staged directly into `tools/libreoffice/share/fonts/truetype/`, so LibreOffice sees them from the portable tree without host installation. Metadata is kept under `tools/fonts/`.
+The CJK files are staged into the same package-local font directory and retain their exact SHA-256 authentication. Metadata remains under `tools/fonts/`.
 
 Candidate validation requires:
 
 1. exact SHA-256 for every downloaded CJK font;
-2. proof that LibreOffice's packaged Carlito/Caladea/DejaVu/Liberation baseline is present before adding anything;
+2. proof that LibreOffice's MSI-supplied Carlito/Caladea/DejaVu/Liberation baseline is physically package-local before adding anything;
 3. no matching CJK font files in Windows system/user font directories during the gate;
 4. direct package-local LibreOffice DOCX→PDF with SC/TC/HK/JP/KR text;
 5. package-local Poppler `pdffonts` proof that all requested CJK families and Latin baseline are embedded;
@@ -103,15 +103,15 @@ Candidate validation requires:
 
 `fonts-freefont-ttf` and `fonts-terminus` are present in Stirling's Linux Docker dependency list but are not named by a Stirling source dependency probe or feature gate. They remain documented Linux fallback packages rather than a justification for copying the whole Linux font stack into Windows. The candidate is deliberately tested on real document conversion rather than inferred from package names.
 
-To minimize regression risk, the accepted LibreOffice prepare/validation implementations are preserved byte-for-byte as `prepare-libreoffice-core.ps1` and `validate-libreoffice-core.ps1`. The original workflow entry filenames become narrow wrappers that run the accepted core and then the conversion-font auxiliary scripts.
+The accepted LibreOffice validation implementation remains isolated as `validate-libreoffice-core.ps1`, with the existing workflow entry wrapper running that core plus the conversion-font validation. Run #102 supplies the contrary evidence required to make one narrow additive change to preparation: preserve the already authenticated MSI `Fonts` payload during the same administrative extraction. No dependency URL, MSI SHA-256, launcher behavior, validation gate or CJK hash is changed.
 
-### Runs #100–#101 — staging failure localization
+### Runs #100–#102 — exact staging diagnosis and correction
 
-Run #100 (`33791580636`) and Run #101 (`33858332435`, job `100976698570`, commit `da83d4a2129acba6ccafde58d486c5691c1e9d53`) both passed primary steps 1–31 and failed at step 32, `Stage LibreOffice portable runtime and native unoconvert shim`. Run #101 artifact `9931869873`, digest `sha256:a10a233fb55e2f1c24bc119a682a822b98d7b8231beaccb5c21db77a36785584`, retained only the prior OCR auxiliary diagnostic and did not contain `conversion-fonts-diagnostic.log`.
+Run #100 (`33791580636`) and Run #101 (`33858332435`, job `100976698570`) both passed primary steps 1–31 and failed at step 32 without enough conversion-font detail. Commit `05c5121e197fd43a25b70d8c25ceed3d1141357d` therefore added only bounded CORE/FONTS phase journaling.
 
-The accepted LibreOffice preparation identity has now been verified at the Git blob level: current `.github/scripts/prepare-libreoffice-core.ps1` and the `prepare-libreoffice.ps1` that passed complete Run #99 are the exact same blob, SHA `ea79085578b488b7a3f7e4f4aa47d3decefad3da`. Therefore the accepted core is not being edited to chase this failure, and the five authenticated CJK hashes also remain unchanged.
+Run #102 (`33861701712`), job `100987374348`, then proved the split unambiguously. The lightweight diagnostic artifact `9933118561` records `CORE_SUCCESS`, then `FONTS_FAILURE`; `prepare-conversion-fonts.ps1` line 28 failed because `tools\libreoffice\share\fonts\truetype` did not exist. The five authenticated Noto CJK hashes were not reached and are not implicated.
 
-The wrapper now writes a phase journal before any core invocation and records `CORE_START`, `CORE_SUCCESS`, `FONTS_START` and `FONTS_SUCCESS`. Both core and font phases have independent guarded exception capture to `data/logs/libreoffice-stage-diagnostic.log`; even if rich diagnostic formatting fails, `data/logs/libreoffice-stage-phase.log` retains the last phase reached. This is a diagnostic-only observability change: no dependency gate, source, hash or accepted core implementation is weakened.
+The correction preserves the Windows MSI's separate `Fonts` payload while the authenticated MSI is already administratively extracted, staging its TTF/OTF files under `tools/libreoffice/share/fonts/truetype`. The resulting preparation-core blob is `09ac0286a77b2933f22ca376e8319515323d8af7`; the wrapper journal records that identity. This change is **pending acceptance** until one complete primary workflow is green.
 
 ## Portable architecture
 
@@ -173,7 +173,7 @@ Representative E2E must cover OCR, Office↔PDF, HTML/URL/base-URL/EML, WeasyPri
 
 - Latest accepted regression: **Run #99 `33786563784`**, job `100752651171`, commit `8d4d3906f6535c5a0e214cf96948e19de0678a23`.
 - Newly accepted: **unpaper 6.1 + pngquant 2.17.0**.
-- Active candidate: **conversion fonts**, adding only pinned Noto Sans CJK 2.004 Regular regional subsets while retaining and validating LibreOffice's packaged Latin baseline.
-- Failed candidate evidence: **Run #101 `33858332435`**, job `100976698570`, failed at step 32 after steps 1–31 were green; artifact `9931869873` lacked the expected font diagnostic.
-- Verified invariant: accepted LibreOffice core blob is still exactly `ea79085578b488b7a3f7e4f4aa47d3decefad3da`, identical to Run #99.
-- Next useful run is diagnostic: its phase journal must identify whether failure is in the accepted core execution path or in the new font preparer; only then apply the smallest functional correction. After fonts: **explicit VeraPDF E2E**.
+- Active candidate: **conversion fonts**, preserving LibreOffice's authenticated MSI `Fonts` payload package-locally and adding only pinned Noto Sans CJK 2.004 Regular regional subsets.
+- Exact failed-candidate evidence: **Run #102 `33861701712`**, job `100987374348`, commit `05c5121e197fd43a25b70d8c25ceed3d1141357d`; `CORE_SUCCESS` then `FONTS_FAILURE` because the MSI `Fonts` payload had not been copied into `share/fonts/truetype`; lightweight artifact `9933118561`.
+- Functional correction: preparation-core blob `09ac0286a77b2933f22ca376e8319515323d8af7` preserves that authenticated MSI font payload without changing source/hash/gates. It is not accepted until the complete primary workflow is green.
+- Next after fonts: **explicit VeraPDF E2E**.
