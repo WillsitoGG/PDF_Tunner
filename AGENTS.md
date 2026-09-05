@@ -143,19 +143,34 @@ VeraPDF is embedded in Stirling's Java application, not staged as an external ex
 
 Implementation contract:
 
-- add `.github/scripts/validate-verapdf.ps1`;
+- keep `.github/scripts/validate-verapdf.ps1` as a live-backend functional gate;
 - keep standalone LibreOffice validation independent of a running app;
 - invoke VeraPDF E2E only from the live-backend invocation of `validate-libreoffice.ps1` so the existing heavy workflow does not gain redundant staging/download steps;
 - prove the source still pins VeraPDF `1.30.2`;
 - prove package-local Java `--list-modules` contains `jdk.dynalink`;
-- convert `test_globalsign.pdf` using real `/api/v1/convert/pdf/pdfa` with `outputFormat=pdfa-2b`;
+- generate the input PDF deterministically inside the package-local temporary tree; do not rely on the misleading upstream `test_globalsign.pdf` fixture;
+- require that generated fixture to expose `%PDF-`, `xref`, `startxref` and `%%EOF` before it is posted;
+- convert the fixture using real `/api/v1/convert/pdf/pdfa` with `outputFormat=pdfa-2b`;
 - verify that generated file through real `/api/v1/security/verify-pdf`;
 - require declared PDF/A, compliant result, zero failures and PDF/A-2b identity;
 - require backend log evidence of successful VeraPDF Greenfield initialization and completion of the verification controller;
 - add no new VeraPDF binary/download/payload;
 - preserve every earlier primary gate and the lightweight-artifact policy.
 
-**Do not accept VeraPDF E2E until one complete primary workflow is green with this gate enabled.**
+### Run #104 diagnosis and correction contract
+
+Run #104 (`33908989039`), job `101140667455`, commit `2cbbe549825cda9e8119e94f7513b0838fe860e2`, passed primary steps 1–34 and first failed at step 35 after entering the new VeraPDF E2E path.
+
+Bounded diagnostic artifact `9951587350`, digest `sha256:1822a1e0fd21d00d2065a2f67ff3829f81f5535dc82c93e5725035bf784ab05e`, establishes the cause:
+
+- embedded VeraPDF initialized successfully (`VeraPDF Greenfield initialized successfully`);
+- qpdf rejected the supplied input with `can't find PDF header`, `can't find startxref` and no recoverable trailer dictionary;
+- Ghostscript failed on that same input, and the PDFBox fallback raised `End-of-File`;
+- source inspection proves `test_globalsign.pdf` is actually a GlobalSign HTML `Page Not Found` response despite its extension.
+
+This is explicit evidence that the failure is in the newly selected test fixture, not in VeraPDF, qpdf, Ghostscript, PDFBox, the JRE or any accepted layer. The only justified correction is to replace that fixture dependency inside `validate-verapdf.ps1` with a deterministic valid PDF constructed at runtime. Do not change dependency versions/hashes, accepted runtimes, workflow structure, timeouts or compliance assertions for this correction.
+
+**Do not accept VeraPDF E2E until one complete primary workflow is green with the corrected gate enabled.**
 
 ## Primary workflow acceptance contract
 
@@ -194,10 +209,12 @@ Representative E2E must cover Office→PDF and supported PDF→Office, HTML/URL/
 8. publish clean v1 ZIP only when all gates are complete and explicitly authorized;
 9. manual clean-machine Windows 10/11 checklist.
 
-## Current handoff — 2026-09-04
+## Current handoff — 2026-09-05
 
 Accepted/closed: native portable/Tauri containment; Fixed WebView2; qpdf; ImageMagick; Ghostscript; Tesseract; Python 3.12.14 + OCRmyPDF 17.10.0; authenticated Python lock; NumPy 2.5.2; OpenCV `4.14.0.94`; LibreOffice 26.2.5 + native `unoconvert`; Poppler 26.02.0; WeasyPrint 69.0; Calibre 9.14.0; unpaper 6.1 + pngquant 2.17.0; **package-local conversion fonts**.
 
-Latest complete green primary: **Run #103** (`33896293861`), job `101099606785`, commit `1a0ad7b216d2b70b4bff0e4b8c9394b5d666797f`; lightweight artifact `9947175939`, digest `sha256:4ab2522e4baa8a3de6fcbe421191a31f81274d3940112e8c7d7785e8be19c963`.
+Latest complete green primary: **Run #103** (`33896293861`), job `101099606785`, commit `1a0ad7b216d2b70b4bff0e4b8c9394b5d666797f`; ZIP SHA-256 `26F9CE12AB4A949F0FB0BBEE503F630AFF7D457D2EBB6AB990E57DC78B57FE00`; lightweight artifact `9947175939`, digest `sha256:4ab2522e4baa8a3de6fcbe421191a31f81274d3940112e8c7d7785e8be19c963`.
 
-Active candidate: **embedded VeraPDF 1.30.2 E2E**. New gate validates package-local `jdk.dynalink`, performs real PDF→PDF/A-2b conversion, verifies the output through `/api/v1/security/verify-pdf`, and requires compliant/zero-failure + backend log evidence. No external VeraPDF runtime is added. Once accepted, proceed to **`jbig2enc` feasibility/integration**.
+Failed-candidate evidence: **Run #104** (`33908989039`), job `101140667455`, commit `2cbbe549825cda9e8119e94f7513b0838fe860e2`; steps 1–34 green, embedded VeraPDF initialized, then the PDF/A conversion failed because `test_globalsign.pdf` is HTML rather than PDF. Diagnostic artifact `9951587350` retains the qpdf/Ghostscript/PDFBox evidence.
+
+Active candidate: **embedded VeraPDF 1.30.2 E2E**. Corrected gate generates a deterministic valid PDF locally, then retains the real PDF→PDF/A-2b→`/api/v1/security/verify-pdf` compliance chain and all earlier gates. Once accepted, proceed to **`jbig2enc` feasibility/integration**.

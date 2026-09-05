@@ -14,6 +14,7 @@
 - Latest complete green primary regression: **Run #103** (`33896293861`), job `101099606785`, commit `1a0ad7b216d2b70b4bff0e4b8c9394b5d666797f`.
 - **Package-local conversion fonts are formally accepted by Run #103.**
 - Active candidate: **embedded VeraPDF 1.30.2 E2E**, using the real portable backend rather than adding another external executable.
+- Run #104 (`33908989039`) reached the new VeraPDF E2E path after primary steps 1–34 passed, then failed because the chosen upstream fixture `test_globalsign.pdf` is actually an HTML GlobalSign 404 page, not a PDF. VeraPDF itself initialized successfully.
 
 ## Accepted portable layers
 
@@ -82,15 +83,29 @@ The candidate adds `.github/scripts/validate-verapdf.ps1` and invokes it only du
 1. confirm the pinned source still declares `validation-model:1.30.2`;
 2. prove the bundled JRE exposes `jdk.dynalink`;
 3. use the real portable backend with its package-first PATH;
-4. convert `test_globalsign.pdf` through `/api/v1/convert/pdf/pdfa` to `pdfa-2b`;
-5. submit that generated PDF/A to `/api/v1/security/verify-pdf`;
-6. require a declared PDF/A result, `compliant=true`, zero failures and PDF/A-2b identity;
-7. require backend logs to prove `VeraPDF Greenfield initialized successfully` and completion of the real verification controller;
-8. preserve every previously accepted gate, final cleanup and lightweight artifact policy.
+4. generate a deterministic one-page PDF fixture locally with a valid `%PDF-1.4` header, object offsets, `xref`, `startxref` and `%%EOF` rather than trusting a misleading upstream `.pdf` filename;
+5. convert that fixture through `/api/v1/convert/pdf/pdfa` to `pdfa-2b`;
+6. submit that generated PDF/A to `/api/v1/security/verify-pdf`;
+7. require a declared PDF/A result, `compliant=true`, zero failures and PDF/A-2b identity;
+8. require backend logs to prove `VeraPDF Greenfield initialized successfully` and completion of the real verification controller;
+9. preserve every previously accepted gate, final cleanup and lightweight artifact policy.
 
 No additional VeraPDF binary, runtime download or package payload is added to the portable ZIP.
 
-**Do not call VeraPDF E2E accepted until one complete primary workflow is green with this gate enabled.**
+### Run #104 — fixture diagnosis
+
+Run #104 (`33908989039`), job `101140667455`, commit `2cbbe549825cda9e8119e94f7513b0838fe860e2`, passed primary steps 1–34 and reached step 35, `Start PDF_Tunner and validate real backend`.
+
+The bounded startup diagnostic artifact `9951587350` (digest `sha256:1822a1e0fd21d00d2065a2f67ff3829f81f5535dc82c93e5725035bf784ab05e`) proves:
+
+- `VeraPDF Greenfield initialized successfully` before the E2E request;
+- the PDF/A converter received the selected `test_globalsign.pdf` fixture but qpdf reported `can't find PDF header`, `can't find startxref` and no trailer dictionary;
+- Ghostscript then failed on the same input and the PDFBox fallback reported `End-of-File`;
+- repository inspection confirms `test_globalsign.pdf` actually contains a GlobalSign HTML `Page Not Found` response despite its `.pdf` filename.
+
+Therefore Run #104 is **not evidence of a VeraPDF runtime failure**. The smallest justified correction is confined to the new test: build a deterministic valid PDF fixture in `validate-verapdf.ps1` and keep the PDF→PDF/A-2b→VeraPDF chain, embedded dependency identity, JRE module check and all earlier gates unchanged.
+
+**Do not call VeraPDF E2E accepted until one complete primary workflow is green with this corrected gate enabled.**
 
 ## Portable architecture
 
@@ -152,6 +167,7 @@ Representative E2E must cover OCR, Office↔PDF, HTML/URL/base-URL/EML, WeasyPri
 - Latest complete green primary: **Run #103 `33896293861`**, job `101099606785`, commit `1a0ad7b216d2b70b4bff0e4b8c9394b5d666797f`.
 - Newly accepted: **package-local conversion fonts**.
 - Run #103 ZIP SHA-256: `26F9CE12AB4A949F0FB0BBEE503F630AFF7D457D2EBB6AB990E57DC78B57FE00`; size `1,909,704,241`; layout `31,611` files / `4,387,634,585` bytes; lightweight artifact `9947175939` digest `sha256:4ab2522e4baa8a3de6fcbe421191a31f81274d3940112e8c7d7785e8be19c963`.
-- Active candidate: **embedded VeraPDF 1.30.2 E2E**, no extra runtime payload; real PDF→PDF/A-2b→`verify-pdf` chain against the portable backend.
+- Active candidate: **embedded VeraPDF 1.30.2 E2E**, no extra runtime payload; corrected test uses a deterministic valid PDF fixture before the real PDF→PDF/A-2b→`verify-pdf` chain.
+- Exact failed-candidate evidence: **Run #104 `33908989039`**, job `101140667455`, commit `2cbbe549825cda9e8119e94f7513b0838fe860e2`; steps 1–34 green, VeraPDF initialized, but upstream `test_globalsign.pdf` was HTML; diagnostic artifact `9951587350`.
 - Next after VeraPDF: **`jbig2enc` feasibility/integration**.
 - No final Release has been published.
