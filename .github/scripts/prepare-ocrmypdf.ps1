@@ -18,7 +18,8 @@ Set-StrictMode -Version Latest
 
 $core = Join-Path $PSScriptRoot 'prepare-ocrmypdf-core.ps1'
 $aux = Join-Path $PSScriptRoot 'prepare-ocr-aux.ps1'
-foreach ($requiredScript in @($core, $aux)) {
+$jbig2 = Join-Path $PSScriptRoot 'prepare-jbig2enc.ps1'
+foreach ($requiredScript in @($core, $aux, $jbig2)) {
     if (-not (Test-Path -LiteralPath $requiredScript -PathType Leaf)) {
         throw "Required PDF_Tunner OCR preparation script is missing: $requiredScript"
     }
@@ -38,20 +39,23 @@ New-Item -ItemType Directory -Force -Path $diagnosticRoot | Out-Null
 
 @(
     'STATUS=starting',
-    'PHASE=invoke-prepare-ocr-aux',
+    'PHASE=invoke-prepare-ocr-extras',
     "UTC=$([DateTime]::UtcNow.ToString('o'))",
     "CORE=$core",
     "AUX=$aux",
+    "JBIG2=$jbig2",
     "PORTABLE_ROOT=$portable"
 ) | Set-Content -LiteralPath $diagnosticLog -Encoding utf8
 
 try {
     & $aux -PortableRoot $PortableRoot
+    & $jbig2 -PortableRoot $PortableRoot
     @(
         'STATUS=success',
-        'PHASE=invoke-prepare-ocr-aux',
+        'PHASE=invoke-prepare-ocr-extras',
         "UTC=$([DateTime]::UtcNow.ToString('o'))",
-        "AUX=$aux"
+        "AUX=$aux",
+        "JBIG2=$jbig2"
     ) | Set-Content -LiteralPath $diagnosticLog -Encoding utf8
 }
 catch {
@@ -68,9 +72,10 @@ catch {
 
     @(
         'STATUS=failure',
-        'PHASE=invoke-prepare-ocr-aux',
+        'PHASE=invoke-prepare-ocr-extras',
         "UTC=$([DateTime]::UtcNow.ToString('o'))",
         "AUX=$aux",
+        "JBIG2=$jbig2",
         "EXCEPTION_TYPE=$exceptionType",
         "EXCEPTION_MESSAGE=$exceptionMessage",
         "FULLY_QUALIFIED_ERROR_ID=$($errorRecord.FullyQualifiedErrorId)",

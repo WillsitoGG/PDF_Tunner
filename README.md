@@ -1,6 +1,6 @@
 # PDF_Tunner
 
-**PDF_Tunner** is a Windows 10/11 x64 portable tuning of the real, complete [Stirling PDF](https://github.com/Stirling-Tools/Stirling-PDF) codebase. `WillsitoGG/PDF_Tunner` is a real GitHub fork: PDF_Tunner tunes Stirling directly rather than rebuilding it behind a separate wrapper.
+**PDF_Tunner** is a Windows 10/11 x64 portable tuning of the real [Stirling PDF](https://github.com/Stirling-Tools/Stirling-PDF) codebase. `WillsitoGG/PDF_Tunner` is a real fork: PDF_Tunner tunes Stirling directly rather than rebuilding it behind a separate wrapper.
 
 ## Base and current status
 
@@ -11,16 +11,16 @@
 - Target: **Windows 10/11 x64 portable ZIP**, extract and run without installation.
 - `main` remains the clean pinned upstream base during v1 development.
 - No final PDF_Tunner v1 Release exists yet.
-- Latest complete green primary regression: **Run #103** (`33896293861`), job `101099606785`, commit `1a0ad7b216d2b70b4bff0e4b8c9394b5d666797f`.
-- **Package-local conversion fonts are formally accepted by Run #103.**
-- Active candidate: **embedded VeraPDF 1.30.2 E2E**, using the real portable backend rather than adding another external executable.
-- Run #104 (`33908989039`) reached the new VeraPDF E2E path after primary steps 1–34 passed, then failed because the chosen upstream fixture `test_globalsign.pdf` is actually an HTML GlobalSign 404 page, not a PDF. VeraPDF itself initialized successfully.
+- Latest complete green primary regression: **Run #105** (`33956010668`), successful rerun job `101283384499`, commit `e2c2e0544bbd0f092980386b0e764550146c799e`.
+- **Embedded VeraPDF 1.30.2 E2E is formally accepted by Run #105.**
+- Active candidate: **jbig2enc 0.32** for OCRmyPDF optimization levels 2/3, built package-locally from the exact upstream tag/commit with static MSVC runtime and authenticated Meson fallbacks.
+- Next after jbig2enc: finish the RAR/CBR portability decision, then the remaining pinned-source parity and representative functional E2E audits.
 
 ## Accepted portable layers
 
 | Layer | Accepted identity / evidence |
 | --- | --- |
-| Native Tauri/JRE portable bootstrap | package-local backend/Tauri/WebView2/temp state and process containment; consolidated state proof includes Run `32825188381` |
+| Native Tauri/JRE portable bootstrap | package-local backend/Tauri/WebView2/temp state and process containment; consolidated proof includes Run `32825188381` |
 | Fixed WebView2 | `151.0.4129.101` x64; Run #62 `33058462619` |
 | qpdf | `12.4.0` MinGW64; Run #66 `33086404875` |
 | ImageMagick | `7.1.2-30` portable Q16 x64; Run #67 `33092698357` |
@@ -35,24 +35,10 @@
 | WeasyPrint | official Windows `69.0`, package-relative shim, real HTML→PDF + Markdown→PDF; Run #95 `33695530172` |
 | Calibre | official Windows x64 `9.14.0`, package-relative `ebook-convert`; Run #96 `33748509811` |
 | OCRmyPDF auxiliaries | unpaper `6.1` + pngquant `2.17.0`; Run #99 `33786563784` |
-| **Conversion fonts** | LibreOffice MSI Latin baseline + pinned Noto Sans CJK `Sans2.004` Regular regional subsets; **Run #103 `33896293861`** |
+| Conversion fonts | LibreOffice MSI Latin baseline + pinned Noto Sans CJK `Sans2.004` Regular regional subsets; Run #103 `33896293861` |
+| **Embedded VeraPDF** | **`validation-model:1.30.2`; real PDF→PDF/A-2b→`verify-pdf`; Run #105 `33956010668`** |
 
-## Previously accepted milestone — unpaper 6.1 + pngquant 2.17.0
-
-Complete primary Run #99 (`33786563784`), job `100752651171`, commit `8d4d3906f6535c5a0e214cf96948e19de0678a23`, passed every primary step and formally accepted:
-
-- unpaper `6.1` Windows x86_64 community build, archive SHA-256 `a760fa1fb5a076c7dad24c643aaec5330473ab03fbf6ede50e124978d840ee65`;
-- pngquant `2.17.0` official pngquant.org Windows archive, SHA-256 `bd0257aeeccfe446a4cd764927e26f8af6051796f28abed104307284107b120d`.
-
-Run #99 ZIP evidence: size `1,861,405,214` bytes, SHA-256 `5AFD552CFDF4DCEF48151470154541694AAFC5E1DD6650E913D2BDBD6D51496F`, layout `31,468` files / `4,303,215,732` payload bytes. The multi-gigabyte ZIP was not uploaded.
-
-## Latest acceptance — package-local conversion fonts
-
-Pinned Stirling 2.14.3 installs DejaVu, Liberation, Carlito/Caladea, Noto and Noto CJK fonts in its Linux runtime. For Windows, the authenticated official LibreOffice 26.2.5 MSI contains the important Latin/Office baseline as a separate MSI `Fonts` payload because a normal installation targets the Windows font store.
-
-Runs #100 and #101 failed at primary step 32 without enough detail. Run #102 (`33861701712`), job `100987374348`, commit `05c5121e197fd43a25b70d8c25ceed3d1141357d`, retained bounded phase evidence proving `CORE_SUCCESS` followed by `FONTS_FAILURE`: `tools/libreoffice/share/fonts/truetype` did not exist after the administrative extraction.
-
-The correction in commit `1a0ad7b216d2b70b4bff0e4b8c9394b5d666797f` preserves the same authenticated MSI `Fonts` payload under `tools/libreoffice/share/fonts/truetype` while keeping the LibreOffice URL/SHA, launcher strategy and all validation gates unchanged. It then adds only the five pinned Noto Sans CJK `Sans2.004` Regular regional subsets:
+Pinned conversion-font hashes retained from the accepted Run #103 layer:
 
 | Family | File | SHA-256 |
 | --- | --- | --- |
@@ -62,50 +48,66 @@ The correction in commit `1a0ad7b216d2b70b4bff0e4b8c9394b5d666797f` preserves th
 | Noto Sans JP | `NotoSansJP-Regular.otf` | `dff723ba59d57d136764a04b9b2d03205544f7cd785a711442d6d2d085ac5073` |
 | Noto Sans KR | `NotoSansKR-Regular.otf` | `69975a0ac8472717870aefeab0a4d52739308d90856b9955313b2ad5e0148d68` |
 
-**Complete Run #103 passed every primary step**, including direct LibreOffice DOCX→PDF, Poppler font/text proof, relocation, the real Stirling Office→PDF route, startup/containment, final layout and ZIP creation. This formally accepts conversion fonts.
+## Latest acceptance — embedded VeraPDF 1.30.2
 
-Run #103 evidence:
+VeraPDF is embedded in Stirling's Java application rather than shipped as a separate executable. The pinned core declares `org.verapdf:validation-model:1.30.2`, and the desktop JRE includes `jdk.dynalink`, which Stirling requires for VeraPDF runtime operation.
 
-- run `33896293861`, job `101099606785`, commit `1a0ad7b216d2b70b4bff0e4b8c9394b5d666797f`;
+Run #104 (`33908989039`) correctly reached the new E2E after primary steps 1–34 but exposed a test-fixture problem: upstream `test_globalsign.pdf` is actually an HTML GlobalSign 404 page. The bounded diagnostics proved VeraPDF itself had already initialized successfully. Commit `e2c2e0544bbd0f092980386b0e764550146c799e` made only the justified correction: construct a deterministic valid PDF fixture at runtime while retaining the real PDF→PDF/A-2b→VeraPDF verification chain.
+
+Run #105 attempt 1 then failed earlier at OCR auxiliary staging because `pngquant.org:443` timed out (`HttpRequestException` / socket `10060`). No code gate failed. A single rerun of the same job/commit succeeded completely, with all primary steps 1–44 green. The live backend gate reported:
+
+- `VeraPDF Greenfield initialized successfully`;
+- PDF/A result `standard=PDF_A_2_B`, profile `2B`, `compliant=True`, `totalFailures=0`;
+- `Verification complete for 1 standard(s) checked`.
+
+Run #105 acceptance evidence:
+
+- run `33956010668`, attempt `2`, successful job `101283384499`, commit `e2c2e0544bbd0f092980386b0e764550146c799e`;
 - ZIP name `PDF_Tunner-2.14.3-bootstrap-Windows-x64-Portable.zip`;
-- ZIP size `1,909,704,241` bytes;
-- ZIP SHA-256 `26F9CE12AB4A949F0FB0BBEE503F630AFF7D457D2EBB6AB990E57DC78B57FE00`;
-- portable layout `31,611` files / `4,387,634,585` payload bytes;
-- lightweight artifact `9947175939`, size `7,580` bytes, digest `sha256:4ab2522e4baa8a3de6fcbe421191a31f81274d3940112e8c7d7785e8be19c963`;
+- ZIP size `1,909,712,277` bytes;
+- ZIP SHA-256 `5A3F30A60E014C12D5059C81A6DC7EC8789DB9F4D3D3F5DB1A4D1A7403CEC5FE`;
+- portable layout `31,611` files / `4,387,634,583` payload bytes;
+- lightweight evidence artifact `9967243279`, size `7,585` bytes, digest `sha256:cd87e3b3ebe282c47e06c018b4c6c602611bd372701d36fb321249e34586d24c`;
+- attempt-1 diagnostic artifact `9966708360`, size `11,849` bytes, digest `sha256:8a611d843f4b436f87a4c81c0f9795a112b49135b3e2e4e4fc4ae584d09e8579`;
 - the multi-gigabyte ZIP itself was not uploaded.
 
-## Active candidate — embedded VeraPDF 1.30.2 E2E
+VeraPDF is closed/accepted; do not reopen it without new evidence.
 
-VeraPDF is **not an external executable dependency** in this Stirling base. `app/core/build.gradle` embeds `org.verapdf:validation-model:1.30.2` in the application, and the desktop JRE explicitly includes `jdk.dynalink`, required by VeraPDF at runtime.
+## Active candidate — jbig2enc 0.32
 
-The candidate adds `.github/scripts/validate-verapdf.ps1` and invokes it only during the existing live-backend validation path. The gate must:
+OCRmyPDF `17.10.0` probes the literal executable name `jbig2`, and its Windows code explicitly warns that TeX Live may place an incompatible `jbig2.EXE` on host `PATH`. Optimize levels 2/3 recommend `jbig2enc >= 0.28`. Run #105 backend logs still reported the missing `jbig2` dependency, so this is a concrete remaining parity/compression gap rather than speculative tooling.
 
-1. confirm the pinned source still declares `validation-model:1.30.2`;
-2. prove the bundled JRE exposes `jdk.dynalink`;
-3. use the real portable backend with its package-first PATH;
-4. generate a deterministic one-page PDF fixture locally with a valid `%PDF-1.4` header, object offsets, `xref`, `startxref` and `%%EOF` rather than trusting a misleading upstream `.pdf` filename;
-5. convert that fixture through `/api/v1/convert/pdf/pdfa` to `pdfa-2b`;
-6. submit that generated PDF/A to `/api/v1/security/verify-pdf`;
-7. require a declared PDF/A result, `compliant=true`, zero failures and PDF/A-2b identity;
-8. require backend logs to prove `VeraPDF Greenfield initialized successfully` and completion of the real verification controller;
-9. preserve every previously accepted gate, final cleanup and lightweight artifact policy.
+The candidate uses:
 
-No additional VeraPDF binary, runtime download or package payload is added to the portable ZIP.
+- upstream repository `agl/jbig2enc`;
+- exact tag `0.32` → commit `309b2d55c7dfdcf0ab6afccb6d88834afc0bf2c0`;
+- pinned Meson `1.10.0` wheel SHA-256 `4b27aafce281e652dcb437b28007457411245d975c48b5db3a797d3e93ae1585`;
+- MSVC x64 release build with `b_vscrt=mt`, `default_library=static` and `--wrap-mode=forcefallback`;
+- upstream authenticated Meson wrap hashes for Leptonica/codecs, with Meson's installed license closure retained;
+- package path `tools/jbig2enc/`, which the existing portable Tauri bootstrap already places ahead of host `PATH`.
 
-### Run #104 — fixture diagnosis
+The acceptance gate in `.github/scripts/prepare-jbig2enc.ps1` must prove all of the following in the assembled portable tree:
 
-Run #104 (`33908989039`), job `101140667455`, commit `2cbbe549825cda9e8119e94f7513b0838fe860e2`, passed primary steps 1–34 and reached step 35, `Start PDF_Tunner and validate real backend`.
+1. exact upstream tag and commit;
+2. authenticated Meson source/patch hashes for every wrap dependency;
+3. upstream Meson tests pass under the pinned source build;
+4. `jbig2.exe` is AMD64 and runs with an isolated PATH containing no Python, Visual Studio, MSYS2 or host tool directory;
+5. `where.exe jbig2` resolves only the package copy;
+6. OCRmyPDF's own `jbig2enc` ToolProbe sees version `0.32`;
+7. real `ocrmypdf --optimize 2` on a deterministic bilevel fixture produces a PDF containing `/JBIG2Decode`;
+8. the same binary remains detectable after relocation to a path containing spaces;
+9. provenance, packaged-file SHA-256 values, Apache-2.0 notice, patent notice and Meson-installed dependency licenses remain inside `tools/jbig2enc/`.
 
-The bounded startup diagnostic artifact `9951587350` (digest `sha256:1822a1e0fd21d00d2065a2f67ff3829f81f5535dc82c93e5725035bf784ab05e`) proves:
+The official 0.32 release does publish a Windows X64 MSVC ZIP, but its upstream Windows workflow builds in debug mode. PDF_Tunner therefore builds the exact tagged source itself so the portable artifact can explicitly force a release build and static MSVC CRT instead of inheriting a potentially host-dependent debug runtime.
 
-- `VeraPDF Greenfield initialized successfully` before the E2E request;
-- the PDF/A converter received the selected `test_globalsign.pdf` fixture but qpdf reported `can't find PDF header`, `can't find startxref` and no trailer dictionary;
-- Ghostscript then failed on the same input and the PDFBox fallback reported `End-of-File`;
-- repository inspection confirms `test_globalsign.pdf` actually contains a GlobalSign HTML `Page Not Found` response despite its `.pdf` filename.
+## RAR / CBR portability finding
 
-Therefore Run #104 is **not evidence of a VeraPDF runtime failure**. The smallest justified correction is confined to the new test: build a deterministic valid PDF fixture in `validate-verapdf.ps1` and keep the PDF→PDF/A-2b→VeraPDF chain, embedded dependency identity, JRE module check and all earlier gates unchanged.
+Pinned Stirling 2.14.3 has asymmetric CBR behavior:
 
-**Do not call VeraPDF E2E accepted until one complete primary workflow is green with this corrected gate enabled.**
+- **CBR→PDF** is implemented through embedded Java `junrar`, so that direction does not need an external `rar.exe`.
+- **PDF→CBR** invokes the real RAR CLI (`rar a -m5 -ep1`). A ZIP renamed to `.cbr` would not be equivalent and is not an acceptable parity workaround.
+
+The RAR/WinRAR redistribution terms do not provide a clean basis to bundle the standalone encoder inside PDF_Tunner without permission. The current v1 direction is therefore to preserve CBR→PDF as fully portable and, for PDF→CBR, support a user-supplied/licensed `rar.exe` at the existing package-first `tools/rar/` path. This will be finalized after jbig2enc rather than silently dropping or faking the feature.
 
 ## Portable architecture
 
@@ -118,6 +120,7 @@ Key package-relative paths:
 - WebView2 profile → `data/webview2/`;
 - Tauri logs/store/cookies/window state → `data/tauri/...`;
 - ImageMagick → `tools/imagemagick/`;
+- Ghostscript → `tools/ghostscript/bin/`;
 - Tesseract → `tools/tesseract/`, models → `tools/tesseract/tessdata/`;
 - Python/OCRmyPDF/NumPy/OpenCV → `tools/python/`;
 - LibreOffice → `tools/libreoffice/`; `unoconvert.exe` → `tools/bin/`;
@@ -125,7 +128,9 @@ Key package-relative paths:
 - Poppler → `tools/poppler/Library/bin/`;
 - WeasyPrint → `tools/weasyprint/`; shim → `tools/bin/weasyprint.exe`;
 - Calibre → `tools/calibre/`; launcher → `tools/bin/ebook-convert.exe`;
-- OCRmyPDF auxiliaries → `tools/bin/unpaper.exe` + sibling DLLs and `tools/bin/pngquant.exe`.
+- OCRmyPDF auxiliaries → `tools/bin/unpaper.exe`, sibling DLLs and `tools/bin/pngquant.exe`;
+- jbig2enc candidate → `tools/jbig2enc/jbig2.exe`;
+- optional licensed RAR encoder path → `tools/rar/`.
 
 Portable mode skips runtime `pdf-tunner://` protocol registration. Primary CI rejects new tracked host AppData/TEMP/registry state and package-local orphan processes.
 
@@ -141,33 +146,31 @@ Heavy CI uses branch-scoped concurrency with `cancel-in-progress: true`. Do not 
 
 ### A. External toolchain / embedded runtime parity
 
-1. **embedded VeraPDF E2E** — active candidate;
-2. investigate/build/package `jbig2enc` if technically viable;
-3. viable portable RAR/CBR support or a concrete documented limitation;
-4. any further exact dependency exposed by the pinned-source parity audit.
+1. **jbig2enc 0.32** — active candidate;
+2. finalize portable RAR/CBR behavior and validation;
+3. finish exact dependency audit against pinned Stirling 2.14.3 and close any remaining concrete gap.
 
-### B. Functional validation
+### B. Representative functional E2E
 
-Representative E2E must cover OCR, Office↔PDF, HTML/URL/base-URL/EML, WeasyPrint, Poppler, Calibre/eBook, Python/NumPy/OpenCV, qpdf/Ghostscript/ImageMagick/Tesseract/OCRmyPDF, conversion fonts, VeraPDF, and RAR/CBR or jbig2enc if integrated. Tests must prove runner-installed software is not satisfying package gates.
+Cover OCR, Office↔PDF, HTML/URL/base-URL/EML, WeasyPrint, Poppler, Calibre/eBook, Python/NumPy/OpenCV, qpdf/Ghostscript/ImageMagick/Tesseract/OCRmyPDF, conversion fonts, VeraPDF, jbig2enc, RAR/CBR behavior and representative Stirling API families. Tests must prove runner-installed software is not satisfying package gates.
 
 ### C. Release readiness
 
 1. non-Enterprise parity audit against pinned Stirling 2.14.3;
 2. final branding audit;
 3. final portability/state/process audit;
-4. remove retired diagnostic/integration mechanisms;
-5. final downstream diff/output hygiene;
+4. remove retired diagnostic/focused mechanisms;
+5. downstream diff/output hygiene;
 6. final README/AGENTS/provenance/version/hash record;
 7. integrate to `main` without reopening old PR #1;
-8. publish the clean v1 ZIP only when all gates are complete and explicitly authorized;
-9. manual clean-machine Windows 10/11 checklist.
+8. publish the clean v1 ZIP only after all gates and explicit user authorization;
+9. execute the manual clean-machine Windows 10/11 checklist.
 
 ## Compact handoff
 
-- Latest complete green primary: **Run #103 `33896293861`**, job `101099606785`, commit `1a0ad7b216d2b70b4bff0e4b8c9394b5d666797f`.
-- Newly accepted: **package-local conversion fonts**.
-- Run #103 ZIP SHA-256: `26F9CE12AB4A949F0FB0BBEE503F630AFF7D457D2EBB6AB990E57DC78B57FE00`; size `1,909,704,241`; layout `31,611` files / `4,387,634,585` bytes; lightweight artifact `9947175939` digest `sha256:4ab2522e4baa8a3de6fcbe421191a31f81274d3940112e8c7d7785e8be19c963`.
-- Active candidate: **embedded VeraPDF 1.30.2 E2E**, no extra runtime payload; corrected test uses a deterministic valid PDF fixture before the real PDF→PDF/A-2b→`verify-pdf` chain.
-- Exact failed-candidate evidence: **Run #104 `33908989039`**, job `101140667455`, commit `2cbbe549825cda9e8119e94f7513b0838fe860e2`; steps 1–34 green, VeraPDF initialized, but upstream `test_globalsign.pdf` was HTML; diagnostic artifact `9951587350`.
-- Next after VeraPDF: **`jbig2enc` feasibility/integration**.
+- Latest complete green primary: **Run #105 `33956010668`**, attempt `2`, job `101283384499`, commit `e2c2e0544bbd0f092980386b0e764550146c799e`.
+- Newly accepted: **embedded VeraPDF 1.30.2 E2E**.
+- Run #105 ZIP SHA-256 `5A3F30A60E014C12D5059C81A6DC7EC8789DB9F4D3D3F5DB1A4D1A7403CEC5FE`; size `1,909,712,277`; layout `31,611` files / `4,387,634,583` bytes; lightweight artifact `9967243279`, digest `sha256:cd87e3b3ebe282c47e06c018b4c6c602611bd372701d36fb321249e34586d24c`.
+- Active candidate: **jbig2enc 0.32**, exact commit `309b2d55c7dfdcf0ab6afccb6d88834afc0bf2c0`, source-built with static MSVC CRT and force-fallback authenticated dependencies.
+- Next: finalize RAR/CBR, then complete parity/E2E/release-readiness audits.
 - No final Release has been published.
