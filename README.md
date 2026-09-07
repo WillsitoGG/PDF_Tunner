@@ -14,6 +14,7 @@
 - Latest complete green primary regression: **Run #105** (`33956010668`), successful rerun job `101283384499`, commit `e2c2e0544bbd0f092980386b0e764550146c799e`.
 - **Embedded VeraPDF 1.30.2 E2E is formally accepted by Run #105.**
 - Active candidate: **jbig2enc 0.32** for OCRmyPDF optimization levels 2/3, built package-locally from the exact upstream tag/commit with static MSVC runtime and authenticated Meson fallbacks.
+- Run #106 (`33967722557`) reproducibly fails in step 30 while staging OCRmyPDF/jbig2enc; attempt 3 job `101730738329` confirms the same boundary after all prior steps through Tesseract are green. Exact root cause is not yet claimed because the connector did not expose a usable raw error line.
 - Next after jbig2enc: finish the RAR/CBR portability decision, then the remaining pinned-source parity and representative functional E2E audits.
 
 ## Accepted portable layers
@@ -100,6 +101,12 @@ The acceptance gate in `.github/scripts/prepare-jbig2enc.ps1` must prove all of 
 
 The official 0.32 release does publish a Windows X64 MSVC ZIP, but its upstream Windows workflow builds in debug mode. PDF_Tunner therefore builds the exact tagged source itself so the portable artifact can explicitly force a release build and static MSVC CRT instead of inheriting a potentially host-dependent debug runtime.
 
+### Run #106 diagnostic status — 2026-09-07
+
+Run #106 (`33967722557`) has now reproduced the same failure boundary three times on commit `208b7c78e526f2ebd180f9fb80334db55d343ae9`. Attempt 3 job `101730738329` passed every primary step through Tesseract/Ghostscript and failed only at step 30, `Stage portable Python, OCRmyPDF and NumPy`, where the new jbig2enc staging is invoked. GitHub's connector did not expose a usable raw stderr/stdout line, so no exact build or E2E root cause is asserted yet.
+
+The diagnostic correction adds explicit phase markers (`toolchain`, `source-pin`, `meson-toolchain`, `meson-setup`, `meson-compile`, `meson-tests`, `meson-install`, `stage-layout`, `runtime-e2e`, `runtime-relocated`) and rethrows any failure as `PDF_TUNNER_JBIG2_PHASE_FAILED=<phase>`. This is observability only: no dependency version, portability requirement, functional gate or acceptance criterion is weakened. jbig2enc remains **active/unaccepted** until a complete primary workflow is green.
+
 ## RAR / CBR portability finding
 
 Pinned Stirling 2.14.3 has asymmetric CBR behavior:
@@ -172,5 +179,6 @@ Cover OCR, Office↔PDF, HTML/URL/base-URL/EML, WeasyPrint, Poppler, Calibre/eBo
 - Newly accepted: **embedded VeraPDF 1.30.2 E2E**.
 - Run #105 ZIP SHA-256 `5A3F30A60E014C12D5059C81A6DC7EC8789DB9F4D3D3F5DB1A4D1A7403CEC5FE`; size `1,909,712,277`; layout `31,611` files / `4,387,634,583` bytes; lightweight artifact `9967243279`, digest `sha256:cd87e3b3ebe282c47e06c018b4c6c602611bd372701d36fb321249e34586d24c`.
 - Active candidate: **jbig2enc 0.32**, exact commit `309b2d55c7dfdcf0ab6afccb6d88834afc0bf2c0`, source-built with static MSVC CRT and force-fallback authenticated dependencies.
+- Run #106 reproduces the step-30 failure; phase-qualified diagnostics are now the next evidence gate, not a claimed functional fix.
 - Next: finalize RAR/CBR, then complete parity/E2E/release-readiness audits.
 - No final Release has been published.

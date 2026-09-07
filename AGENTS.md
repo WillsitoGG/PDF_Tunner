@@ -185,6 +185,12 @@ Candidate implementation:
 
 The upstream 0.32 release publishes a Windows X64 MSVC ZIP, but its own Windows workflow uses a debug build. Build from the exact tag instead so PDF_Tunner explicitly controls release/static-CRT portability.
 
+### Run #106 diagnostic status — 2026-09-07
+
+Run #106 (`33967722557`) reproduced the same step-30 failure boundary three times on commit `208b7c78e526f2ebd180f9fb80334db55d343ae9`; attempt 3 job `101730738329` again passed all prior primary steps and failed only in `Stage portable Python, OCRmyPDF and NumPy`. The connector did not expose a usable raw failure line after the closed job, so the exact root cause remains deliberately unclaimed.
+
+The next diagnostic revision adds phase-qualified output and rethrows as `PDF_TUNNER_JBIG2_PHASE_FAILED=<phase>` for `toolchain`, `source-pin`, `meson-toolchain`, `meson-setup`, `meson-compile`, `meson-tests`, `meson-install`, `stage-layout`, `runtime-e2e` and `runtime-relocated`. This must remain observability-only: do not weaken any existing gate based on this diagnostic iteration.
+
 Do not call jbig2enc accepted until one complete primary workflow is green with this gate enabled.
 
 ## RAR / CBR contract after jbig2enc
@@ -233,12 +239,12 @@ Representative E2E must cover Office→PDF and supported PDF→Office, HTML/URL/
 8. publish clean v1 ZIP only when all gates are complete and explicitly authorized;
 9. manual clean-machine Windows 10/11 checklist.
 
-## Current handoff — 2026-09-05
+## Current handoff — 2026-09-07
 
 Accepted/closed: native portable/Tauri containment; Fixed WebView2; qpdf; ImageMagick; Ghostscript; Tesseract; Python 3.12.14 + OCRmyPDF 17.10.0; authenticated Python lock; NumPy 2.5.2; OpenCV `4.14.0.94`; LibreOffice 26.2.5 + native `unoconvert`; Poppler 26.02.0; WeasyPrint 69.0; Calibre 9.14.0; unpaper 6.1 + pngquant 2.17.0; conversion fonts; **embedded VeraPDF 1.30.2 E2E**.
 
 Latest complete green primary: **Run #105** (`33956010668`), attempt `2`, job `101283384499`, commit `e2c2e0544bbd0f092980386b0e764550146c799e`; ZIP SHA-256 `5A3F30A60E014C12D5059C81A6DC7EC8789DB9F4D3D3F5DB1A4D1A7403CEC5FE`; size `1,909,712,277`; layout `31,611` files / `4,387,634,583` bytes; lightweight artifact `9967243279`, digest `sha256:cd87e3b3ebe282c47e06c018b4c6c602611bd372701d36fb321249e34586d24c`.
 
-Active candidate: **jbig2enc 0.32**, exact tag/commit above, source-built with pinned Meson, static MSVC CRT, force-fallback authenticated dependency source, retained licenses, isolated package-first resolution, OCRmyPDF ToolProbe, real optimize-2 `/JBIG2Decode` and relocation gates.
+Active candidate: **jbig2enc 0.32**, exact tag/commit above, source-built with pinned Meson, static MSVC CRT, force-fallback authenticated dependency source, retained licenses, isolated package-first resolution, OCRmyPDF ToolProbe, real optimize-2 `/JBIG2Decode` and relocation gates. Run #106 attempt 3 confirms the current failure remains inside step 30; phase-qualified diagnostics are the next evidence gate, not a functional acceptance.
 
 Next after acceptance: finalize **RAR/CBR**, then complete representative E2E, parity, branding, portability, cleanup and release-readiness work. No final Release has been published.

@@ -14,6 +14,13 @@ $mesonVersion = '1.10.0'
 $mesonWheelUrl = 'https://files.pythonhosted.org/packages/32/4f/c398c6f06ece1c6c246e008d5dac3824c98f54d3eb3d8014f4910afd6d48/meson-1.10.0-py3-none-any.whl'
 $mesonWheelSha256 = '4b27aafce281e652dcb437b28007457411245d975c48b5db3a797d3e93ae1585'
 $expectedOcrMyPdfVersion = '17.10.0'
+$phase = 'initialization'
+
+function Set-Jbig2Phase {
+    param([Parameter(Mandatory = $true)][string]$Name)
+    $script:phase = $Name
+    Write-Host "PDF_TUNNER_JBIG2_PHASE=$Name"
+}
 
 function Assert-Hash {
     param(
@@ -160,10 +167,12 @@ $mesonWheel = Join-Path $tempRoot "meson-$mesonVersion-py3-none-any.whl"
 $relocationRoot = Join-Path $tempRoot 'Relocated PDF_Tunner JBIG2 With Spaces'
 
 try {
+    Set-Jbig2Phase -Name 'toolchain'
     New-Item -ItemType Directory -Force -Path $tempRoot | Out-Null
     $git = (Get-Command git.exe -ErrorAction Stop).Source
     $runnerPython = (Get-Command python.exe -ErrorAction Stop).Source
 
+    Set-Jbig2Phase -Name 'source-pin'
     Write-Host "Fetching pinned jbig2enc $jbig2Version source from $jbig2Repository."
     Invoke-CheckedNative -FilePath $git -Arguments @('clone','--depth','1','--branch',$jbig2Tag,'--single-branch',$jbig2Repository,$sourceRoot) -Label 'jbig2enc source clone'
     $sourceHead = (@(& $git -C $sourceRoot rev-parse HEAD 2>&1) -join '').Trim().ToLowerInvariant()
@@ -186,6 +195,7 @@ try {
     }
     Write-Host "Authenticated Meson wraps found: $($wrapFiles.Count)."
 
+    Set-Jbig2Phase -Name 'meson-toolchain'
     Write-Host "Downloading pinned Meson $mesonVersion wheel."
     Invoke-WebRequest -Uri $mesonWheelUrl -OutFile $mesonWheel -UseBasicParsing
     $actualMesonHash = Assert-Hash -Path $mesonWheel -Expected $mesonWheelSha256 -Label 'Meson wheel'
@@ -196,15 +206,20 @@ try {
 
     Push-Location $sourceRoot
     try {
+        Set-Jbig2Phase -Name 'meson-setup'
         Invoke-CheckedNative -FilePath $meson -Arguments @('setup','--vsenv','--buildtype','release','-Db_vscrt=mt','-Ddefault_library=static','--wrap-mode=forcefallback','--prefix',$installRoot,'--licensedir','licenses',$buildRoot) -Label 'jbig2enc Meson setup'
+        Set-Jbig2Phase -Name 'meson-compile'
         Invoke-CheckedNative -FilePath $meson -Arguments @('compile','-C',$buildRoot) -Label 'jbig2enc Meson compile'
+        Set-Jbig2Phase -Name 'meson-tests'
         Invoke-CheckedNative -FilePath $meson -Arguments @('test','-C',$buildRoot,'--print-errorlogs','jbig2enc:') -Label 'jbig2enc upstream Meson tests'
+        Set-Jbig2Phase -Name 'meson-install'
         Invoke-CheckedNative -FilePath $meson -Arguments @('install','-C',$buildRoot) -Label 'jbig2enc Meson install'
     }
     finally {
         Pop-Location
     }
 
+    Set-Jbig2Phase -Name 'stage-layout'
     $builtJbig2 = Join-Path $installRoot 'bin\jbig2.exe'
     if (-not (Test-Path -LiteralPath $builtJbig2 -PathType Leaf)) { throw "jbig2enc install did not produce expected executable: $builtJbig2" }
     if ((Get-PeMachine -Path $builtJbig2) -ne 0x8664) { throw 'Built jbig2.exe is not AMD64.' }
@@ -247,16 +262,25 @@ try {
     }
     Set-Content -LiteralPath (Join-Path $jbig2Root 'SHA256SUMS.txt') -Encoding ascii -Value $shaLines
 
+    Set-Jbig2Phase -Name 'runtime-e2e'
     Test-Jbig2Runtime -Root $portable -PythonRoot $pythonRoot -RunOptimizeE2E
 
+    Set-Jbig2Phase -Name 'runtime-relocated'
     $relocatedJbig2Root = Join-Path $relocationRoot 'tools\jbig2enc'
     New-Item -ItemType Directory -Force -Path (Split-Path -Parent $relocatedJbig2Root) | Out-Null
     Copy-Item -LiteralPath $jbig2Root -Destination (Split-Path -Parent $relocatedJbig2Root) -Recurse -Force
     Test-Jbig2Runtime -Root $relocationRoot -PythonRoot $pythonRoot
     Write-Host "PASS: jbig2enc remains functional after relocation to '$relocationRoot'."
 
+    Set-Jbig2Phase -Name 'complete'
     Write-Host "Staged jbig2enc $jbig2Version from source commit $jbig2Commit."
     Write-Host "jbig2.exe SHA-256: $jbig2Hash"
+}
+catch {
+    $message = if ($null -ne $_.Exception) { $_.Exception.Message } else { ($_ | Out-String).Trim() }
+    $annotation = $message.Replace('%','%25').Replace("`r",'%0D').Replace("`n",'%0A')
+    Write-Host "::error title=PDF_Tunner jbig2enc phase ${phase}::$annotation"
+    throw "PDF_TUNNER_JBIG2_PHASE_FAILED=$phase :: $message"
 }
 finally {
     Remove-Item -LiteralPath $tempRoot -Recurse -Force -ErrorAction SilentlyContinue
