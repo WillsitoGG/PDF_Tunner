@@ -14,7 +14,8 @@
 - Latest complete green primary regression: **Run #105** (`33956010668`), successful rerun job `101283384499`, commit `e2c2e0544bbd0f092980386b0e764550146c799e`.
 - **Embedded VeraPDF 1.30.2 E2E is formally accepted by Run #105.**
 - Active candidate: **jbig2enc 0.32** for OCRmyPDF optimization levels 2/3, built package-locally from the exact upstream tag/commit with static MSVC runtime and authenticated Meson fallbacks.
-- Run #106 (`33967722557`) reproducibly fails in step 30 while staging OCRmyPDF/jbig2enc; attempt 3 job `101730738329` confirms the same boundary after all prior steps through Tesseract are green. Exact root cause is not yet claimed because the connector did not expose a usable raw error line.
+- Run #107 (`34122536256`, job `101743654235`, commit `4b33063c721ea9eb58cddd955f8b306adb83a169`) isolates the regression to `runtime-e2e`: OCRmyPDF `--optimize 2` exits `3` (`missing_dependency`) because the jbig2enc E2E's isolated PATH omitted the already accepted package-local `tools/bin/pngquant.exe`, which OCRmyPDF 17.10.0 requires for optimize levels 2/3. The portable launcher itself already prepends `tools/bin`, so this is a validation-PATH defect, not a missing runtime dependency.
+- Current correction: make the jbig2enc E2E mirror the real package-first PATH by adding `tools/bin` and explicitly requiring its packaged `pngquant.exe`; jbig2enc remains unaccepted until one complete primary regression is green.
 - Next after jbig2enc: finish the RAR/CBR portability decision, then the remaining pinned-source parity and representative functional E2E audits.
 
 ## Accepted portable layers
@@ -101,11 +102,15 @@ The acceptance gate in `.github/scripts/prepare-jbig2enc.ps1` must prove all of 
 
 The official 0.32 release does publish a Windows X64 MSVC ZIP, but its upstream Windows workflow builds in debug mode. PDF_Tunner therefore builds the exact tagged source itself so the portable artifact can explicitly force a release build and static MSVC CRT instead of inheriting a potentially host-dependent debug runtime.
 
-### Run #106 diagnostic status — 2026-09-07
+### Runs #106–#107 diagnostic status — 2026-09-07
 
-Run #106 (`33967722557`) has now reproduced the same failure boundary three times on commit `208b7c78e526f2ebd180f9fb80334db55d343ae9`. Attempt 3 job `101730738329` passed every primary step through Tesseract/Ghostscript and failed only at step 30, `Stage portable Python, OCRmyPDF and NumPy`, where the new jbig2enc staging is invoked. GitHub's connector did not expose a usable raw stderr/stdout line, so no exact build or E2E root cause is asserted yet.
+Run #106 (`33967722557`) reproduced the same step-30 failure boundary three times on commit `208b7c78e526f2ebd180f9fb80334db55d343ae9`. Attempt 3 job `101730738329` passed every primary step through Tesseract/Ghostscript and failed only at `Stage portable Python, OCRmyPDF and NumPy`. Its bounded diagnostic artifact exposed the immediate exception: OCRmyPDF `--optimize 2` returned exit code `3`.
 
-The diagnostic correction adds explicit phase markers (`toolchain`, `source-pin`, `meson-toolchain`, `meson-setup`, `meson-compile`, `meson-tests`, `meson-install`, `stage-layout`, `runtime-e2e`, `runtime-relocated`) and rethrows any failure as `PDF_TUNNER_JBIG2_PHASE_FAILED=<phase>`. This is observability only: no dependency version, portability requirement, functional gate or acceptance criterion is weakened. jbig2enc remains **active/unaccepted** until a complete primary workflow is green.
+Commit `4b33063c721ea9eb58cddd955f8b306adb83a169` then added phase-qualified observability only. Run #107 (`34122536256`, job `101743654235`) reproduced the failure as `PDF_TUNNER_JBIG2_PHASE_FAILED=runtime-e2e`, proving the source pin, Meson toolchain/setup/compile/tests/install, staging and initial runtime/ToolProbe gates had already passed.
+
+OCRmyPDF 17.10.0 defines exit code `3` as `missing_dependency`, and its optimize plugin requires `pngquant >= 2.12.2` whenever `--optimize 2/3` is requested. PDF_Tunner already stages and validates `pngquant 2.17.0` at `tools/bin/pngquant.exe` (accepted Run #99), and the real Tauri portable bootstrap prepends `tools/bin` to PATH. The jbig2enc E2E, however, isolated PATH to jbig2enc/Python/Ghostscript/Tesseract/system directories and accidentally hid `tools/bin`. Therefore the failure is a **test-environment PATH defect**, not a jbig2enc build failure or missing portable dependency.
+
+The current minimal correction adds package-local `tools/bin` to that E2E PATH and requires `tools/bin/pngquant.exe` before invoking OCRmyPDF. No provenance, build, portability or `/JBIG2Decode` acceptance gate is weakened. jbig2enc remains **active/unaccepted** until a complete primary workflow is green.
 
 ## RAR / CBR portability finding
 
@@ -179,6 +184,7 @@ Cover OCR, Office↔PDF, HTML/URL/base-URL/EML, WeasyPrint, Poppler, Calibre/eBo
 - Newly accepted: **embedded VeraPDF 1.30.2 E2E**.
 - Run #105 ZIP SHA-256 `5A3F30A60E014C12D5059C81A6DC7EC8789DB9F4D3D3F5DB1A4D1A7403CEC5FE`; size `1,909,712,277`; layout `31,611` files / `4,387,634,583` bytes; lightweight artifact `9967243279`, digest `sha256:cd87e3b3ebe282c47e06c018b4c6c602611bd372701d36fb321249e34586d24c`.
 - Active candidate: **jbig2enc 0.32**, exact commit `309b2d55c7dfdcf0ab6afccb6d88834afc0bf2c0`, source-built with static MSVC CRT and force-fallback authenticated dependencies.
-- Run #106 reproduces the step-30 failure; phase-qualified diagnostics are now the next evidence gate, not a claimed functional fix.
-- Next: finalize RAR/CBR, then complete parity/E2E/release-readiness audits.
+- Run #107 proves the current failure is `runtime-e2e`: OCRmyPDF exit `3 = missing_dependency` because the isolated test PATH hid accepted `tools/bin/pngquant.exe`; the portable launcher itself already exposes that directory.
+- Current fix mirrors the real package-first PATH in the jbig2enc E2E without weakening the `/JBIG2Decode` gate; validation is pending the next single primary run.
+- Next after jbig2enc acceptance: finalize RAR/CBR, then complete parity/E2E/release-readiness audits.
 - No final Release has been published.

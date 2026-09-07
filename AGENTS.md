@@ -166,7 +166,7 @@ Reason: OCRmyPDF 17.10.0 directly probes `jbig2`, warns about incompatible TeX L
 
 Candidate implementation:
 
-- new `.github/scripts/prepare-jbig2enc.ps1` called from the existing OCR preparation wrapper after unpaper/pngquant;
+- `.github/scripts/prepare-jbig2enc.ps1` is called from the existing OCR preparation wrapper after unpaper/pngquant;
 - no new primary-workflow step and no new heavy artifact upload;
 - source `agl/jbig2enc`, tag `0.32`, exact commit `309b2d55c7dfdcf0ab6afccb6d88834afc0bf2c0`;
 - Meson `1.10.0` from exact authenticated wheel hash above;
@@ -185,13 +185,15 @@ Candidate implementation:
 
 The upstream 0.32 release publishes a Windows X64 MSVC ZIP, but its own Windows workflow uses a debug build. Build from the exact tag instead so PDF_Tunner explicitly controls release/static-CRT portability.
 
-### Run #106 diagnostic status — 2026-09-07
+### Runs #106–#107 root cause and correction — 2026-09-07
 
-Run #106 (`33967722557`) reproduced the same step-30 failure boundary three times on commit `208b7c78e526f2ebd180f9fb80334db55d343ae9`; attempt 3 job `101730738329` again passed all prior primary steps and failed only in `Stage portable Python, OCRmyPDF and NumPy`. The connector did not expose a usable raw failure line after the closed job, so the exact root cause remains deliberately unclaimed.
+Run #106 (`33967722557`) reproduced the same step-30 boundary three times on commit `208b7c78e526f2ebd180f9fb80334db55d343ae9`; attempt 3 job `101730738329` passed all prior primary steps and failed only in `Stage portable Python, OCRmyPDF and NumPy`. Its bounded `ocr-aux-diagnostic.log` records OCRmyPDF `--optimize 2` returning exit code `3`.
 
-The next diagnostic revision adds phase-qualified output and rethrows as `PDF_TUNNER_JBIG2_PHASE_FAILED=<phase>` for `toolchain`, `source-pin`, `meson-toolchain`, `meson-setup`, `meson-compile`, `meson-tests`, `meson-install`, `stage-layout`, `runtime-e2e` and `runtime-relocated`. This must remain observability-only: do not weaken any existing gate based on this diagnostic iteration.
+Commit `4b33063c721ea9eb58cddd955f8b306adb83a169` added phase-qualified observability without weakening gates. Run #107 (`34122536256`, job `101743654235`) reproduced the failure as `PDF_TUNNER_JBIG2_PHASE_FAILED=runtime-e2e`, proving the source pin, Meson toolchain/setup/compile/tests/install, stage-layout and initial jbig2/OCRmyPDF ToolProbe path had already passed.
 
-Do not call jbig2enc accepted until one complete primary workflow is green with this gate enabled.
+OCRmyPDF 17.10.0 defines exit code `3` as `missing_dependency`. Its optimize plugin requires `pngquant >= 2.12.2` when `--optimize 2/3` is requested. PDF_Tunner already packages accepted `pngquant 2.17.0` at `tools/bin/pngquant.exe` (Run #99), and the real Tauri bootstrap already prepends `tools/bin`. The jbig2enc E2E's isolated PATH omitted `tools/bin`, hiding pngquant and causing the deterministic failure. This is a **validation environment bug**, not a jbig2enc build failure or a missing portable runtime dependency.
+
+The minimal correction is to require `tools/bin/pngquant.exe` and include package-local `tools/bin` in the jbig2enc E2E PATH. Keep the exact source/build/provenance gates and the real `/JBIG2Decode` assertion unchanged. Do not call jbig2enc accepted until one complete primary workflow is green with this correction enabled.
 
 ## RAR / CBR contract after jbig2enc
 
@@ -245,6 +247,6 @@ Accepted/closed: native portable/Tauri containment; Fixed WebView2; qpdf; ImageM
 
 Latest complete green primary: **Run #105** (`33956010668`), attempt `2`, job `101283384499`, commit `e2c2e0544bbd0f092980386b0e764550146c799e`; ZIP SHA-256 `5A3F30A60E014C12D5059C81A6DC7EC8789DB9F4D3D3F5DB1A4D1A7403CEC5FE`; size `1,909,712,277`; layout `31,611` files / `4,387,634,583` bytes; lightweight artifact `9967243279`, digest `sha256:cd87e3b3ebe282c47e06c018b4c6c602611bd372701d36fb321249e34586d24c`.
 
-Active candidate: **jbig2enc 0.32**, exact tag/commit above, source-built with pinned Meson, static MSVC CRT, force-fallback authenticated dependency source, retained licenses, isolated package-first resolution, OCRmyPDF ToolProbe, real optimize-2 `/JBIG2Decode` and relocation gates. Run #106 attempt 3 confirms the current failure remains inside step 30; phase-qualified diagnostics are the next evidence gate, not a functional acceptance.
+Active candidate: **jbig2enc 0.32**, exact tag/commit above, source-built with pinned Meson, static MSVC CRT, force-fallback authenticated dependency source, retained licenses, isolated package-first resolution, OCRmyPDF ToolProbe, real optimize-2 `/JBIG2Decode` and relocation gates. Run #107 isolates the failure to `runtime-e2e`: OCRmyPDF exit `3 = missing_dependency` because the isolated E2E hid accepted `tools/bin/pngquant.exe`; the real portable launcher already includes that directory. The current correction mirrors that package-first PATH and awaits one complete primary validation.
 
 Next after acceptance: finalize **RAR/CBR**, then complete representative E2E, parity, branding, portability, cleanup and release-readiness work. No final Release has been published.

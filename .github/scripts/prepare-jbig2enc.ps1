@@ -106,13 +106,18 @@ function Test-Jbig2Runtime {
         }
 
         if ($RunOptimizeE2E) {
+            $binRoot = Join-Path $Root 'tools\bin'
             $ghostscriptRoot = Join-Path $Root 'tools\ghostscript\bin'
             $tesseractRoot = Join-Path $Root 'tools\tesseract'
             $tessdata = Join-Path $tesseractRoot 'tessdata'
-            foreach ($required in @((Join-Path $ghostscriptRoot 'gs.exe'), (Join-Path $tesseractRoot 'tesseract.exe'), (Join-Path $tessdata 'eng.traineddata'))) {
+            $pngquant = Join-Path $binRoot 'pngquant.exe'
+            foreach ($required in @($pngquant, (Join-Path $ghostscriptRoot 'gs.exe'), (Join-Path $tesseractRoot 'tesseract.exe'), (Join-Path $tessdata 'eng.traineddata'))) {
                 if (-not (Test-Path -LiteralPath $required -PathType Leaf)) { throw "Required jbig2enc E2E dependency is missing: $required" }
             }
-            $env:PATH = "$jbig2Root;$PythonRoot;$ghostscriptRoot;$tesseractRoot;$system32;$env:SystemRoot"
+            # OCRmyPDF 17.10.0 treats pngquant >=2.12.2 as required when
+            # --optimize 2/3 is requested. Mirror the portable launcher's
+            # package-first tools/bin PATH instead of accidentally hiding it.
+            $env:PATH = "$jbig2Root;$binRoot;$PythonRoot;$ghostscriptRoot;$tesseractRoot;$system32;$env:SystemRoot"
             $env:TESSDATA_PREFIX = $tessdata
 
             $fixture = Join-Path $Root 'jbig2enc-fixture.png'
