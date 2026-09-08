@@ -11,12 +11,10 @@
 - Target: **Windows 10/11 x64 portable ZIP**, extract and run without installation.
 - `main` remains the clean pinned upstream base during v1 development.
 - No final PDF_Tunner v1 Release exists yet.
-- Latest complete green primary regression: **Run #105** (`33956010668`), successful rerun job `101283384499`, commit `e2c2e0544bbd0f092980386b0e764550146c799e`.
-- **Embedded VeraPDF 1.30.2 E2E is formally accepted by Run #105.**
-- Active candidate: **jbig2enc 0.32** for OCRmyPDF optimization levels 2/3, built package-locally from the exact upstream tag/commit with static MSVC runtime and authenticated Meson fallbacks.
-- Run #107 (`34122536256`, job `101743654235`, commit `4b33063c721ea9eb58cddd955f8b306adb83a169`) isolates the regression to `runtime-e2e`: OCRmyPDF `--optimize 2` exits `3` (`missing_dependency`) because the jbig2enc E2E's isolated PATH omitted the already accepted package-local `tools/bin/pngquant.exe`, which OCRmyPDF 17.10.0 requires for optimize levels 2/3. The portable launcher itself already prepends `tools/bin`, so this is a validation-PATH defect, not a missing runtime dependency.
-- Current correction: make the jbig2enc E2E mirror the real package-first PATH by adding `tools/bin` and explicitly requiring its packaged `pngquant.exe`; jbig2enc remains unaccepted until one complete primary regression is green.
-- Next after jbig2enc: finish the RAR/CBR portability decision, then the remaining pinned-source parity and representative functional E2E audits.
+- Latest complete green primary regression: **Run #108** (`34138754142`), job `101795708391`, commit `64f86ce6f567f49be1e677697221c52a8b26131f`.
+- **jbig2enc 0.32 is formally accepted by Run #108**, including exact source/tag, authenticated Meson inputs, static MSVC build, upstream tests, isolated package-first ToolProbe, relocation and a real OCRmyPDF `--optimize 2` result containing `/JBIG2Decode`.
+- Active candidate: **RAR/CBR portability contract**. CBR→PDF is embedded-junrar and must work with no `rar.exe`; PDF→CBR legitimately depends on a licensed/user-supplied RAR encoder and must resolve it package-first without bundling or faking proprietary RAR output.
+- Next after RAR/CBR: finish the remaining pinned-source parity audit and representative functional E2E coverage.
 
 ## Accepted portable layers
 
@@ -38,7 +36,8 @@
 | Calibre | official Windows x64 `9.14.0`, package-relative `ebook-convert`; Run #96 `33748509811` |
 | OCRmyPDF auxiliaries | unpaper `6.1` + pngquant `2.17.0`; Run #99 `33786563784` |
 | Conversion fonts | LibreOffice MSI Latin baseline + pinned Noto Sans CJK `Sans2.004` Regular regional subsets; Run #103 `33896293861` |
-| **Embedded VeraPDF** | **`validation-model:1.30.2`; real PDF→PDF/A-2b→`verify-pdf`; Run #105 `33956010668`** |
+| Embedded VeraPDF | `validation-model:1.30.2`; real PDF→PDF/A-2b→`verify-pdf`; Run #105 `33956010668` |
+| **jbig2enc** | **`0.32`, tag→commit `309b2d55c7dfdcf0ab6afccb6d88834afc0bf2c0`; real OCRmyPDF optimize-2 `/JBIG2Decode`; Run #108 `34138754142`** |
 
 Pinned conversion-font hashes retained from the accepted Run #103 layer:
 
@@ -50,13 +49,13 @@ Pinned conversion-font hashes retained from the accepted Run #103 layer:
 | Noto Sans JP | `NotoSansJP-Regular.otf` | `dff723ba59d57d136764a04b9b2d03205544f7cd785a711442d6d2d085ac5073` |
 | Noto Sans KR | `NotoSansKR-Regular.otf` | `69975a0ac8472717870aefeab0a4d52739308d90856b9955313b2ad5e0148d68` |
 
-## Latest acceptance — embedded VeraPDF 1.30.2
+## Accepted milestone — embedded VeraPDF 1.30.2
 
 VeraPDF is embedded in Stirling's Java application rather than shipped as a separate executable. The pinned core declares `org.verapdf:validation-model:1.30.2`, and the desktop JRE includes `jdk.dynalink`, which Stirling requires for VeraPDF runtime operation.
 
-Run #104 (`33908989039`) correctly reached the new E2E after primary steps 1–34 but exposed a test-fixture problem: upstream `test_globalsign.pdf` is actually an HTML GlobalSign 404 page. The bounded diagnostics proved VeraPDF itself had already initialized successfully. Commit `e2c2e0544bbd0f092980386b0e764550146c799e` made only the justified correction: construct a deterministic valid PDF fixture at runtime while retaining the real PDF→PDF/A-2b→VeraPDF verification chain.
+Run #104 (`33908989039`) reached the new E2E after the earlier primary gates but exposed a test-fixture problem: upstream `test_globalsign.pdf` was actually an HTML GlobalSign 404 page. The bounded diagnostics proved VeraPDF itself had initialized successfully. Commit `e2c2e0544bbd0f092980386b0e764550146c799e` replaced only that fixture dependency with a deterministic valid PDF while retaining the real PDF→PDF/A-2b→VeraPDF verification chain.
 
-Run #105 attempt 1 then failed earlier at OCR auxiliary staging because `pngquant.org:443` timed out (`HttpRequestException` / socket `10060`). No code gate failed. A single rerun of the same job/commit succeeded completely, with all primary steps 1–44 green. The live backend gate reported:
+Run #105 attempt 1 then failed earlier at OCR auxiliary staging because `pngquant.org:443` timed out (`HttpRequestException` / socket `10060`). No code gate failed. A single rerun of the same job/commit succeeded completely. The live backend gate reported:
 
 - `VeraPDF Greenfield initialized successfully`;
 - PDF/A result `standard=PDF_A_2_B`, profile `2B`, `compliant=True`, `totalFailures=0`;
@@ -64,62 +63,71 @@ Run #105 attempt 1 then failed earlier at OCR auxiliary staging because `pngquan
 
 Run #105 acceptance evidence:
 
-- run `33956010668`, attempt `2`, successful job `101283384499`, commit `e2c2e0544bbd0f092980386b0e764550146c799e`;
-- ZIP name `PDF_Tunner-2.14.3-bootstrap-Windows-x64-Portable.zip`;
+- run `33956010668`, attempt `2`, job `101283384499`, commit `e2c2e0544bbd0f092980386b0e764550146c799e`;
 - ZIP size `1,909,712,277` bytes;
 - ZIP SHA-256 `5A3F30A60E014C12D5059C81A6DC7EC8789DB9F4D3D3F5DB1A4D1A7403CEC5FE`;
 - portable layout `31,611` files / `4,387,634,583` payload bytes;
 - lightweight evidence artifact `9967243279`, size `7,585` bytes, digest `sha256:cd87e3b3ebe282c47e06c018b4c6c602611bd372701d36fb321249e34586d24c`;
-- attempt-1 diagnostic artifact `9966708360`, size `11,849` bytes, digest `sha256:8a611d843f4b436f87a4c81c0f9795a112b49135b3e2e4e4fc4ae584d09e8579`;
 - the multi-gigabyte ZIP itself was not uploaded.
 
 VeraPDF is closed/accepted; do not reopen it without new evidence.
 
-## Active candidate — jbig2enc 0.32
+## Latest acceptance — jbig2enc 0.32
 
-OCRmyPDF `17.10.0` probes the literal executable name `jbig2`, and its Windows code explicitly warns that TeX Live may place an incompatible `jbig2.EXE` on host `PATH`. Optimize levels 2/3 recommend `jbig2enc >= 0.28`. Run #105 backend logs still reported the missing `jbig2` dependency, so this is a concrete remaining parity/compression gap rather than speculative tooling.
+OCRmyPDF `17.10.0` probes the literal executable name `jbig2`, and its Windows code explicitly warns that TeX Live may place an incompatible `jbig2.EXE` on host `PATH`. Optimize levels 2/3 recommend `jbig2enc >= 0.28`; this was a concrete parity/compression gap after Run #105.
 
-The candidate uses:
+The accepted implementation uses:
 
 - upstream repository `agl/jbig2enc`;
 - exact tag `0.32` → commit `309b2d55c7dfdcf0ab6afccb6d88834afc0bf2c0`;
 - pinned Meson `1.10.0` wheel SHA-256 `4b27aafce281e652dcb437b28007457411245d975c48b5db3a797d3e93ae1585`;
 - MSVC x64 release build with `b_vscrt=mt`, `default_library=static` and `--wrap-mode=forcefallback`;
 - upstream authenticated Meson wrap hashes for Leptonica/codecs, with Meson's installed license closure retained;
-- package path `tools/jbig2enc/`, which the existing portable Tauri bootstrap already places ahead of host `PATH`.
+- package path `tools/jbig2enc/`, ahead of inherited host `PATH` in portable mode.
 
-The acceptance gate in `.github/scripts/prepare-jbig2enc.ps1` must prove all of the following in the assembled portable tree:
+The acceptance gate proves exact source/tag, authenticated dependency inputs, upstream Meson tests, AMD64 runtime identity, isolated `where.exe jbig2`, OCRmyPDF's exact `jbig2enc` ToolProbe, relocation to a path containing spaces, retained provenance/licenses and a real `ocrmypdf --optimize 2` result containing `/JBIG2Decode`.
 
-1. exact upstream tag and commit;
-2. authenticated Meson source/patch hashes for every wrap dependency;
-3. upstream Meson tests pass under the pinned source build;
-4. `jbig2.exe` is AMD64 and runs with an isolated PATH containing no Python, Visual Studio, MSYS2 or host tool directory;
-5. `where.exe jbig2` resolves only the package copy;
-6. OCRmyPDF's own `jbig2enc` ToolProbe sees version `0.32`;
-7. real `ocrmypdf --optimize 2` on a deterministic bilevel fixture produces a PDF containing `/JBIG2Decode`;
-8. the same binary remains detectable after relocation to a path containing spaces;
-9. provenance, packaged-file SHA-256 values, Apache-2.0 notice, patent notice and Meson-installed dependency licenses remain inside `tools/jbig2enc/`.
+### Runs #106–#108 closure
 
-The official 0.32 release does publish a Windows X64 MSVC ZIP, but its upstream Windows workflow builds in debug mode. PDF_Tunner therefore builds the exact tagged source itself so the portable artifact can explicitly force a release build and static MSVC CRT instead of inheriting a potentially host-dependent debug runtime.
+Run #106 (`33967722557`) reproduced the same step-30 boundary three times on commit `208b7c78e526f2ebd180f9fb80334db55d343ae9`. Bounded diagnostics exposed OCRmyPDF `--optimize 2` returning exit code `3`.
 
-### Runs #106–#107 diagnostic status — 2026-09-07
+Commit `4b33063c721ea9eb58cddd955f8b306adb83a169` added phase-qualified observability. Run #107 (`34122536256`, job `101743654235`) isolated the failure as `PDF_TUNNER_JBIG2_PHASE_FAILED=runtime-e2e`: the source/build/tests/staging/ToolProbe path had passed, but the test-only isolated PATH hid already accepted `tools/bin/pngquant.exe`. OCRmyPDF 17.10.0 defines exit code `3` as `missing_dependency` and requires pngquant for optimize levels 2/3.
 
-Run #106 (`33967722557`) reproduced the same step-30 failure boundary three times on commit `208b7c78e526f2ebd180f9fb80334db55d343ae9`. Attempt 3 job `101730738329` passed every primary step through Tesseract/Ghostscript and failed only at `Stage portable Python, OCRmyPDF and NumPy`. Its bounded diagnostic artifact exposed the immediate exception: OCRmyPDF `--optimize 2` returned exit code `3`.
+Commit `64f86ce6f567f49be1e677697221c52a8b26131f` made the minimal correction: require packaged `pngquant.exe` and include `tools/bin` in the jbig2enc runtime E2E PATH, matching the real portable bootstrap without weakening any source, provenance, relocation or `/JBIG2Decode` gate.
 
-Commit `4b33063c721ea9eb58cddd955f8b306adb83a169` then added phase-qualified observability only. Run #107 (`34122536256`, job `101743654235`) reproduced the failure as `PDF_TUNNER_JBIG2_PHASE_FAILED=runtime-e2e`, proving the source pin, Meson toolchain/setup/compile/tests/install, staging and initial runtime/ToolProbe gates had already passed.
+**Run #108 (`34138754142`, job `101795708391`) is completely green and formally accepts jbig2enc 0.32.** Evidence:
 
-OCRmyPDF 17.10.0 defines exit code `3` as `missing_dependency`, and its optimize plugin requires `pngquant >= 2.12.2` whenever `--optimize 2/3` is requested. PDF_Tunner already stages and validates `pngquant 2.17.0` at `tools/bin/pngquant.exe` (accepted Run #99), and the real Tauri portable bootstrap prepends `tools/bin` to PATH. The jbig2enc E2E, however, isolated PATH to jbig2enc/Python/Ghostscript/Tesseract/system directories and accidentally hid `tools/bin`. Therefore the failure is a **test-environment PATH defect**, not a jbig2enc build failure or missing portable dependency.
+- commit `64f86ce6f567f49be1e677697221c52a8b26131f`;
+- ZIP `PDF_Tunner-2.14.3-bootstrap-Windows-x64-Portable.zip`;
+- ZIP size `1,911,812,538` bytes;
+- ZIP SHA-256 `9F4334CB90B79457D3515877308DC3A25E521132A3B5130E79ABA650CAE8C5CE`;
+- portable layout `31,618` files / `4,392,280,088` payload bytes;
+- lightweight evidence artifact `10026083402`, API size `7,583` bytes, digest `sha256:04170eabf8166d25b24d57977cbbd54edbe0501b94f4b13a59cbe0fd9708dbe4`;
+- the multi-gigabyte ZIP itself was not uploaded.
 
-The current minimal correction adds package-local `tools/bin` to that E2E PATH and requires `tools/bin/pngquant.exe` before invoking OCRmyPDF. No provenance, build, portability or `/JBIG2Decode` acceptance gate is weakened. jbig2enc remains **active/unaccepted** until a complete primary workflow is green.
+jbig2enc is closed/accepted; do not reopen it without new evidence.
 
-## RAR / CBR portability finding
+## Active candidate — RAR / CBR portability
 
 Pinned Stirling 2.14.3 has asymmetric CBR behavior:
 
-- **CBR→PDF** is implemented through embedded Java `junrar`, so that direction does not need an external `rar.exe`.
-- **PDF→CBR** invokes the real RAR CLI (`rar a -m5 -ep1`). A ZIP renamed to `.cbr` would not be equivalent and is not an acceptable parity workaround.
+- **CBR→PDF** is implemented through embedded Java `junrar`, so that direction must work with no external `rar.exe`.
+- **PDF→CBR** invokes the real RAR CLI exactly as `rar a -m5 -ep1 <output.cbr> <rendered PNG pages>`.
+- A ZIP renamed to `.cbr` is not equivalent and is not an acceptable parity workaround.
+- RAR/WinRAR redistribution terms do not provide a clean basis to bundle the standalone encoder inside PDF_Tunner without permission.
 
-The RAR/WinRAR redistribution terms do not provide a clean basis to bundle the standalone encoder inside PDF_Tunner without permission. The current v1 direction is therefore to preserve CBR→PDF as fully portable and, for PDF→CBR, support a user-supplied/licensed `rar.exe` at the existing package-first `tools/rar/` path. This will be finalized after jbig2enc rather than silently dropping or faking the feature.
+The v1 contract is therefore: CBR→PDF remains fully portable; PDF→CBR is available when the user supplies a legitimately licensed `rar.exe` in package-first `tools/rar/`; the distributed PDF_Tunner ZIP contains **no `rar.exe`**.
+
+The active CI gate uses `.github/scripts/validate-rar-cbr.ps1` plus a CI-only native probe:
+
+1. build a deterministic 146-byte real RAR3/CBR fixture in-memory, containing a valid 2×2 PNG and pinned by SHA-256 `136cda2e5fd96e06a9d894b88c24c8c43e56c09c39bb17e0fc2e7c44c9b4368c`;
+2. call the real `/api/v1/convert/cbr/pdf` endpoint with **no `rar.exe` present**, then validate the output using packaged qpdf;
+3. temporarily place a CI-only `rar.exe` probe under `tools/rar/` and prove the real `/api/v1/convert/pdf/cbr` route resolves that package copy and passes exactly `a -m5 -ep1`, a `.cbr` output and rendered PNG inputs;
+4. the probe deliberately emits `PDF_TUNNER_RAR_PROBE_ONLY` rather than a RAR archive, so it cannot be mistaken for an encoder or product functionality;
+5. remove the probe and prove PDF→CBR fails explicitly when no encoder exists, with no ZIP-as-CBR fallback;
+6. scan the portable tree and fail if any `rar.exe` remains.
+
+RAR/CBR remains **active/unaccepted** until one complete primary regression is green with this gate enabled.
 
 ## Portable architecture
 
@@ -141,7 +149,7 @@ Key package-relative paths:
 - WeasyPrint → `tools/weasyprint/`; shim → `tools/bin/weasyprint.exe`;
 - Calibre → `tools/calibre/`; launcher → `tools/bin/ebook-convert.exe`;
 - OCRmyPDF auxiliaries → `tools/bin/unpaper.exe`, sibling DLLs and `tools/bin/pngquant.exe`;
-- jbig2enc candidate → `tools/jbig2enc/jbig2.exe`;
+- jbig2enc → `tools/jbig2enc/jbig2.exe`;
 - optional licensed RAR encoder path → `tools/rar/`.
 
 Portable mode skips runtime `pdf-tunner://` protocol registration. Primary CI rejects new tracked host AppData/TEMP/registry state and package-local orphan processes.
@@ -158,9 +166,8 @@ Heavy CI uses branch-scoped concurrency with `cancel-in-progress: true`. Do not 
 
 ### A. External toolchain / embedded runtime parity
 
-1. **jbig2enc 0.32** — active candidate;
-2. finalize portable RAR/CBR behavior and validation;
-3. finish exact dependency audit against pinned Stirling 2.14.3 and close any remaining concrete gap.
+1. **RAR/CBR portability contract** — active candidate;
+2. finish exact dependency audit against pinned Stirling 2.14.3 and close any remaining concrete gap.
 
 ### B. Representative functional E2E
 
@@ -180,11 +187,9 @@ Cover OCR, Office↔PDF, HTML/URL/base-URL/EML, WeasyPrint, Poppler, Calibre/eBo
 
 ## Compact handoff
 
-- Latest complete green primary: **Run #105 `33956010668`**, attempt `2`, job `101283384499`, commit `e2c2e0544bbd0f092980386b0e764550146c799e`.
-- Newly accepted: **embedded VeraPDF 1.30.2 E2E**.
-- Run #105 ZIP SHA-256 `5A3F30A60E014C12D5059C81A6DC7EC8789DB9F4D3D3F5DB1A4D1A7403CEC5FE`; size `1,909,712,277`; layout `31,611` files / `4,387,634,583` bytes; lightweight artifact `9967243279`, digest `sha256:cd87e3b3ebe282c47e06c018b4c6c602611bd372701d36fb321249e34586d24c`.
-- Active candidate: **jbig2enc 0.32**, exact commit `309b2d55c7dfdcf0ab6afccb6d88834afc0bf2c0`, source-built with static MSVC CRT and force-fallback authenticated dependencies.
-- Run #107 proves the current failure is `runtime-e2e`: OCRmyPDF exit `3 = missing_dependency` because the isolated test PATH hid accepted `tools/bin/pngquant.exe`; the portable launcher itself already exposes that directory.
-- Current fix mirrors the real package-first PATH in the jbig2enc E2E without weakening the `/JBIG2Decode` gate; validation is pending the next single primary run.
-- Next after jbig2enc acceptance: finalize RAR/CBR, then complete parity/E2E/release-readiness audits.
+- Latest complete green primary: **Run #108 `34138754142`**, job `101795708391`, commit `64f86ce6f567f49be1e677697221c52a8b26131f`.
+- Newly accepted: **jbig2enc 0.32** with exact source/build/provenance, ToolProbe, relocation and real optimize-2 `/JBIG2Decode` evidence.
+- Run #108 ZIP SHA-256 `9F4334CB90B79457D3515877308DC3A25E521132A3B5130E79ABA650CAE8C5CE`; size `1,911,812,538`; layout `31,618` files / `4,392,280,088` bytes; lightweight artifact `10026083402`, digest `sha256:04170eabf8166d25b24d57977cbbd54edbe0501b94f4b13a59cbe0fd9708dbe4`.
+- Active candidate: **RAR/CBR portability** — deterministic real RAR3 CBR→PDF without encoder; CI-only exact-command probe for conditional PDF→CBR; no bundled `rar.exe`; explicit failure when absent.
+- Next after RAR/CBR acceptance: finish exact dependency parity, representative E2E and release-readiness audits.
 - No final Release has been published.

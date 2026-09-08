@@ -119,7 +119,8 @@ jobs:
             './.github/scripts/prepare-weasyprint.ps1',
             './.github/scripts/validate-weasyprint.ps1',
             './.github/scripts/prepare-calibre.ps1',
-            './.github/scripts/validate-calibre.ps1'
+            './.github/scripts/validate-calibre.ps1',
+            './.github/scripts/validate-rar-cbr.ps1'
           )
           foreach ($script in $scripts) {
             $tokens = $null
@@ -130,7 +131,7 @@ jobs:
               throw "PowerShell syntax preflight failed: $script"
             }
           }
-          foreach ($source in @('./.github/scripts/unoconvert-launcher.rs', './.github/scripts/weasyprint-launcher.rs', './.github/scripts/calibre-launcher.rs')) {
+          foreach ($source in @('./.github/scripts/unoconvert-launcher.rs', './.github/scripts/weasyprint-launcher.rs', './.github/scripts/calibre-launcher.rs', './.github/scripts/rar-probe.rs')) {
             $metadata = Join-Path $env:RUNNER_TEMP ((Split-Path -Leaf $source) + '.rmeta')
             try {
               & rustc.exe --edition 2021 --emit metadata $source -o $metadata
@@ -295,6 +296,7 @@ jobs:
             -CalibreVersion $env:PDF_TUNNER_CALIBRE_VERSION `
             -CalibreMsiSha256 $env:PDF_TUNNER_CALIBRE_MSI_SHA256 `
             -RequireRelocation
+
       - name: Stage official WeasyPrint Windows runtime and portable shim
         shell: pwsh
         run: |
@@ -445,6 +447,18 @@ jobs:
           $marker = Join-Path $portable 'PDF_TUNNER_PORTABLE'
           if (-not (Test-Path -LiteralPath $marker -PathType Leaf)) { throw 'Portable marker is missing.' }
 
+          # Compile the CI-only RAR command probe while the Rust toolchain is still
+          # on the runner PATH. The executable stays in RUNNER_TEMP and is copied
+          # into tools/rar only for the bounded live-backend validation.
+          $rarProbe = Join-Path $env:RUNNER_TEMP 'pdf-tunner-rar-probe.exe'
+          & rustc.exe --edition 2021 -C opt-level=2 './.github/scripts/rar-probe.rs' -o $rarProbe
+          if ($LASTEXITCODE -ne 0 -or -not (Test-Path -LiteralPath $rarProbe -PathType Leaf)) {
+            throw 'Failed to compile the CI-only RAR command probe.'
+          }
+          # Ensure the optional user-supplied encoder directory exists before
+          # Tauri configures package-first PATH and spawns the Java backend.
+          New-Item -ItemType Directory -Force -Path (Join-Path $portable 'tools/rar') | Out-Null
+
           $hostLeak = Join-Path $env:APPDATA 'Stirling-PDF'
           $hostLeakExisted = Test-Path -LiteralPath $hostLeak
           $hostWebViewRoot = Join-Path $env:LOCALAPPDATA 'com.willsitogg.pdf-tunner'
@@ -486,6 +500,7 @@ jobs:
             (Join-Path $portable 'tools/poppler/Library/bin'),
             (Join-Path $portable 'tools/calibre'),
             (Join-Path $portable 'tools/imagemagick'),
+            (Join-Path $portable 'tools/rar'),
             $system32,
             $env:SystemRoot
           ) | Where-Object { Test-Path -LiteralPath $_ }
@@ -609,12 +624,18 @@ jobs:
             -CalibreMsiSha256 $env:PDF_TUNNER_CALIBRE_MSI_SHA256 `
             -BackendBaseUrl "http://127.0.0.1:$port" `
             -BackendLogRoot (Join-Path $portable 'data')
+
           & './.github/scripts/validate-weasyprint.ps1' `
             -PortableRoot './dist/PDF_Tunner' `
             -Version $env:PDF_TUNNER_WEASYPRINT_VERSION `
             -ExpectedArchiveSha256 $env:PDF_TUNNER_WEASYPRINT_SHA256 `
             -BackendBaseUrl "http://127.0.0.1:$port" `
             -BackendLogRoot (Join-Path $portable 'data')
+
+          & './.github/scripts/validate-rar-cbr.ps1' `
+            -PortableRoot './dist/PDF_Tunner' `
+            -BackendBaseUrl "http://127.0.0.1:$port" `
+            -ProbeExecutable $rarProbe
 
           $backendLogs = @(Get-ChildItem -LiteralPath (Join-Path $portable 'data') -Recurse -Force -File -Filter '*.log' -ErrorAction SilentlyContinue)
           if ($backendLogs.Count -eq 0) { throw 'No backend logs were available for OCRmyPDF dependency acceptance.' }
@@ -752,7 +773,7 @@ jobs:
             throw "Fixed WebView2 CAB SHA mismatch at final acceptance: expected $expected, got $actual."
           }
 
-      - name: Verify final portable layout contains no downloaded WebView2 CAB
+      - name: Verify final portable layout contains no downloaded WebView2 CAB or RAR probe
         shell: pwsh
         run: |
           $portable = Resolve-Path './dist/PDF_Tunner'
@@ -761,7 +782,13 @@ jobs:
             $cabs | Select-Object FullName, Length | Format-Table -AutoSize
             throw 'Downloaded WebView2 CAB leaked into the portable package.'
           }
+          $rarLeaks = @(Get-ChildItem -LiteralPath $portable -Recurse -Force -File -Filter 'rar.exe' -ErrorAction SilentlyContinue)
+          if ($rarLeaks.Count -gt 0) {
+            $rarLeaks | Select-Object FullName, Length | Format-Table -AutoSize
+            throw 'RAR executable/probe leaked into the portable package.'
+          }
           Write-Host 'PASS: portable package contains normalized Fixed WebView2 runtime only; no CAB archive remains.'
+          Write-Host 'PASS: portable package contains no bundled RAR encoder or CI probe.'
 
       - name: Collect bounded portable startup diagnostics
         if: failure()
@@ -852,11 +879,18 @@ jobs:
             'tools/libreoffice/VERSION.txt',
             'tools/bin/unoconvert.exe',
             'tools/bin/UNOCONVERT_PROVENANCE.txt',
+            'tools/rar',
             'data'
           )
           foreach ($relative in $required) {
             $path = Join-Path $portable $relative
             if (-not (Test-Path -LiteralPath $path)) { throw "Portable layout missing: $relative" }
+          }
+
+          $rarLeaks = @(Get-ChildItem -LiteralPath $portable -Recurse -Force -File -Filter 'rar.exe' -ErrorAction SilentlyContinue)
+          if ($rarLeaks.Count -gt 0) {
+            $rarLeaks | Select-Object FullName, Length | Format-Table -AutoSize
+            throw 'Final portable layout unexpectedly contains rar.exe.'
           }
 
           & './.github/scripts/validate-qpdf.ps1' `
@@ -961,6 +995,7 @@ jobs:
             "NUMPY_VERSION=$env:PDF_TUNNER_NUMPY_VERSION",
             "NUMPY_WHEEL_SHA256=$env:PDF_TUNNER_NUMPY_WHEEL_SHA256",
             "PYTHON_DEPENDENCY_LOCK_SHA256=$env:PDF_TUNNER_PYTHON_DEPENDENCY_LOCK_SHA256",
+            "RAR_CBR_CONTRACT=embedded-junrar-cbr-to-pdf;optional-user-rar-pdf-to-cbr;no-bundled-rar.exe",
             "ZIP_NAME=$env:PACKAGE_ZIP",
             "ZIP_SHA256=$env:PACKAGE_SHA256",
             "ZIP_SIZE_BYTES=$env:PACKAGE_SIZE_BYTES"
