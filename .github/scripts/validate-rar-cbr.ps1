@@ -128,7 +128,7 @@ function New-DeterministicRar3Cbr {
     }
 
     $sha = (Get-FileHash -LiteralPath $Path -Algorithm SHA256).Hash.ToLowerInvariant()
-    $expectedSha = '136cda2e5fd96e06a9d894b88c24c8c43e56c09c39bb17e0fc2e7c44c9b4368c'
+    $expectedSha = 'f3d3e772d72fc274146f45eaf8c37b97dad35f5add83b22c0d1e7c5c603373d0'
     if ($sha -ne $expectedSha) {
         throw "Deterministic RAR3 fixture SHA-256 mismatch: expected $expectedSha, got $sha."
     }
@@ -161,6 +161,12 @@ $qpdf = Join-Path $portable 'tools/qpdf/bin/qpdf.exe'
 Remove-Item -LiteralPath $tempRoot -Recurse -Force -ErrorAction SilentlyContinue
 New-Item -ItemType Directory -Force -Path $tempRoot, $rarDir | Out-Null
 Remove-Item -LiteralPath $rarExe, $probeLog -Force -ErrorAction SilentlyContinue
+
+$backendLogs = @(Get-ChildItem -LiteralPath (Join-Path $portable 'data') -Recurse -Force -File -Filter '*.log' -ErrorAction SilentlyContinue)
+$backendLogText = ($backendLogs | ForEach-Object { Get-Content -LiteralPath $_.FullName -Raw -ErrorAction SilentlyContinue }) -join "`n"
+if ($backendLogText -match '(?im)Disabling group:\s*rar\b') {
+    throw 'Stirling disabled the RAR group at startup; PDF_Tunner requires RAR to remain a lazy optional dependency.'
+}
 
 try {
     # CBR -> PDF must be genuinely portable and must not rely on any RAR encoder.

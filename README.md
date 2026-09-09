@@ -14,6 +14,7 @@
 - Latest complete green primary regression: **Run #108** (`34138754142`), job `101795708391`, commit `64f86ce6f567f49be1e677697221c52a8b26131f`.
 - **jbig2enc 0.32 is formally accepted by Run #108**, including exact source/tag, authenticated Meson inputs, static MSVC build, upstream tests, isolated package-first ToolProbe, relocation and a real OCRmyPDF `--optimize 2` result containing `/JBIG2Decode`.
 - Active candidate: **RAR/CBR portability contract**. CBR→PDF is embedded-junrar and must work with no `rar.exe`; PDF→CBR legitimately depends on a licensed/user-supplied RAR encoder and must resolve it package-first without bundling or faking proprietary RAR output.
+- Run #115 (`34218818659`) reached the live-backend RAR/CBR gate but exposed two issues: the deterministic RAR3 fixture SHA was documented incorrectly, and upstream Stirling permanently disabled the RAR group when `rar` was absent during startup, preventing the intended package-local optional encoder from being supplied later. PDF_Tunner now treats only RAR as a lazy optional dependency; all other dependency-disable behavior remains unchanged.
 - Next after RAR/CBR: finish the remaining pinned-source parity audit and representative functional E2E coverage.
 
 ## Accepted portable layers
@@ -118,16 +119,23 @@ Pinned Stirling 2.14.3 has asymmetric CBR behavior:
 
 The v1 contract is therefore: CBR→PDF remains fully portable; PDF→CBR is available when the user supplies a legitimately licensed `rar.exe` in package-first `tools/rar/`; the distributed PDF_Tunner ZIP contains **no `rar.exe`**.
 
+### Run #115 diagnosis and portable correction
+
+Run #115 (`34218818659`, commit `f7e42a7c5bddebbb67ebc1050a54bd19f2bb6f80`) passed steps 1–34 and failed only in step 35, `Start PDF_Tunner and validate real backend`. Its bounded startup diagnostics showed `Missing dependency: rar`: upstream `ExternalAppDepConfig` performs dependency discovery once during startup and permanently disables the RAR group when `rar` is absent. That conflicts with PDF_Tunner's deliberate optional-user-supplied encoder path because adding `tools/rar/rar.exe` later cannot reactivate the route. Separately, reproducing the deterministic 146-byte RAR3 fixture proved that the scripted bytes hash to `f3d3e772d72fc274146f45eaf8c37b97dad35f5add83b22c0d1e7c5c603373d0`, not the previously documented `136cda2e...` value.
+
+PDF_Tunner therefore makes one narrow runtime adaptation: **RAR alone is a lazy optional dependency**. If `rar` is absent at startup, the RAR endpoint group stays enabled rather than being permanently disabled; the actual `rar` command is still resolved normally from the package-first `PATH` when PDF→CBR is invoked. This lets a user drop a legitimate encoder into `tools/rar/` before or after launch. If no encoder is present when conversion is attempted, the real route fails explicitly. Every other external dependency keeps Stirling's existing startup-disable behavior.
+
 The active CI gate uses `.github/scripts/validate-rar-cbr.ps1` plus a CI-only native probe:
 
-1. build a deterministic 146-byte real RAR3/CBR fixture in-memory, containing a valid 2×2 PNG and pinned by SHA-256 `136cda2e5fd96e06a9d894b88c24c8c43e56c09c39bb17e0fc2e7c44c9b4368c`;
-2. call the real `/api/v1/convert/cbr/pdf` endpoint with **no `rar.exe` present**, then validate the output using packaged qpdf;
-3. temporarily place a CI-only `rar.exe` probe under `tools/rar/` and prove the real `/api/v1/convert/pdf/cbr` route resolves that package copy and passes exactly `a -m5 -ep1`, a `.cbr` output and rendered PNG inputs;
-4. the probe deliberately emits `PDF_TUNNER_RAR_PROBE_ONLY` rather than a RAR archive, so it cannot be mistaken for an encoder or product functionality;
-5. remove the probe and prove PDF→CBR fails explicitly when no encoder exists, with no ZIP-as-CBR fallback;
-6. scan the portable tree and fail if any `rar.exe` remains.
+1. build a deterministic 146-byte real RAR3/CBR fixture in-memory, containing a valid 2×2 PNG and pinned by SHA-256 `f3d3e772d72fc274146f45eaf8c37b97dad35f5add83b22c0d1e7c5c603373d0`;
+2. prove backend startup did **not** disable the RAR group even though no `rar.exe` is present;
+3. call the real `/api/v1/convert/cbr/pdf` endpoint with **no `rar.exe` present**, then validate the output using packaged qpdf;
+4. after the backend is already running, temporarily place a CI-only `rar.exe` probe under `tools/rar/` and prove the real `/api/v1/convert/pdf/cbr` route dynamically resolves that package copy and passes exactly `a -m5 -ep1`, a `.cbr` output and rendered PNG inputs;
+5. the probe deliberately emits `PDF_TUNNER_RAR_PROBE_ONLY` rather than a RAR archive, so it cannot be mistaken for an encoder or product functionality;
+6. remove the probe and prove PDF→CBR fails explicitly when no encoder exists, with no ZIP-as-CBR fallback;
+7. scan the portable tree and fail if any `rar.exe` remains.
 
-RAR/CBR remains **active/unaccepted** until one complete primary regression is green with this gate enabled.
+RAR/CBR remains **active/unaccepted** until one complete primary regression is green with this corrected gate enabled.
 
 ## Portable architecture
 
@@ -190,6 +198,7 @@ Cover OCR, Office↔PDF, HTML/URL/base-URL/EML, WeasyPrint, Poppler, Calibre/eBo
 - Latest complete green primary: **Run #108 `34138754142`**, job `101795708391`, commit `64f86ce6f567f49be1e677697221c52a8b26131f`.
 - Newly accepted: **jbig2enc 0.32** with exact source/build/provenance, ToolProbe, relocation and real optimize-2 `/JBIG2Decode` evidence.
 - Run #108 ZIP SHA-256 `9F4334CB90B79457D3515877308DC3A25E521132A3B5130E79ABA650CAE8C5CE`; size `1,911,812,538`; layout `31,618` files / `4,392,280,088` bytes; lightweight artifact `10026083402`, digest `sha256:04170eabf8166d25b24d57977cbbd54edbe0501b94f4b13a59cbe0fd9708dbe4`.
-- Active candidate: **RAR/CBR portability** — deterministic real RAR3 CBR→PDF without encoder; CI-only exact-command probe for conditional PDF→CBR; no bundled `rar.exe`; explicit failure when absent.
+- Run #115 `34218818659` failed only at the live-backend RAR/CBR gate. Root causes: wrong deterministic fixture SHA and upstream's irreversible startup disable of the optional RAR group. Corrected fixture SHA: `f3d3e772d72fc274146f45eaf8c37b97dad35f5add83b22c0d1e7c5c603373d0`; PDF_Tunner now keeps only RAR lazy/optional so a package-local encoder can be supplied dynamically.
+- Active candidate: **RAR/CBR portability** — deterministic real RAR3 CBR→PDF without encoder; dynamic package-first CI probe for conditional PDF→CBR; no bundled `rar.exe`; explicit failure when absent.
 - Next after RAR/CBR acceptance: finish exact dependency parity, representative E2E and release-readiness audits.
 - No final Release has been published.

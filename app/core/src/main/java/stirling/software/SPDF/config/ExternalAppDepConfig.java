@@ -71,7 +71,7 @@ public class ExternalAppDepConfig {
         tmp.put(unoconvPath, List.of("Unoconvert"));
         tmp.put("qpdf", List.of("qpdf"));
         tmp.put("tesseract", List.of("tesseract"));
-        tmp.put("rar", List.of("rar")); // Required for real CBR output
+        tmp.put("rar", List.of("rar")); // Optional user-supplied encoder for real CBR output
         tmp.put(calibrePath, List.of("Calibre"));
         // ffmpeg disabled due to raised CVEs
         // tmp.put("ffmpeg", List.of("FFmpeg"));
@@ -112,6 +112,14 @@ public class ExternalAppDepConfig {
         boolean available = isCommandAvailable(command);
 
         if (!available) {
+            if (isLazyOptionalRar(command)) {
+                log.warn(
+                        "Optional dependency unavailable at startup: rar - keeping the RAR group"
+                                + " enabled so a package-local user-supplied encoder can be resolved"
+                                + " when PDF-to-CBR is invoked");
+                return;
+            }
+
             List<String> affectedGroups = commandToGroupMapping.get(command);
             if (affectedGroups == null || affectedGroups.isEmpty()) return;
 
@@ -187,6 +195,10 @@ public class ExternalAppDepConfig {
                     },
                     () -> log.warn("qpdf version could not be determined ({} --version)", command));
         }
+    }
+
+    private boolean isLazyOptionalRar(String command) {
+        return "rar".equalsIgnoreCase(command);
     }
 
     private boolean isWeasyprint(String command) {
