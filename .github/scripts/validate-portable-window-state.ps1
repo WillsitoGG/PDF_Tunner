@@ -48,7 +48,9 @@ foreach ($root in $HostTauriRoots) {
 
 Add-Type -TypeDefinition @'
 using System;
+using System.Collections.Generic;
 using System.Runtime.InteropServices;
+using System.Text;
 
 public static class PdfTunnerWindowProbe
 {
@@ -72,6 +74,12 @@ public static class PdfTunnerWindowProbe
     [DllImport("user32.dll")]
     private static extern bool IsWindowVisible(IntPtr hWnd);
 
+    [DllImport("user32.dll", CharSet = CharSet.Unicode, ExactSpelling = true, EntryPoint = "GetWindowTextW")]
+    private static extern int GetWindowTextNative(IntPtr hWnd, StringBuilder text, int maxCount);
+
+    [DllImport("user32.dll", CharSet = CharSet.Unicode, ExactSpelling = true, EntryPoint = "GetClassNameW")]
+    private static extern int GetClassNameNative(IntPtr hWnd, StringBuilder className, int maxCount);
+
     [DllImport("user32.dll", SetLastError = true)]
     public static extern bool GetWindowRect(IntPtr hWnd, out RECT lpRect);
 
@@ -91,21 +99,46 @@ public static class PdfTunnerWindowProbe
     [DllImport("user32.dll")]
     public static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
 
-    public static IntPtr FindVisibleTopLevelWindow(int processId)
+    public static string GetWindowTitle(IntPtr hWnd)
     {
-        IntPtr found = IntPtr.Zero;
+        StringBuilder text = new StringBuilder(512);
+        GetWindowTextNative(hWnd, text, text.Capacity);
+        return text.ToString();
+    }
+
+    public static string GetWindowClass(IntPtr hWnd)
+    {
+        StringBuilder className = new StringBuilder(256);
+        GetClassNameNative(hWnd, className, className.Capacity);
+        return className.ToString();
+    }
+
+    public static IntPtr[] GetVisibleTopLevelWindows(int processId)
+    {
+        List<IntPtr> found = new List<IntPtr>();
         EnumWindows(delegate (IntPtr hWnd, IntPtr lParam)
         {
             uint pid;
             GetWindowThreadProcessId(hWnd, out pid);
             if (pid == (uint)processId && IsWindowVisible(hWnd))
             {
-                found = hWnd;
-                return false;
+                found.Add(hWnd);
             }
             return true;
         }, IntPtr.Zero);
-        return found;
+        return found.ToArray();
+    }
+
+    public static IntPtr FindVisibleTopLevelWindow(int processId, string expectedTitle)
+    {
+        foreach (IntPtr hWnd in GetVisibleTopLevelWindows(processId))
+        {
+            if (String.Equals(GetWindowTitle(hWnd), expectedTitle, StringComparison.OrdinalIgnoreCase))
+            {
+                return hWnd;
+            }
+        }
+        return IntPtr.Zero;
     }
 }
 '@
@@ -128,13 +161,18 @@ function Wait-ForWindow {
         if ($Process.HasExited) {
             throw "PDF_Tunner exited before exposing a top-level window (exit code $($Process.ExitCode))."
         }
-        $hwnd = [PdfTunnerWindowProbe]::FindVisibleTopLevelWindow($Process.Id)
+        # Tauri's configured product window title is PDF_Tunner. Ignore visible
+        # helper/popup windows owned by the same PID; only the actual main window
+        # can satisfy the persistence gate.
+        $hwnd = [PdfTunnerWindowProbe]::FindVisibleTopLevelWindow($Process.Id, 'PDF_Tunner')
         if ($hwnd -ne [IntPtr]::Zero) {
             return $hwnd
         }
         Start-Sleep -Milliseconds 500
     }
-    throw "Timed out waiting for PDF_Tunner top-level window (PID $($Process.Id))."
+    Write-Host "Visible top-level windows owned by PID $($Process.Id) while waiting for the 'PDF_Tunner' main window:"
+    Get-VisibleWindowDiagnostics -ProcessId $Process.Id | Format-List
+    throw "Timed out waiting for the 'PDF_Tunner' main window (PID $($Process.Id))."
 }
 
 function Get-Geometry {
@@ -156,6 +194,25 @@ function Get-Geometry {
         OuterHeight = $outer.Bottom - $outer.Top
         ClientWidth = $client.Right - $client.Left
         ClientHeight = $client.Bottom - $client.Top
+    }
+}
+
+function Get-VisibleWindowDiagnostics {
+    param([Parameter(Mandatory = $true)][int]$ProcessId)
+
+    foreach ($hwnd in [PdfTunnerWindowProbe]::GetVisibleTopLevelWindows($ProcessId)) {
+        $geometry = Get-Geometry -Hwnd $hwnd
+        [PSCustomObject]@{
+            Handle = ('0x{0:X}' -f $hwnd.ToInt64())
+            Title = [PdfTunnerWindowProbe]::GetWindowTitle($hwnd)
+            Class = [PdfTunnerWindowProbe]::GetWindowClass($hwnd)
+            X = $geometry.X
+            Y = $geometry.Y
+            OuterWidth = $geometry.OuterWidth
+            OuterHeight = $geometry.OuterHeight
+            ClientWidth = $geometry.ClientWidth
+            ClientHeight = $geometry.ClientHeight
+        }
     }
 }
 
@@ -373,7 +430,10 @@ try {
 
     if ($null -eq $restored) {
         $last = Get-Geometry -Hwnd $secondHwnd
+        Write-Host 'Selected PDF_Tunner main-window geometry on second launch:'
         $last | Format-List
+        Write-Host "All visible top-level windows owned by second-launch PID $($second.Id):"
+        Get-VisibleWindowDiagnostics -ProcessId $second.Id | Format-List
         throw 'Second packaged launch did not restore saved portable geometry within tolerance.'
     }
 

@@ -187,7 +187,11 @@ Run #115 (`34218818659`, commit `f7e42a7c5bddebbb67ebc1050a54bd19f2bb6f80`) pass
 
 The correction is deliberately narrow: special-case only `rar` as lazy optional and correct the deterministic fixture hash. Do not weaken any other dependency, functional, portability, containment or packaging gate.
 
-RAR/CBR remains active/unaccepted until a complete primary workflow passes this corrected gate with all earlier accepted gates still enabled.
+Run #116 attempt 3 (`34345749975`, job `111702616470`, commit `98f458e44258eaf9bf120397733f68a7e4dba4ff`) passed the complete live-backend block, including deterministic real CBR→PDF, package-first PDF→CBR probe invocation, explicit no-encoder failure and no-`rar.exe` package check. The full primary workflow still failed at step 36, portable window-state persistence: first launch saved position `(111,87)` and client size `824×581`; the second-launch probe measured `(0,0)`, outer `16×16`, client `0×0` after 30 seconds. The probe currently chose the first visible process-owned HWND without identifying its title/class, so the selected handle may be an auxiliary window. Bounded diagnostics artifact `11338690381` (SHA-256 `86f7238911eb5c74a651b2cd316f76974dc4ab4c2ce77dfca9708fb3c3dec976`, 36,066 bytes; expires 2026-10-08) contains the app/backend logs and process snapshot but not HWND titles/classes.
+
+The portable-window test is being tightened to target the configured main-window title `PDF_Tunner` and to list all visible HWND titles, classes and dimensions if startup or restoration fails. Keep the saved-geometry assertions unchanged. If the actual titled main window remains `16×16`, investigate the native restore lifecycle; do not accept the RAR/CBR candidate until the entire primary workflow is green.
+
+RAR/CBR remains active/unaccepted until a complete primary workflow passes this corrected gate and the earlier accepted gates remain enabled.
 
 ## Primary workflow acceptance contract
 
@@ -224,7 +228,7 @@ Representative E2E must cover Office→PDF and supported PDF→Office, HTML/URL/
 8. publish clean v1 ZIP only when all gates are complete and explicitly authorized;
 9. manual clean-machine Windows 10/11 checklist.
 
-## Current handoff — 2026-09-09
+## Current handoff — 2026-10-05
 
 Accepted/closed: native portable/Tauri containment; Fixed WebView2; qpdf; ImageMagick; Ghostscript; Tesseract; Python 3.12.14 + OCRmyPDF 17.10.0; authenticated Python lock; NumPy 2.5.2; OpenCV `4.14.0.94`; LibreOffice 26.2.5 + native `unoconvert`; Poppler 26.02.0; WeasyPrint 69.0; Calibre 9.14.0; unpaper 6.1 + pngquant 2.17.0; conversion fonts; embedded VeraPDF 1.30.2 E2E; **jbig2enc 0.32**.
 
