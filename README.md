@@ -11,12 +11,12 @@
 - Target: **Windows 10/11 x64 portable ZIP**, extract and run without installation.
 - `main` remains the clean pinned upstream base during v1 development.
 - No final PDF_Tunner v1 Release exists yet.
-- Latest complete green primary regression: **Run #108** (`34138754142`), job `101795708391`, commit `64f86ce6f567f49be1e677697221c52a8b26131f`.
+- Latest complete green primary regression: **Run #117** (`37295728617`), job `111716357569`, commit `9d86212898c277c85835561a8b605116339e3d00`.
 - **jbig2enc 0.32 is formally accepted by Run #108**, including exact source/tag, authenticated Meson inputs, static MSVC build, upstream tests, isolated package-first ToolProbe, relocation and a real OCRmyPDF `--optimize 2` result containing `/JBIG2Decode`.
-- Active candidate: **RAR/CBR portability contract**. CBR→PDF is embedded-junrar and must work with no `rar.exe`; PDF→CBR legitimately depends on a licensed/user-supplied RAR encoder and must resolve it package-first without bundling or faking proprietary RAR output.
-- Run #115 (`34218818659`) reached the live-backend RAR/CBR gate but exposed two issues: the deterministic RAR3 fixture SHA was documented incorrectly, and upstream Stirling permanently disabled the RAR group when `rar` was absent during startup, preventing the intended package-local optional encoder from being supplied later. PDF_Tunner now treats only RAR as a lazy optional dependency; all other dependency-disable behavior remains unchanged.
-- Run #116 attempt 3 (`34345749975`, job `111702616470`, commit `98f458e44258eaf9bf120397733f68a7e4dba4ff`) passed the complete live backend and RAR/CBR gate, then failed only the second-launch window-restore gate: the selected HWND measured `16×16` outer and `0×0` client after 30 seconds, against saved client geometry `824×581`. The test selected the first visible top-level HWND without checking its title/class, so whether this was the actual main window is not yet proven. The updated probe now selects the configured `PDF_Tunner` window title and records all visible candidate titles, classes and geometry on failure. RAR/CBR remains active/unaccepted until a full primary run is green.
-- Next: resolve the window-state gate from the improved HWND evidence, then finish the remaining pinned-source parity audit and representative functional E2E coverage.
+- **RAR/CBR is formally accepted by Run #117**: deterministic real CBR→PDF, package-first optional encoder probe for PDF→CBR, explicit no-encoder failure, no bundled `rar.exe`, and the complete primary workflow including second-launch window restore all passed.
+- Run #115 and #116 remain recorded below as failure history; #117 closes the RAR/CBR and HWND restoration gates.
+- CI handoff incident: Run #117 completed successfully at 10:57 UTC, but its commit status stayed `pending` from 10:18 UTC because the status bridge only published at workflow start. This revision adds terminal publication in an `always()` step and skips heavy CI for root README/AGENTS/RELEASE_STATUS-only changes. On resume, use the actual Actions run result as the source of truth if a commit status looks stale.
+- Next: complete the exact dependency parity audit against pinned Stirling 2.14.3, then continue representative functional E2E coverage and release-readiness checks.
 
 ## Accepted portable layers
 
@@ -175,7 +175,7 @@ Heavy CI uses branch-scoped concurrency with `cancel-in-progress: true`. Do not 
 
 ### A. External toolchain / embedded runtime parity
 
-1. **RAR/CBR portability contract** — active candidate;
+1. **RAR/CBR portability contract** — accepted by Run #117;
 2. finish exact dependency audit against pinned Stirling 2.14.3 and close any remaining concrete gap.
 
 ### B. Representative functional E2E
@@ -196,10 +196,11 @@ Cover OCR, Office↔PDF, HTML/URL/base-URL/EML, WeasyPrint, Poppler, Calibre/eBo
 
 ## Compact handoff
 
-- Latest complete green primary: **Run #108 `34138754142`**, job `101795708391`, commit `64f86ce6f567f49be1e677697221c52a8b26131f`.
-- Newly accepted: **jbig2enc 0.32** with exact source/build/provenance, ToolProbe, relocation and real optimize-2 `/JBIG2Decode` evidence.
-- Run #108 ZIP SHA-256 `9F4334CB90B79457D3515877308DC3A25E521132A3B5130E79ABA650CAE8C5CE`; size `1,911,812,538`; layout `31,618` files / `4,392,280,088` bytes; lightweight artifact `10026083402`, digest `sha256:04170eabf8166d25b24d57977cbbd54edbe0501b94f4b13a59cbe0fd9708dbe4`.
-- Run #115 `34218818659` failed only at the live-backend RAR/CBR gate. Root causes: wrong deterministic fixture SHA and upstream's irreversible startup disable of the optional RAR group. Corrected fixture SHA: `f3d3e772d72fc274146f45eaf8c37b97dad35f5add83b22c0d1e7c5c603373d0`; PDF_Tunner now keeps only RAR lazy/optional so a package-local encoder can be supplied dynamically.
-- Active candidate: **RAR/CBR portability** — deterministic real RAR3 CBR→PDF without encoder; dynamic package-first CI probe for conditional PDF→CBR; no bundled `rar.exe`; explicit failure when absent.
-- Next after RAR/CBR acceptance: finish exact dependency parity, representative E2E and release-readiness audits.
+- Latest complete green primary: **Run #117** (`37295728617`), job `111716357569`, commit `9d86212898c277c85835561a8b605116339e3d00`.
+- Run #117 ZIP SHA-256 `FC346A574D9F300B239855D55F546385BDEEE083D45D7685D6E9611ED1477F71`; size `1,911,871,959` bytes; layout `31,618` files / `4,392,412,889` bytes; lightweight artifact `11342000282`, digest `sha256:20c8bbcda77521414f3400c00a897e763e8fb4e9f091982407e7540d422a704e2`.
+- **RAR/CBR portability contract is accepted by Run #117**; the complete workflow, real backend, no-encoder behavior, no-`rar.exe` package check and second-launch geometry restore all passed.
+- **jbig2enc 0.32** remains accepted with exact source/build/provenance, ToolProbe, relocation and real optimize-2 `/JBIG2Decode` evidence from Run #108.
+- Historical Run #115 diagnosis and corrected fixture SHA: `f3d3e772d72fc274146f45eaf8c37b97dad35f5add83b22c0d1e7c5c603373d0`.
+- Run #117 exposed a stale status bridge: it left commit status `pending` after the run succeeded. The final `always()` step added in this revision publishes the terminal state; root README/AGENTS/RELEASE_STATUS-only commits no longer trigger a full portable rebuild.
+- Next: exact dependency parity audit against pinned Stirling 2.14.3, followed by representative E2E and release-readiness audits.
 - No final Release has been published.

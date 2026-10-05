@@ -5,6 +5,10 @@ on:
   push:
     branches:
       - pdf-tunner/windows-portable-v1
+    paths-ignore:
+      - AGENTS.md
+      - README.md
+      - RELEASE_STATUS.md
 
 concurrency:
   group: pdf-tunner-windows-portable-${{ github.ref }}
@@ -1025,3 +1029,14 @@ jobs:
           path: dist/ci-evidence
           if-no-files-found: error
           retention-days: 7
+
+      - name: Publish terminal connector-readable push-run status
+        if: always()
+        continue-on-error: true
+        timeout-minutes: 2
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          JOB_STATUS: ${{ job.status }}
+        run: |
+          & './.github/scripts/publish-push-run-statuses.ps1' -FinalState $env:JOB_STATUS

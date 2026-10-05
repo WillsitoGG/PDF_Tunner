@@ -45,7 +45,8 @@ Before writes in a resumed conversation:
 4. carry accepted/closed, active candidate, next block and broader roadmap explicitly;
 5. never treat one immediate dependency as the only remaining work;
 6. at each accepted milestone record commit, Run/job, artifact/digest where relevant, next candidate and remaining roadmap in README + AGENTS;
-7. before final Release re-audit against the full original PDF_Tunner objective.
+7. when resuming an Actions run, inspect its exact run ID and terminal conclusion; do not rely on a commit status alone, because Run #117 succeeded while the status bridge remained `pending` after its startup-only publication;
+8. before final Release re-audit against the full original PDF_Tunner objective.
 
 ## Architecture and portable boundary
 
@@ -191,7 +192,7 @@ Run #116 attempt 3 (`34345749975`, job `111702616470`, commit `98f458e44258eaf9b
 
 The portable-window test is being tightened to target the configured main-window title `PDF_Tunner` and to list all visible HWND titles, classes and dimensions if startup or restoration fails. Keep the saved-geometry assertions unchanged. If the actual titled main window remains `16×16`, investigate the native restore lifecycle; do not accept the RAR/CBR candidate until the entire primary workflow is green.
 
-RAR/CBR remains active/unaccepted until a complete primary workflow passes this corrected gate and the earlier accepted gates remain enabled.
+Run #117 (`37295728617`) passed the corrected window-state gate and the complete primary workflow with the earlier accepted gates enabled; this satisfies the RAR/CBR acceptance condition recorded in the current handoff.
 
 ## Primary workflow acceptance contract
 
@@ -209,7 +210,7 @@ The primary workflow builds and validates the portable ZIP but ordinary CI uploa
 
 ### A. External toolchain / embedded runtime parity
 
-1. **RAR/CBR portability contract** — active candidate;
+1. **RAR/CBR portability contract** — accepted by Run #117;
 2. finish exact pinned-source dependency parity audit and close any remaining concrete dependency gap.
 
 ### B. Functional validation
@@ -230,12 +231,14 @@ Representative E2E must cover Office→PDF and supported PDF→Office, HTML/URL/
 
 ## Current handoff — 2026-10-05
 
-Accepted/closed: native portable/Tauri containment; Fixed WebView2; qpdf; ImageMagick; Ghostscript; Tesseract; Python 3.12.14 + OCRmyPDF 17.10.0; authenticated Python lock; NumPy 2.5.2; OpenCV `4.14.0.94`; LibreOffice 26.2.5 + native `unoconvert`; Poppler 26.02.0; WeasyPrint 69.0; Calibre 9.14.0; unpaper 6.1 + pngquant 2.17.0; conversion fonts; embedded VeraPDF 1.30.2 E2E; **jbig2enc 0.32**.
+Accepted/closed: native portable/Tauri containment; Fixed WebView2; qpdf; ImageMagick; Ghostscript; Tesseract; Python 3.12.14 + OCRmyPDF 17.10.0; authenticated Python lock; NumPy 2.5.2; OpenCV `4.14.0.94`; LibreOffice 26.2.5 + native `unoconvert`; Poppler 26.02.0; WeasyPrint 69.0; Calibre 9.14.0; unpaper 6.1 + pngquant 2.17.0; conversion fonts; embedded VeraPDF 1.30.2 E2E; **jbig2enc 0.32**; **RAR/CBR portability contract**.
 
-Latest complete green primary: **Run #108** (`34138754142`), job `101795708391`, commit `64f86ce6f567f49be1e677697221c52a8b26131f`; ZIP SHA-256 `9F4334CB90B79457D3515877308DC3A25E521132A3B5130E79ABA650CAE8C5CE`; size `1,911,812,538`; layout `31,618` files / `4,392,280,088` bytes; lightweight artifact `10026083402`, digest `sha256:04170eabf8166d25b24d57977cbbd54edbe0501b94f4b13a59cbe0fd9708dbe4`.
+Latest complete green primary: **Run #117** (`37295728617`), job `111716357569`, commit `9d86212898c277c85835561a8b605116339e3d00`; ZIP SHA-256 `FC346A574D9F300B239855D55F546385BDEEE083D45D7685D6E9611ED1477F71`; size `1,911,871,959` bytes; layout `31,618` files / `4,392,412,889` bytes; lightweight artifact `11342000282`, digest `sha256:20c8bbcda77521414f3400c00a897e763e8fb4e9f091982407e7540d422a704e2`.
 
-Run #115 (`34218818659`) passed through the accepted layers and failed only at the new RAR/CBR live-backend gate. Root causes: wrong deterministic fixture SHA and upstream's irreversible startup disable of the optional RAR group. Corrected fixture SHA is `f3d3e772d72fc274146f45eaf8c37b97dad35f5add83b22c0d1e7c5c603373d0`; PDF_Tunner now keeps only RAR lazy/optional so a package-local encoder can be supplied dynamically while every other dependency retains Stirling's normal startup-disable behavior.
+Run #117 passed all primary steps, including the corrected title-specific HWND probe and second-launch window restore, as well as the real backend and RAR/CBR gates. RAR/CBR is now accepted: real CBR→PDF, package-first optional encoder probe for PDF→CBR, explicit failure without an encoder, and no bundled `rar.exe`.
 
-Active candidate: **RAR/CBR portability** with deterministic real RAR3 CBR→PDF proof, dynamic package-first CI probe for conditional PDF→CBR, explicit no-encoder failure and a hard final no-`rar.exe` leak gate.
+CI status-bridge incident: Run #117 completed successfully at 10:57 UTC, while commit status context `pdf-tunner/windows-portable-push` remained `pending` from 10:18 UTC. The bridge only published `in_progress` at job start. This revision adds a terminal-status publication in an `always()` final step and ignores root README/AGENTS/RELEASE_STATUS-only pushes for the heavy workflow. When resuming a run, query the Actions run by ID for status/conclusion and use the commit status only as a secondary signal.
 
-Next after RAR/CBR acceptance: exact dependency parity, representative E2E, branding, portability, cleanup and release-readiness. No final Release has been published.
+Run #115 remains as failure history; its corrected deterministic fixture SHA is `f3d3e772d72fc274146f45eaf8c37b97dad35f5add83b22c0d1e7c5c603373d0`.
+
+Next: exact dependency parity audit against pinned Stirling 2.14.3, representative functional E2E, then branding/portability/cleanup and release-readiness. No final Release has been published.

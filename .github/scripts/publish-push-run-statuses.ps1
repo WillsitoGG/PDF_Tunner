@@ -1,7 +1,8 @@
 param(
   [string]$Branch = 'pdf-tunner/windows-portable-v1',
   [string]$WorkflowFile = 'pdf-tunner-windows-portable.yml',
-  [ValidateRange(2, 10)][int]$Limit = 5
+  [ValidateRange(2, 10)][int]$Limit = 5,
+  [ValidateSet('success', 'failure', 'cancelled')][string]$FinalState
 )
 
 $ErrorActionPreference = 'Stop'
@@ -76,6 +77,29 @@ function Publish-RunStatus {
       Start-Sleep -Seconds 2
     }
   }
+}
+
+# The final workflow step passes job.status here. GitHub's commit-status
+# context accepts success/failure/error; cancellation is represented as error.
+if ($PSBoundParameters.ContainsKey('FinalState')) {
+  $finalStatus = switch ($FinalState) {
+    'success' { 'success' }
+    'failure' { 'failure' }
+    'cancelled' { 'error' }
+  }
+  $currentUrl = "$env:GITHUB_SERVER_URL/$env:GITHUB_REPOSITORY/actions/runs/$env:GITHUB_RUN_ID"
+  $finalPublished = Publish-RunStatus `
+    -Sha $env:GITHUB_SHA `
+    -RunId ([long]$env:GITHUB_RUN_ID) `
+    -RunNumber ([int]$env:GITHUB_RUN_NUMBER) `
+    -Status 'completed' `
+    -Conclusion $FinalState `
+    -TargetUrl $currentUrl `
+    -State $finalStatus
+  if ($finalPublished) {
+    Write-Host "PASS: published terminal connector status for run #$env:GITHUB_RUN_NUMBER => $finalStatus."
+  }
+  return
 }
 
 # Publish the current run explicitly so its run_id is available even if the
