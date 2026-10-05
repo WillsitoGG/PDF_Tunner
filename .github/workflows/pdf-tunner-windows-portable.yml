@@ -115,6 +115,7 @@ jobs:
             './.github/scripts/publish-push-run-statuses.ps1',
             './.github/scripts/collect-startup-diagnostics.ps1',
             './.github/scripts/prepare-ocrmypdf.ps1',
+            './.github/scripts/prepare-ocrmypdf-core.ps1',
             './.github/scripts/validate-ocrmypdf.ps1',
             './.github/scripts/prepare-libreoffice.ps1',
             './.github/scripts/validate-libreoffice.ps1',

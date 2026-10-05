@@ -11,12 +11,12 @@
 - Target: **Windows 10/11 x64 portable ZIP**, extract and run without installation.
 - `main` remains the clean pinned upstream base during v1 development.
 - No final PDF_Tunner v1 Release exists yet.
-- Latest complete green primary regression: **Run #117** (`37295728617`), job `111716357569`, commit `9d86212898c277c85835561a8b605116339e3d00`.
+- Latest complete green primary regression: **Run #118 attempt 2** (`37349080255`), job `111906701402`, commit `e48aa2660704a0360aebaf1057fadfe0a9931d0e`.
 - **jbig2enc 0.32 is formally accepted by Run #108**, including exact source/tag, authenticated Meson inputs, static MSVC build, upstream tests, isolated package-first ToolProbe, relocation and a real OCRmyPDF `--optimize 2` result containing `/JBIG2Decode`.
 - **RAR/CBR is formally accepted by Run #117**: deterministic real CBR→PDF, package-first optional encoder probe for PDF→CBR, explicit no-encoder failure, no bundled `rar.exe`, and the complete primary workflow including second-launch window restore all passed.
-- Run #115 and #116 remain recorded below as failure history; #117 closes the RAR/CBR and HWND restoration gates.
-- CI handoff incident: Run #117 completed successfully at 10:57 UTC, but its commit status stayed `pending` from 10:18 UTC because the status bridge only published at workflow start. This revision adds terminal publication in an `always()` step and skips heavy CI for root README/AGENTS/RELEASE_STATUS-only changes. On resume, use the actual Actions run result as the source of truth if a commit status looks stale.
-- Next: complete the exact dependency parity audit against pinned Stirling 2.14.3, then continue representative functional E2E coverage and release-readiness checks.
+- Run #115 and #116 remain recorded below as failure history; #117 closed the RAR/CBR and HWND restoration gates, and the complete Run #118 regression passed again.
+- CI handoff incident: Run #117 completed successfully at 10:57 UTC, but its commit status stayed `pending` from 10:18 UTC because the status bridge only published at workflow start. Commit e48 adds terminal publication in an `always()` step and skips heavy CI for root README/AGENTS/RELEASE_STATUS-only changes. Run #118 attempt 1 hit an HTTPS timeout downloading pngquant from `pngquant.org`; the failed-job-only retry (attempt 2) completed green. The bridge published terminal `failure` for attempt 1 and `success` for attempt 2, confirming the repair.
+- Next: validate the active CFF PDF-JSON converter candidate in Run #119; then complete the exact dependency parity audit, representative functional E2E coverage and release-readiness checks against pinned Stirling 2.14.3.
 
 ## Accepted portable layers
 
@@ -151,7 +151,7 @@ Key package-relative paths:
 - ImageMagick → `tools/imagemagick/`;
 - Ghostscript → `tools/ghostscript/bin/`;
 - Tesseract → `tools/tesseract/`, models → `tools/tesseract/tessdata/`;
-- Python/OCRmyPDF/NumPy/OpenCV → `tools/python/`;
+- Python/OCRmyPDF/NumPy/OpenCV → `tools/python/`; the CFF font converter → `tools/python/cff/convert_cff_to_ttf.py`;
 - LibreOffice → `tools/libreoffice/`; `unoconvert.exe` → `tools/bin/`;
 - conversion fonts → `tools/libreoffice/share/fonts/truetype/`; provenance → `tools/fonts/`;
 - Poppler → `tools/poppler/Library/bin/`;
@@ -176,7 +176,10 @@ Heavy CI uses branch-scoped concurrency with `cancel-in-progress: true`. Do not 
 ### A. External toolchain / embedded runtime parity
 
 1. **RAR/CBR portability contract** — accepted by Run #117;
-2. finish exact dependency audit against pinned Stirling 2.14.3 and close any remaining concrete gap.
+2. CFF PDF-JSON font conversion was a concrete parity gap: pinned Stirling defaults reference Linux-only Python/script paths. A portable path mapping, packaged converter and real CFF conversion probe are the active candidate;
+3. finish exact dependency audit against pinned Stirling 2.14.3 and close any remaining concrete gap.
+
+The upstream PDF-to-video controller and external FFmpeg probe are disabled in pinned Stirling 2.14.3; do not add FFmpeg to the portable bundle unless that feature is deliberately re-enabled and security-reviewed.
 
 ### B. Representative functional E2E
 
@@ -196,11 +199,11 @@ Cover OCR, Office↔PDF, HTML/URL/base-URL/EML, WeasyPrint, Poppler, Calibre/eBo
 
 ## Compact handoff
 
-- Latest complete green primary: **Run #117** (`37295728617`), job `111716357569`, commit `9d86212898c277c85835561a8b605116339e3d00`.
-- Run #117 ZIP SHA-256 `FC346A574D9F300B239855D55F546385BDEEE083D45D7685D6E9611ED1477F71`; size `1,911,871,959` bytes; layout `31,618` files / `4,392,412,889` bytes; lightweight artifact `11342000282`, digest `sha256:20c8bbcda77521414f3400c00a897e763e8fb4e9f091982407e7540d422a704e2`.
-- **RAR/CBR portability contract is accepted by Run #117**; the complete workflow, real backend, no-encoder behavior, no-`rar.exe` package check and second-launch geometry restore all passed.
-- **jbig2enc 0.32** remains accepted with exact source/build/provenance, ToolProbe, relocation and real optimize-2 `/JBIG2Decode` evidence from Run #108.
-- Historical Run #115 diagnosis and corrected fixture SHA: `f3d3e772d72fc274146f45eaf8c37b97dad35f5add83b22c0d1e7c5c603373d0`.
-- Run #117 exposed a stale status bridge: it left commit status `pending` after the run succeeded. The final `always()` step added in this revision publishes the terminal state; root README/AGENTS/RELEASE_STATUS-only commits no longer trigger a full portable rebuild.
-- Next: exact dependency parity audit against pinned Stirling 2.14.3, followed by representative E2E and release-readiness audits.
+- Latest complete green primary: **Run #118 attempt 2** (`37349080255`), job `111906701402`, commit `e48aa2660704a0360aebaf1057fadfe0a9931d0e`.
+- Run #118 ZIP SHA-256 `8E3A77DD34F55BFC4FF5DC2C68459E4BE9E7CA0A3FB7EAE48835476D950012AC`; size `1,911,867,377` bytes; layout `31,618` files / `4,392,412,889` bytes; lightweight artifact `11365760878`, size `7,657`, digest `sha256:8777302bef8b69296ccb5f28f65780c3e7a82249b6613130a006cde61f0d018b`.
+- Run #118 attempt 2 passed the full primary regression, including the real backend and second-launch window restore. Commit e48's latest status is terminal `success`.
+- **RAR/CBR portability contract** remains accepted by Run #117; **jbig2enc 0.32** remains accepted by Run #108.
+- Run #115 corrected fixture SHA: `f3d3e772d72fc274146f45eaf8c37b97dad35f5add83b22c0d1e7c5c603373d0`.
+- Active candidate: repair portable CFF PDF-JSON font conversion; next code validation is Run #119. Then continue remaining parity, representative E2E, branding, portability and release-readiness work.
+- Conversation recovery: prior thread ended while Actions was active and left no terminal result; Run #117 later succeeded. Resume by exact run ID/attempt, keep brief progress updates flowing, and poll through terminal. Commit status is secondary while a run is active.
 - No final Release has been published.

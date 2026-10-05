@@ -212,6 +212,17 @@ try {
         throw "OCRmyPDF version mismatch: expected '$OcrMyPdfVersion', got '$ocrVersionLine'."
     }
 
+    $cffConverterSource = (Resolve-Path -LiteralPath './scripts/convert_cff_to_ttf.py').Path
+    $cffConverterRoot = Join-Path $pythonRoot 'cff'
+    New-Item -ItemType Directory -Force -Path $cffConverterRoot | Out-Null
+    $cffConverterScript = Join-Path $cffConverterRoot 'convert_cff_to_ttf.py'
+    Copy-Item -LiteralPath $cffConverterSource -Destination $cffConverterScript -Force
+    $cffConverterSourceHash = (Get-FileHash -LiteralPath $cffConverterSource -Algorithm SHA256).Hash.ToLowerInvariant()
+    $cffConverterScriptHash = (Get-FileHash -LiteralPath $cffConverterScript -Algorithm SHA256).Hash.ToLowerInvariant()
+    if ($cffConverterScriptHash -ne $cffConverterSourceHash) {
+        throw 'Packaged CFF converter script does not match scripts/convert_cff_to_ttf.py.'
+    }
+
     $inventory = @($expectedPackages | Sort-Object Name | ForEach-Object { "$($_.Name)==$($_.Version)" })
     Set-Content -LiteralPath (Join-Path $pythonRoot 'DEPENDENCIES.txt') -Encoding utf8 -Value $inventory
     Copy-Item -LiteralPath $dependencyLock -Destination (Join-Path $pythonRoot 'DEPENDENCY_LOCK.txt') -Force
@@ -241,13 +252,17 @@ try {
         "OPENCV_DEPENDENCY_LOCK_SHA256=$openCvDependencyLockHash",
         "PYTHON_DEPENDENCY_LOCK_SHA256=$dependencyLockHash",
         "PYTHON_DEPENDENCY_LOCK_PACKAGE_COUNT=$($lockEntries.Count)",
+        'CFF_CONVERTER_SOURCE=scripts/convert_cff_to_ttf.py',
+        'CFF_CONVERTER_TARGET=cff/convert_cff_to_ttf.py',
+        "CFF_CONVERTER_SCRIPT_SHA256=$cffConverterScriptHash",
         'OCRMY_PDF_LAUNCHER=package-local native relative launcher -> python.exe -m ocrmypdf'
     )
     Set-Content -LiteralPath (Join-Path $pythonRoot 'SHA256SUMS.txt') -Encoding ascii -Value @(
         "$pythonExeHash  python.exe",
         "$launcherHash  ocrmypdf.exe",
         "$dependencyLockHash  DEPENDENCY_LOCK.txt",
-        "$openCvDependencyLockHash  OPENCV_DEPENDENCY_LOCK.txt"
+        "$openCvDependencyLockHash  OPENCV_DEPENDENCY_LOCK.txt",
+        "$cffConverterScriptHash  cff/convert_cff_to_ttf.py"
     )
 
     Write-Host "Staged Python $PythonVersion + OCRmyPDF $OcrMyPdfVersion + NumPy $NumPyVersion + OpenCV $expectedOpenCvVersion at $pythonRoot"
@@ -257,6 +272,7 @@ try {
     Write-Host "OpenCV wheel SHA-256: $openCvWheelHash"
     Write-Host "OpenCV dependency lock SHA-256: $openCvDependencyLockHash"
     Write-Host "Python dependency lock SHA-256: $dependencyLockHash ($($lockEntries.Count) accepted base packages + 1 OpenCV package)"
+    Write-Host "CFF converter script SHA-256: $cffConverterScriptHash"
 }
 finally {
     Remove-Item -LiteralPath $tempRoot -Recurse -Force -ErrorAction SilentlyContinue

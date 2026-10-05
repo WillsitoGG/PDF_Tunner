@@ -22,6 +22,9 @@ $expectedOpenCvVersion = '4.14.0.94'
 $expectedOpenCvRuntimeVersion = '4.14.0'
 $expectedOpenCvWheelSha256 = 'cbed65415b8f6a9541c705afe3e64795840524d0ff3bc58f507826284a1dc64b'
 $splitPhotosScript = (Resolve-Path -LiteralPath './app/core/src/main/resources/static/python/split_photos.py').Path
+$cffConverterScriptSource = (Resolve-Path -LiteralPath './scripts/convert_cff_to_ttf.py').Path
+$cffFixtureSource = (Resolve-Path -LiteralPath './app/core/src/main/resources/type3/library/fonts/stix/STIXTwoText-Regular.otf').Path
+$cffConverterSourceHash = (Get-FileHash -LiteralPath $cffConverterScriptSource -Algorithm SHA256).Hash.ToLowerInvariant()
 
 function ConvertTo-NormalizedPackageName {
     param([Parameter(Mandatory = $true)][string]$Name)
@@ -98,17 +101,19 @@ function Test-OcrRuntime {
         [Parameter(Mandatory = $true)][string]$ExpectedNumPyVersion,
         [Parameter(Mandatory = $true)][string]$ExpectedOpenCvVersion,
         [Parameter(Mandatory = $true)][string]$ExpectedOpenCvRuntimeVersion,
-        [Parameter(Mandatory = $true)][string]$SplitPhotosScript
+        [Parameter(Mandatory = $true)][string]$SplitPhotosScript,
+        [Parameter(Mandatory = $true)][string]$CffFixtureSource
     )
 
     $pythonRoot = Join-Path $Root 'tools\python'
     $python = Join-Path $pythonRoot 'python.exe'
     $ocr = Join-Path $pythonRoot 'ocrmypdf.exe'
+    $cffConverterScript = Join-Path $pythonRoot 'cff\convert_cff_to_ttf.py'
     $ghostscriptRoot = Join-Path $Root 'tools\ghostscript\bin'
     $tesseractRoot = Join-Path $Root 'tools\tesseract'
     $tessdata = Join-Path $tesseractRoot 'tessdata'
 
-    foreach ($path in @($python, $ocr, (Join-Path $ghostscriptRoot 'gs.exe'), (Join-Path $tesseractRoot 'tesseract.exe'))) {
+    foreach ($path in @($python, $ocr, $cffConverterScript, (Join-Path $ghostscriptRoot 'gs.exe'), (Join-Path $tesseractRoot 'tesseract.exe'))) {
         if (-not (Test-Path -LiteralPath $path -PathType Leaf)) { throw "Required OCRmyPDF runtime file is missing: $path" }
     }
     if ((Get-PeMachine -Path $python) -ne 0x8664) { throw 'Bundled python.exe is not AMD64.' }
@@ -120,6 +125,42 @@ function Test-OcrRuntime {
         $system32 = Join-Path $env:SystemRoot 'System32'
         $env:PATH = "$pythonRoot;$ghostscriptRoot;$tesseractRoot;$system32;$env:SystemRoot"
         $env:TESSDATA_PREFIX = $tessdata
+
+        $cffHelpOutput = @(& $python $cffConverterScript --help 2>&1)
+        if ($LASTEXITCODE -ne 0) { throw "Packaged CFF converter --help failed with exit code $LASTEXITCODE." }
+        if (($cffHelpOutput -join "`n") -notmatch 'Convert CFF font data to OpenType-CFF format') {
+            throw 'Packaged CFF converter did not expose its expected command-line interface.'
+        }
+
+        $cffTestRoot = Join-Path ([System.IO.Path]::GetTempPath()) ("pdf-tunner-cff-" + [Guid]::NewGuid().ToString('N'))
+        $rawCffPath = Join-Path $cffTestRoot 'stix-two-text.cff'
+        $convertedOtfPath = Join-Path $cffTestRoot 'stix-two-text-converted.otf'
+        New-Item -ItemType Directory -Force -Path $cffTestRoot | Out-Null
+        try {
+            $extractCff = @(& $python -c "import sys; from fontTools.ttLib import TTFont; font=TTFont(sys.argv[1]); assert 'CFF ' in font; open(sys.argv[2],'wb').write(font['CFF '].compile(font))" $CffFixtureSource $rawCffPath 2>&1)
+            if ($LASTEXITCODE -ne 0) {
+                $extractCff | Out-Host
+                throw 'Could not extract a real CFF table from the pinned STIX Two Text fixture.'
+            }
+            if (-not (Test-Path -LiteralPath $rawCffPath -PathType Leaf) -or (Get-Item -LiteralPath $rawCffPath).Length -lt 1000) {
+                throw 'The STIX Two Text fixture did not produce a usable raw CFF input.'
+            }
+
+            $convertCff = @(& $python $cffConverterScript --input $rawCffPath --output $convertedOtfPath 2>&1)
+            if ($LASTEXITCODE -ne 0) {
+                $convertCff | Out-Host
+                throw "Packaged CFF conversion failed with exit code $LASTEXITCODE."
+            }
+            $verifyCff = @(& $python -c "import sys; from fontTools.ttLib import TTFont; font=TTFont(sys.argv[1]); assert font.sfntVersion=='OTTO'; assert 'CFF ' in font; assert len(font.getGlyphOrder()) > 0; print(len(font.getGlyphOrder()))" $convertedOtfPath 2>&1)
+            if ($LASTEXITCODE -ne 0) {
+                $verifyCff | Out-Host
+                throw 'Packaged CFF converter output was not a valid CFF-flavored OpenType font.'
+            }
+            Write-Host "PASS: package-local CFF converter rebuilt a valid OpenType-CFF font with $($verifyCff[-1]) glyphs."
+        }
+        finally {
+            Remove-Item -LiteralPath $cffTestRoot -Recurse -Force -ErrorAction SilentlyContinue
+        }
 
         $expectations = @{
             'python' = $python
@@ -292,6 +333,7 @@ $dependencies = Join-Path $pythonRoot 'DEPENDENCIES.txt'
 $packagedLock = Join-Path $pythonRoot 'DEPENDENCY_LOCK.txt'
 $packagedOpenCvLock = Join-Path $pythonRoot 'OPENCV_DEPENDENCY_LOCK.txt'
 $openCvVersionFile = Join-Path $pythonRoot 'OPENCV_VERSION.txt'
+$cffConverterScript = Join-Path $pythonRoot 'cff\convert_cff_to_ttf.py'
 $sourceLock = (Resolve-Path -LiteralPath $DependencyLockPath).Path
 $sourceLockHash = (Get-FileHash -LiteralPath $sourceLock -Algorithm SHA256).Hash.ToLowerInvariant()
 if ($sourceLockHash -ne $DependencyLockSha256.ToLowerInvariant()) {
@@ -311,7 +353,7 @@ if ($openCvLockEntry.Name -ne $expectedOpenCvPackageName -or $openCvLockEntry.Ve
 }
 $expectedRuntimeEntries = @($lockEntries + $openCvLockEntries)
 
-foreach ($path in @($provenance, $shaFile, $pythonVersionFile, $ocrVersionFile, $openCvVersionFile, $dependencies, $packagedLock, $packagedOpenCvLock)) {
+foreach ($path in @($provenance, $shaFile, $pythonVersionFile, $ocrVersionFile, $openCvVersionFile, $dependencies, $packagedLock, $packagedOpenCvLock, $cffConverterScript)) {
     if (-not (Test-Path -LiteralPath $path -PathType Leaf)) { throw "Required Python/OCRmyPDF metadata file is missing: $path" }
 }
 $packagedLockHash = (Get-FileHash -LiteralPath $packagedLock -Algorithm SHA256).Hash.ToLowerInvariant()
@@ -336,6 +378,7 @@ $required = @{
     'OPENCV_DEPENDENCY_LOCK_SHA256' = $expectedOpenCvDependencyLockSha256
     'PYTHON_DEPENDENCY_LOCK_SHA256' = $DependencyLockSha256.ToLowerInvariant()
     'PYTHON_DEPENDENCY_LOCK_PACKAGE_COUNT' = "$($lockEntries.Count)"
+    'CFF_CONVERTER_SCRIPT_SHA256' = $cffConverterSourceHash
 }
 foreach ($key in $required.Keys) {
     if (-not $metadata.ContainsKey($key)) { throw "Python/OCRmyPDF provenance is missing $key." }
@@ -346,8 +389,12 @@ foreach ($key in $required.Keys) {
 
 $python = Join-Path $pythonRoot 'python.exe'
 $ocr = Join-Path $pythonRoot 'ocrmypdf.exe'
+$cffConverterScriptHash = (Get-FileHash -LiteralPath $cffConverterScript -Algorithm SHA256).Hash.ToLowerInvariant()
+if ($cffConverterScriptHash -ne $cffConverterSourceHash) {
+    throw 'Packaged CFF converter script does not match scripts/convert_cff_to_ttf.py.'
+}
 $shaText = Get-Content -LiteralPath $shaFile -Raw
-foreach ($item in @(@{Path=$python;Name='python.exe'}, @{Path=$ocr;Name='ocrmypdf.exe'}, @{Path=$packagedLock;Name='DEPENDENCY_LOCK.txt'}, @{Path=$packagedOpenCvLock;Name='OPENCV_DEPENDENCY_LOCK.txt'})) {
+foreach ($item in @(@{Path=$python;Name='python.exe'}, @{Path=$ocr;Name='ocrmypdf.exe'}, @{Path=$packagedLock;Name='DEPENDENCY_LOCK.txt'}, @{Path=$packagedOpenCvLock;Name='OPENCV_DEPENDENCY_LOCK.txt'}, @{Path=$cffConverterScript;Name='cff/convert_cff_to_ttf.py'})) {
     $hash = (Get-FileHash -LiteralPath $item.Path -Algorithm SHA256).Hash.ToLowerInvariant()
     if ($shaText -notmatch "(?im)^$hash\s+$([Regex]::Escape($item.Name))\s*$") { throw "SHA256SUMS.txt does not contain $($item.Name)." }
 }
@@ -368,7 +415,7 @@ if ($inventoryDiff.Count -gt 0) {
     throw 'DEPENDENCIES.txt does not exactly match the authenticated dependency lock.'
 }
 
-Test-OcrRuntime -Root $portable -ExpectedPackages $expectedRuntimeEntries -ExpectedNumPyVersion $NumPyVersion -ExpectedOpenCvVersion $expectedOpenCvVersion -ExpectedOpenCvRuntimeVersion $expectedOpenCvRuntimeVersion -SplitPhotosScript $splitPhotosScript
+Test-OcrRuntime -Root $portable -ExpectedPackages $expectedRuntimeEntries -ExpectedNumPyVersion $NumPyVersion -ExpectedOpenCvVersion $expectedOpenCvVersion -ExpectedOpenCvRuntimeVersion $expectedOpenCvRuntimeVersion -SplitPhotosScript $splitPhotosScript -CffFixtureSource $cffFixtureSource
 
 if ($RequireRelocation) {
     $tempRoot = Join-Path ([System.IO.Path]::GetTempPath()) ("pdf-tunner-ocr-relocation-" + [Guid]::NewGuid().ToString('N'))
@@ -377,7 +424,7 @@ if ($RequireRelocation) {
         New-Item -ItemType Directory -Force -Path $relocated | Out-Null
         Copy-Item -LiteralPath (Join-Path $portable 'tools') -Destination $relocated -Recurse -Force
         New-Item -ItemType Directory -Force -Path (Join-Path $relocated 'data') | Out-Null
-        Test-OcrRuntime -Root $relocated -ExpectedPackages $expectedRuntimeEntries -ExpectedNumPyVersion $NumPyVersion -ExpectedOpenCvVersion $expectedOpenCvVersion -ExpectedOpenCvRuntimeVersion $expectedOpenCvRuntimeVersion -SplitPhotosScript $splitPhotosScript
+        Test-OcrRuntime -Root $relocated -ExpectedPackages $expectedRuntimeEntries -ExpectedNumPyVersion $NumPyVersion -ExpectedOpenCvVersion $expectedOpenCvVersion -ExpectedOpenCvRuntimeVersion $expectedOpenCvRuntimeVersion -SplitPhotosScript $splitPhotosScript -CffFixtureSource $cffFixtureSource
         Write-Host "PASS: OCRmyPDF + NumPy + OpenCV runtime remains functional after relocation to '$relocated'."
     }
     finally {

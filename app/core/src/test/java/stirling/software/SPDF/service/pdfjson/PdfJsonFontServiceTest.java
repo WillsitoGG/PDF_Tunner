@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
 import java.lang.reflect.Field;
+import java.nio.file.Path;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -190,6 +191,62 @@ class PdfJsonFontServiceTest {
         setField(service, "pythonCffConverterAvailable", false);
 
         assertNull(service.convertCffProgramToTrueType(new byte[] {1, 2, 3}, null));
+    }
+
+    @Test
+    void resolvePortableCffDefaults_mapsUpstreamLinuxPathsToPortablePython() {
+        Path portableRoot = Path.of("PDF_Tunner with spaces");
+
+        String[] resolved =
+                PdfJsonFontService.resolvePortableCffDefaults(
+                        "/opt/venv/bin/python3", "/scripts/convert_cff_to_ttf.py", portableRoot);
+
+        assertArrayEquals(
+                new String[] {
+                    portableRoot
+                            .resolve("tools")
+                            .resolve("python")
+                            .resolve("python.exe")
+                            .toString(),
+                    portableRoot
+                            .resolve("tools")
+                            .resolve("python")
+                            .resolve("cff")
+                            .resolve("convert_cff_to_ttf.py")
+                            .toString()
+                },
+                resolved);
+    }
+
+    @Test
+    void resolvePortableCffDefaults_preservesCustomSettingsAndMapsOnlyDefaults() {
+        Path portableRoot = Path.of("portable");
+
+        String[] resolved =
+                PdfJsonFontService.resolvePortableCffDefaults(
+                        "custom-python.exe", "/scripts/convert_cff_to_ttf.py", portableRoot);
+
+        assertArrayEquals(
+                new String[] {
+                    "custom-python.exe",
+                    portableRoot.resolve("tools/python/cff/convert_cff_to_ttf.py").toString()
+                },
+                resolved);
+
+        String[] fullyCustom =
+                PdfJsonFontService.resolvePortableCffDefaults(
+                        "custom-python.exe", "custom-converter.py", portableRoot);
+        assertArrayEquals(new String[] {"custom-python.exe", "custom-converter.py"}, fullyCustom);
+    }
+
+    @Test
+    void resolvePortableCffDefaults_withoutPortableRootPreservesUpstreamSettings() {
+        String[] resolved =
+                PdfJsonFontService.resolvePortableCffDefaults(
+                        "/opt/venv/bin/python3", "/scripts/convert_cff_to_ttf.py", null);
+
+        assertArrayEquals(
+                new String[] {"/opt/venv/bin/python3", "/scripts/convert_cff_to_ttf.py"}, resolved);
     }
 
     private void setField(Object target, String fieldName, Object value) throws Exception {

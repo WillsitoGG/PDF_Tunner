@@ -2,6 +2,7 @@ package stirling.software.SPDF.service.pdfjson;
 
 import java.io.IOException;
 import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.Base64;
 import java.util.Locale;
 
@@ -22,6 +23,10 @@ import stirling.software.common.util.TempFileManager;
 @Service
 @RequiredArgsConstructor
 public class PdfJsonFontService {
+
+    private static final String PORTABLE_ROOT_ENV = "PDF_TUNNER_PORTABLE_ROOT";
+    private static final String UPSTREAM_CFF_PYTHON_COMMAND = "/opt/venv/bin/python3";
+    private static final String UPSTREAM_CFF_PYTHON_SCRIPT = "/scripts/convert_cff_to_ttf.py";
 
     private final TempFileManager tempFileManager;
     private final stirling.software.common.model.ApplicationProperties applicationProperties;
@@ -80,11 +85,54 @@ public class PdfJsonFontService {
             this.pythonCommand = cfg.getPythonCommand();
             this.pythonScript = cfg.getPythonScript();
             this.fontforgeCommand = cfg.getFontforgeCommand();
+
+            // Stirling's stock CFF paths target its Linux container. In portable mode,
+            // redirect those defaults to bundled Python and keep explicit YAML overrides intact.
+            String portableRoot = System.getenv(PORTABLE_ROOT_ENV);
+            if (portableRoot != null && !portableRoot.isBlank()) {
+                String[] portableDefaults =
+                        resolvePortableCffDefaults(
+                                this.pythonCommand, this.pythonScript, Path.of(portableRoot));
+                this.pythonCommand = portableDefaults[0];
+                this.pythonScript = portableDefaults[1];
+                log.info(
+                        "[FONT-DEBUG] Portable CFF runtime selected: python={}, script={}",
+                        this.pythonCommand,
+                        this.pythonScript);
+            }
         } else {
             // Use defaults when config is not available
             this.cffConversionEnabled = false;
             log.warn("[FONT-DEBUG] PdfEditor configuration not available, CFF conversion disabled");
         }
+    }
+
+    static String[] resolvePortableCffDefaults(
+            String configuredPythonCommand, String configuredPythonScript, Path portableRoot) {
+        String resolvedPythonCommand = configuredPythonCommand;
+        String resolvedPythonScript = configuredPythonScript;
+
+        if (portableRoot != null) {
+            if (UPSTREAM_CFF_PYTHON_COMMAND.equals(configuredPythonCommand)) {
+                resolvedPythonCommand =
+                        portableRoot
+                                .resolve("tools")
+                                .resolve("python")
+                                .resolve("python.exe")
+                                .toString();
+            }
+            if (UPSTREAM_CFF_PYTHON_SCRIPT.equals(configuredPythonScript)) {
+                resolvedPythonScript =
+                        portableRoot
+                                .resolve("tools")
+                                .resolve("python")
+                                .resolve("cff")
+                                .resolve("convert_cff_to_ttf.py")
+                                .toString();
+            }
+        }
+
+        return new String[] {resolvedPythonCommand, resolvedPythonScript};
     }
 
     public byte[] convertCffProgramToTrueType(byte[] fontBytes, String toUnicode) {
@@ -327,6 +375,11 @@ public class PdfJsonFontService {
             return false;
         }
         try {
+            Path executablePath = Path.of(command);
+            if (executablePath.isAbsolute()) {
+                return Files.isRegularFile(executablePath);
+            }
+
             ProcessBuilder processBuilder = new ProcessBuilder();
             if (System.getProperty("os.name").toLowerCase(Locale.ROOT).contains("windows")) {
                 processBuilder.command("where", command);
