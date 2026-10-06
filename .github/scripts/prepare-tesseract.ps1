@@ -31,6 +31,22 @@ param(
 
     [Parameter(Mandatory = $true)]
     [ValidatePattern('^[0-9a-fA-F]{40}$')]
+    [string]$DeuBlobSha,
+
+    [Parameter(Mandatory = $true)]
+    [ValidatePattern('^[0-9a-fA-F]{40}$')]
+    [string]$FraBlobSha,
+
+    [Parameter(Mandatory = $true)]
+    [ValidatePattern('^[0-9a-fA-F]{40}$')]
+    [string]$PorBlobSha,
+
+    [Parameter(Mandatory = $true)]
+    [ValidatePattern('^[0-9a-fA-F]{40}$')]
+    [string]$ChiSimBlobSha,
+
+    [Parameter(Mandatory = $true)]
+    [ValidatePattern('^[0-9a-fA-F]{40}$')]
     [string]$OsdBlobSha
 )
 
@@ -128,6 +144,10 @@ try {
     $models = @(
         [PSCustomObject]@{ Name = 'eng'; Blob = $EngBlobSha.ToLowerInvariant() },
         [PSCustomObject]@{ Name = 'spa'; Blob = $SpaBlobSha.ToLowerInvariant() },
+        [PSCustomObject]@{ Name = 'deu'; Blob = $DeuBlobSha.ToLowerInvariant() },
+        [PSCustomObject]@{ Name = 'fra'; Blob = $FraBlobSha.ToLowerInvariant() },
+        [PSCustomObject]@{ Name = 'por'; Blob = $PorBlobSha.ToLowerInvariant() },
+        [PSCustomObject]@{ Name = 'chi_sim'; Blob = $ChiSimBlobSha.ToLowerInvariant() },
         [PSCustomObject]@{ Name = 'osd'; Blob = $OsdBlobSha.ToLowerInvariant() }
     )
 
@@ -175,15 +195,23 @@ try {
         "INSTALLER_SHA256=$installerHash",
         'TESSDATA_REPOSITORY=https://github.com/tesseract-ocr/tessdata_fast',
         "TESSDATA_COMMIT=$($TessdataCommit.ToLowerInvariant())",
-        'TESSDATA_LANGUAGES=eng,spa,osd',
+        'TESSDATA_LANGUAGES=eng,spa,deu,fra,por,chi_sim,osd',
         "TESSDATA_ENG_GIT_BLOB=$($EngBlobSha.ToLowerInvariant())",
         "TESSDATA_SPA_GIT_BLOB=$($SpaBlobSha.ToLowerInvariant())",
+        "TESSDATA_DEU_GIT_BLOB=$($DeuBlobSha.ToLowerInvariant())",
+        "TESSDATA_FRA_GIT_BLOB=$($FraBlobSha.ToLowerInvariant())",
+        "TESSDATA_POR_GIT_BLOB=$($PorBlobSha.ToLowerInvariant())",
+        "TESSDATA_CHI_SIM_GIT_BLOB=$($ChiSimBlobSha.ToLowerInvariant())",
         "TESSDATA_OSD_GIT_BLOB=$($OsdBlobSha.ToLowerInvariant())"
     )
     Set-Content -LiteralPath (Join-Path $tesseractRoot 'SHA256SUMS.txt') -Encoding ascii -Value @(
         "$exeHash  tesseract.exe",
         "$($modelHashes['eng'])  tessdata/eng.traineddata",
         "$($modelHashes['spa'])  tessdata/spa.traineddata",
+        "$($modelHashes['deu'])  tessdata/deu.traineddata",
+        "$($modelHashes['fra'])  tessdata/fra.traineddata",
+        "$($modelHashes['por'])  tessdata/por.traineddata",
+        "$($modelHashes['chi_sim'])  tessdata/chi_sim.traineddata",
         "$($modelHashes['osd'])  tessdata/osd.traineddata"
     )
 
@@ -199,7 +227,7 @@ try {
 
     Write-Host "Staged Tesseract release $Version / CLI $expectedCliVersion at $tesseractRoot"
     Write-Host "Installer SHA-256: $installerHash"
-    Write-Host "Tessdata commit: $TessdataCommit (eng, spa, osd)"
+    Write-Host "Tessdata commit: $TessdataCommit (eng, spa, deu, fra, por, chi_sim, osd)"
 }
 finally {
     Remove-Item -LiteralPath $tempRoot -Recurse -Force -ErrorAction SilentlyContinue
