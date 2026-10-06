@@ -156,7 +156,7 @@ function Test-OcrRuntime {
                 $convertCff | Out-Host
                 throw "Packaged CFF conversion failed with exit code $LASTEXITCODE."
             }
-            $verifyCff = @(& $python -c "import sys; from fontTools.ttLib import TTFont; font=TTFont(sys.argv[1]); assert font.sfntVersion=='\\x00\\x01\\x00\\x00'; assert 'glyf' in font and 'loca' in font; assert 'CFF ' not in font; assert len(font.getGlyphOrder()) == 2221; assert len(font['glyf'].glyphs) == 2221; print(len(font.getGlyphOrder()))" $convertedTtfPath 2>&1)
+            $verifyCff = @(& $python -c "import sys; from fontTools.ttLib import TTFont; font=TTFont(sys.argv[1]); assert font.sfntVersion=='\x00\x01\x00\x00'; assert 'glyf' in font and 'loca' in font; assert 'CFF ' not in font; assert len(font.getGlyphOrder()) == 2221; assert len(font['glyf'].glyphs) == 2221; print(len(font.getGlyphOrder()))" $convertedTtfPath 2>&1)
             if ($LASTEXITCODE -ne 0) {
                 $verifyCff | Out-Host
                 throw 'Packaged CFF converter output was not a valid 2,221-glyph TrueType font.'
