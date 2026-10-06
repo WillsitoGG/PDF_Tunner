@@ -129,7 +129,8 @@ jobs:
             './.github/scripts/validate-weasyprint.ps1',
             './.github/scripts/prepare-calibre.ps1',
             './.github/scripts/validate-calibre.ps1',
-            './.github/scripts/validate-rar-cbr.ps1'
+            './.github/scripts/validate-rar-cbr.ps1',
+            './.github/scripts/validate-table-conversions.ps1'
           )
           foreach ($script in $scripts) {
             $tokens = $null
@@ -657,6 +658,10 @@ jobs:
             -PortableRoot './dist/PDF_Tunner' `
             -BackendBaseUrl "http://127.0.0.1:$port" `
             -ProbeExecutable $rarProbe
+
+          & './.github/scripts/validate-table-conversions.ps1' `
+            -BackendBaseUrl "http://127.0.0.1:$port" `
+            -FixturePath './testing/cucumber/exampleFiles/tables.pdf'
 
           $backendLogs = @(Get-ChildItem -LiteralPath (Join-Path $portable 'data') -Recurse -Force -File -Filter '*.log' -ErrorAction SilentlyContinue)
           if ($backendLogs.Count -eq 0) { throw 'No backend logs were available for OCRmyPDF dependency acceptance.' }
