@@ -11,7 +11,7 @@
 - Target: **Windows 10/11 x64 portable ZIP**, extract and run without installation.
 - `main` remains the clean pinned upstream base during v1 development.
 - No final PDF_Tunner v1 Release exists yet.
-- Latest complete green primary regression: **Run #119** (`37358156494`), job `111925742002`, commit `71a34bb065e419869cff96006ae9df06288d1f20`.
+- Latest complete green primary regression: **Run #120** (`37459765068`), job `112256117833`, commit `098ab25f2ed95d6f8bc290b053d2ff5f2cf148f2`.
 - **jbig2enc 0.32 is formally accepted by Run #108**, including exact source/tag, authenticated Meson inputs, static MSVC build, upstream tests, isolated package-first ToolProbe, relocation and a real OCRmyPDF `--optimize 2` result containing `/JBIG2Decode`.
 - **RAR/CBR is formally accepted by Run #117**: deterministic real CBR→PDF, package-first optional encoder probe for PDF→CBR, explicit no-encoder failure, no bundled `rar.exe`, and the complete primary workflow including second-launch window restore all passed.
 - Run #115 and #116 remain recorded below as failure history; #117 closed the RAR/CBR and HWND restoration gates, #118 reconfirmed the complete regression, and #119 accepted portable CFF PDF-JSON conversion.
@@ -32,7 +32,7 @@
 | Python + OCRmyPDF | Python `3.12.14` x64 + OCRmyPDF `17.10.0`; Run #77 `33201568275` |
 | LibreOffice + UNO conversion | LibreOffice `26.2.5` + package-relative native `unoconvert.exe`; Run #83 `33497784837` |
 | Poppler | `26.02.0` Windows x64; Run #86 `33507551477` |
-| Python dependency lock | authenticated 28-package baseline accepted through Run #119; 29-package `pdf2image 1.17.0` candidate pending validation |
+| Python dependency lock | authenticated 29-package Windows lock including `pdf2image 1.17.0`; Run #120 `37459765068` |
 | NumPy | `2.5.2`; Run #90 `33530454097` |
 | OpenCV | `opencv-python-headless 4.14.0.94`, runtime/core `4.14.0`, real `split_photos.py`; Run #92 `33557169326` |
 | WeasyPrint | official Windows `69.0`, package-relative shim, real HTML→PDF + Markdown→PDF; Run #95 `33695530172` |
@@ -43,6 +43,7 @@
 | **jbig2enc** | **`0.32`, tag→commit `309b2d55c7dfdcf0ab6afccb6d88834afc0bf2c0`; real OCRmyPDF optimize-2 `/JBIG2Decode`; Run #108 `34138754142`** |
 | **RAR / CBR contract** | **CBR→PDF embedded `junrar`; optional package-first user RAR encoder for PDF→CBR; no bundled `rar.exe`; Run #117 `37295728617`** |
 | **CFF PDF-JSON conversion** | **package-local Python + `cff/convert_cff_to_ttf.py`; real 2,221-glyph OpenType-CFF conversion + relocation; Run #119 `37358156494`** |
+| **PDF→WebP Python/Poppler parity** | **`pdf2image 1.17.0` + package-local Poppler `pdfinfo`/`pdftoppm`; real `png_to_webp.py` E2E + relocation; Run #120 `37459765068`** |
 
 Pinned conversion-font hashes retained from the accepted Run #103 layer:
 
@@ -195,8 +196,9 @@ Heavy CI uses branch-scoped concurrency with `cancel-in-progress: true`. Do not 
 
 1. **RAR/CBR portability contract** — accepted by Run #117;
 2. **CFF PDF-JSON font conversion** — accepted by Run #119;
-3. **PDF→WebP Python/Poppler parity** — active candidate: authenticate `pdf2image 1.17.0`, require package-local `pdfinfo`/`pdftoppm`, and run Stirling's real `png_to_webp.py` in PDF mode;
-4. finish exact dependency audit against pinned Stirling 2.14.3 and close any remaining concrete gap.
+3. **PDF→WebP Python/Poppler parity** — accepted by Run #120;
+4. **FontForge CFF fallback** — concrete remaining parity surface discovered by the audit: pinned Stirling installs FontForge and PDF→JSON→PDF calls it when the Python CFF path yields OTF but PDF reconstruction still needs a TTF representation;
+5. finish exact dependency audit against pinned Stirling 2.14.3 and close any remaining concrete gap.
 
 The upstream PDF-to-video controller and external FFmpeg probe are disabled in pinned Stirling 2.14.3; do not add FFmpeg to the portable bundle unless that feature is deliberately re-enabled and security-reviewed.
 
@@ -218,11 +220,10 @@ Cover OCR, Office↔PDF, HTML/URL/base-URL/EML, WeasyPrint, Poppler, Calibre/eBo
 
 ## Compact handoff
 
-- Latest complete green primary: **Run #119** (\`37358156494\`), job \`111925742002\`, commit \`71a34bb065e419869cff96006ae9df06288d1f20\`.
-- Run #119 ZIP SHA-256 \`80821D577F7F4B8246AD69E95CDCCE9140D85ACA5AFE6EAB0ED3D60A2FCB1BE1\`; size \`1,911,877,412\` bytes; layout \`31,621\` files / \`4,392,452,052\` bytes; lightweight artifact \`11366833930\`, size \`7,758\`, digest \`sha256:632172c024a509f811443ff48501be974d1bcfdaf60c1846198a903facf89eb6\`.
-- **CFF PDF-JSON conversion** is accepted by Run #119; **RAR/CBR** remains accepted by Run #117; **jbig2enc 0.32** remains accepted by Run #108.
-- Run #119 reconfirmed the complete backend, dependency, relocation, packaging and second-launch window-state regression with every earlier accepted gate enabled.
-- Active candidate for the next primary regression: close the discovered PDF→WebP gap with authenticated `pdf2image 1.17.0`, package-local Poppler `pdfinfo`/`pdftoppm`, and a real `png_to_webp.py` PDF→WebP E2E. Run #119 remains the latest accepted baseline until that full regression is green.
-- Continue the pinned-source dependency audit in parallel; FontForge remains a separate legacy CFF-method parity candidate to classify after PDF→WebP.
+- Latest complete green primary: **Run #120** (`37459765068`), job `112256117833`, commit `098ab25f2ed95d6f8bc290b053d2ff5f2cf148f2`.
+- Run #120 ZIP SHA-256 `CC51384F82CE3F05E11329294659DE548996F7299DBEFD1A28D7ED7851E6FC4B`; size `1,911,924,279` bytes; layout `31,639` files / `4,392,524,882` bytes; lightweight artifact `11414435818`, size `7,854`, digest `sha256:d81fe9e35ea3cdabd88c7259c9cbb5eea3c2a4ea3ce9e570d141350a2f0f7a75`.
+- **PDF→WebP Python/Poppler parity** is accepted by Run #120: authenticated `pdf2image 1.17.0`, package-local `pdfinfo`/`pdftoppm`, real Stirling `png_to_webp.py` PDF→WebP E2E, relocation and live-backend regression all passed.
+- **CFF Python conversion** remains accepted by Run #119; **RAR/CBR** by Run #117; **jbig2enc 0.32** by Run #108.
+- Next concrete audit surface: **FontForge CFF fallback** used by PDF→JSON→PDF reconstruction; then continue exact parity, representative E2E and final release-readiness audits.
 - Long-run protocol: track exact Actions run ID/attempt, use terminal Actions conclusion as primary evidence, keep concise progress updates flowing, and continue independent audits while CI runs.
 - No final Release has been published.
