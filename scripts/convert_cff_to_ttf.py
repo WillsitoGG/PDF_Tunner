@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """
-Wrap raw CFF/Type1C data (extracted from PDFs) as OpenType-CFF for web compatibility.
-Builds proper Unicode cmap from PDF ToUnicode data.
+Convert raw CFF/Type1C data (extracted from PDFs) to TrueType for portable PDF reconstruction.
+Builds a Unicode cmap from PDF ToUnicode data, then converts cubic CFF outlines to quadratic
+TrueType outlines using fontTools' bundled Cu2QuPen implementation.
 """
 
 import re
@@ -10,6 +11,8 @@ from io import BytesIO
 from pathlib import Path
 
 from fontTools.cffLib import CFFFontSet
+from fontTools.pens.cu2quPen import Cu2QuPen
+from fontTools.pens.ttGlyphPen import TTGlyphPen
 from fontTools.ttLib import TTFont, newTable
 from fontTools.ttLib.tables._c_m_a_p import cmap_format_4, cmap_format_12
 from fontTools.ttLib.tables._n_a_m_e import NameRecord
@@ -80,13 +83,72 @@ def parse_unicode_mapping(mapping_path):
         return {}
 
 
+def convert_otf_cff_to_ttf(font, max_err=1.0):
+    """Convert an in-memory OpenType-CFF font to TrueType outlines.
+
+    This follows the algorithm shipped by fontTools 4.64.0 in
+    Snippets/otf2ttf.py, using fontTools.pens.cu2quPen.Cu2QuPen.
+    """
+    if font.sfntVersion != "OTTO" or "CFF " not in font:
+        raise ValueError("Expected an OpenType-CFF font before TrueType conversion")
+
+    glyph_order = font.getGlyphOrder()
+    glyph_set = font.getGlyphSet()
+
+    glyf = newTable("glyf")
+    glyf.glyphOrder = glyph_order
+    glyf.glyphs = {}
+    for glyph_name in glyph_order:
+        tt_pen = TTGlyphPen(glyph_set)
+        cu2qu_pen = Cu2QuPen(tt_pen, max_err, reverse_direction=True)
+        glyph_set[glyph_name].draw(cu2qu_pen)
+        glyf.glyphs[glyph_name] = tt_pen.glyph()
+
+    font["loca"] = newTable("loca")
+    font["glyf"] = glyf
+    del font["CFF "]
+    glyf.compile(font)
+
+    hmtx = font["hmtx"]
+    for glyph_name, glyph in glyf.glyphs.items():
+        if hasattr(glyph, "xMin") and glyph_name in hmtx.metrics:
+            advance_width, _ = hmtx.metrics[glyph_name]
+            hmtx.metrics[glyph_name] = (advance_width, glyph.xMin)
+
+    maxp = newTable("maxp")
+    maxp.tableVersion = 0x00010000
+    maxp.maxZones = 1
+    maxp.maxTwilightPoints = 0
+    maxp.maxStorage = 0
+    maxp.maxFunctionDefs = 0
+    maxp.maxInstructionDefs = 0
+    maxp.maxStackElements = 0
+    maxp.maxSizeOfInstructions = 0
+    maxp.maxComponentElements = max(
+        len(g.components if hasattr(g, "components") else [])
+        for g in glyf.glyphs.values()
+    )
+    font["maxp"] = maxp
+    maxp.compile(font)
+
+    # The existing converter intentionally does not retain glyph names in the
+    # post table; keep that compact representation after outline conversion.
+    post = font["post"]
+    post.formatType = 3.0
+    post.extraNames = []
+    post.mapping = {}
+    post.glyphOrder = glyph_order
+
+    font.sfntVersion = "\x00\x01\x00\x00"
+
+
 def wrap_cff_as_otf(input_path, output_path, tounicode_path=None):
     """
-    Wrap raw CFF data (from PDF font stream) as OpenType-CFF.
+    Convert raw CFF data (from a PDF font stream) to TrueType.
 
     Args:
         input_path: Path to input CFF data file
-        output_path: Path to output OTF font
+        output_path: Path to output TTF font
         tounicode_path: Optional path to ToUnicode CMap file
 
     Returns:
@@ -470,7 +532,12 @@ def wrap_cff_as_otf(input_path, output_path, tounicode_path=None):
         post.maxMemType1 = 0
         otf["post"] = post
 
-        # Save the OTF font
+        # Convert the web-compatible OTF-CFF representation to actual
+        # TrueType outlines so PDFBox can embed it during PDF reconstruction
+        # without the unsafe external FontForge fallback.
+        convert_otf_cff_to_ttf(otf)
+
+        # Save the final TrueType font.
         otf.save(output_path)
         otf.close()
 
@@ -489,21 +556,21 @@ def main():
 
     # Create argument parser that supports both named and positional arguments
     parser = argparse.ArgumentParser(
-        description="Convert CFF font data to OpenType-CFF format",
+        description="Convert CFF font data to TrueType (TTF) format",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
   # Named arguments (used by Java code):
-  convert_cff_to_ttf.py --input font.cff --output font.otf --to-unicode mapping.tounicode
+  convert_cff_to_ttf.py --input font.cff --output font.ttf --to-unicode mapping.tounicode
 
   # Positional arguments (backward compatibility):
-  convert_cff_to_ttf.py font.cff font.otf mapping.tounicode
+  convert_cff_to_ttf.py font.cff font.ttf mapping.tounicode
         """,
     )
 
     # Add named arguments
     parser.add_argument("--input", dest="input_file", help="Input CFF file path")
-    parser.add_argument("--output", dest="output_file", help="Output OTF file path")
+    parser.add_argument("--output", dest="output_file", help="Output TTF file path")
     parser.add_argument("--to-unicode", dest="tounicode_file", help="ToUnicode mapping file path")
 
     # Add positional arguments for backward compatibility
