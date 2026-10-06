@@ -102,7 +102,7 @@ Direct runtime probes include Ghostscript `gs`, OCRmyPDF `ocrmypdf`, LibreOffice
 | qpdf `12.4.0` | Run #66 `33086404875` |
 | ImageMagick `7.1.2-30` | Run #67 `33092698357` |
 | Ghostscript `10.07.1` | Run #68 `33104114920` |
-| Tesseract `5.5.3` / CLI `5.5.3.20260724` | Run #70 `33122172947` |
+| Tesseract `5.5.3` / CLI `5.5.3.20260724`, `eng`/`spa`/`deu`/`fra`/`por`/`chi_sim`/`osd` | Run #123 `37490571449`, job `112361901093`, commit `1c94033ae6883077e84dfc4debefac5f6aac330e` |
 | Python `3.12.14` + OCRmyPDF `17.10.0` | Run #77 `33201568275` |
 | LibreOffice `26.2.5` + native `unoconvert` | Run #83 `33497784837` |
 | Poppler `26.02.0` | Run #86 `33507551477` |
@@ -142,7 +142,7 @@ Direct runtime probes include Ghostscript `gs`, OCRmyPDF `ocrmypdf`, LibreOffice
 - jbig2enc Meson `1.10.0` wheel SHA-256: `4b27aafce281e652dcb437b28007457411245d975c48b5db3a797d3e93ae1585`.
 - jbig2enc source tag `0.32` resolves exactly to commit `309b2d55c7dfdcf0ab6afccb6d88834afc0bf2c0`.
 - CFF converter script SHA-256 accepted by Run #122: `fb8b7f3d2911512f32760b50ccb593b7f26838c87d9cf9d53b4d3414e6783a85`.
-- Tesseract `tessdata_fast` commit remains `87416418657359cb625c412a48b6e1d6d41c29bd`; active parity candidate blobs: `deu=97ed7b2b60f2771c07040660ef0f6daf596dc7bf`, `fra=d9e2b2160be0d1ca3b8f1bf2730fae476ef3b4a6`, `por=e9f373e95c66b4bf557c263721ef31f78e5bc301`, `chi_sim=388bac276d033d06e5ed5ba7a7ad14ae58f97dab`.
+- Tesseract `tessdata_fast` commit remains `87416418657359cb625c412a48b6e1d6d41c29bd`; Run #123 accepted blobs: `deu=97ed7b2b60f2771c07040660ef0f6daf596dc7bf`, `fra=d9e2b2160be0d1ca3b8f1bf2730fae476ef3b4a6`, `por=e9f373e95c66b4bf557c263721ef31f78e5bc301`, `chi_sim=388bac276d033d06e5ed5ba7a7ad14ae58f97dab`.
 
 ## Accepted milestone — jbig2enc 0.32
 
@@ -248,8 +248,8 @@ The primary workflow builds and validates the portable ZIP but ordinary CI uploa
 2. **CFF PDF-JSON font conversion** — accepted by Run #119;
 3. **PDF→WebP Python/Poppler parity** — accepted by Run #120;
 4. **Secure CFF→TTF reconstruction** — accepted by Run #122 using fontTools 4.64.0's bundled Cu2QuPen path; the automatic portable PDF-reconstruction path no longer needs FontForge;
-5. **Tesseract upstream language parity** — active candidate: add pinned `deu`, `fra`, `por`, `chi_sim` to existing `eng`, `spa`, `osd`, with exact blob provenance, package inventory and real isolated load/execute probes;
-6. finish exact pinned-source dependency parity audit and close any remaining concrete dependency gap.
+5. **Tesseract upstream language parity** — accepted by Run #123 with pinned `deu`, `fra`, `por`, `chi_sim` plus existing `eng`, `spa`, `osd`, exact blob provenance and real isolated/backend probes;
+6. current exact pinned-source pass found no further concrete external/embedded dependency gap; reopen only when code-backed evidence requires it.
 
 ### B. Functional validation
 
@@ -269,14 +269,14 @@ Representative E2E must cover Office→PDF and supported PDF→Office, HTML/URL/
 
 ## Current handoff — 2026-10-06
 
-Accepted/closed: native portable/Tauri containment; Fixed WebView2; qpdf; ImageMagick; Ghostscript; Tesseract; Python 3.12.14 + OCRmyPDF 17.10.0; authenticated 29-package Python lock; NumPy 2.5.2; OpenCV `4.14.0.94`; `pdf2image 1.17.0` + PDF→WebP/Poppler parity; LibreOffice 26.2.5 + native `unoconvert`; Poppler 26.02.0; WeasyPrint 69.0; Calibre 9.14.0; unpaper 6.1 + pngquant 2.17.0; conversion fonts; embedded VeraPDF 1.30.2 E2E; **jbig2enc 0.32**; **RAR/CBR portability contract**; **CFF Python PDF-JSON conversion**; **secure CFF→TTF reconstruction**.
+Accepted/closed: native portable/Tauri containment; Fixed WebView2; qpdf; ImageMagick; Ghostscript; **Tesseract 5.5.3 with upstream language parity plus Spanish**; Python 3.12.14 + OCRmyPDF 17.10.0; authenticated 29-package Python lock; NumPy 2.5.2; OpenCV `4.14.0.94`; `pdf2image 1.17.0` + PDF→WebP/Poppler parity; LibreOffice 26.2.5 + native `unoconvert`; Poppler 26.02.0; WeasyPrint 69.0; Calibre 9.14.0; unpaper 6.1 + pngquant 2.17.0; conversion fonts; embedded VeraPDF 1.30.2 E2E; **jbig2enc 0.32**; **RAR/CBR portability contract**; **CFF Python PDF-JSON conversion**; **secure CFF→TTF reconstruction**.
 
-Latest complete green primary: **Run #122** (`37472331284`), job `112299193532`, commit `b5947844ea8a4525626dba96099105c2730a4085`; ZIP SHA-256 `20DAAAD8F7CA3D1F1FC41FE3D6197A68DB36F8DF5CBB0D462BFE8CB0C5545953`; size `1,911,909,447` bytes; layout `31,639` files / `4,392,527,297` bytes; lightweight artifact `11420435593`, size `7,857`, digest `sha256:93f604924c3ed619936e50c65daac66abffdbc49f21efa213dba8951fffd5400`.
+Latest complete green primary: **Run #123** (`37490571449`), job `112361901093`, commit `1c94033ae6883077e84dfc4debefac5f6aac330e`; ZIP SHA-256 `DE34229B659F25FFD04551A0EFE8A405C2AEFC49B019C07E63B59765832EBFC7`; size `1,916,091,006` bytes; layout `31,643` files / `4,399,635,662` bytes; lightweight artifact `11428065560`, size `7,856`, digest `sha256:39dfe7d1e4569eec902bdf573abacd6eaa2a6e14562a4f0e4999d3ca0ffa7307`.
 
-Run #122 accepts secure CFF→TTF reconstruction without bundled FontForge. The package-local converter uses authenticated fontTools 4.64.0/Cu2QuPen and passes exact TrueType structure, 2,221-glyph parity, relocation and the full live-backend/package regression. Run #121 is retained as failure history for the test-only byte-signature escaping error fixed by commit `b594784...`.
+Run #123 accepts Tesseract language-baseline parity: exact `tessdata_fast` blob pins, package metadata/SHA inventory, `--list-langs`, English/Spanish OCR, real load/execute probes for German/French/Portuguese/Simplified Chinese, OSD and live-backend acceptance all passed inside the complete primary regression. The current exact external/embedded dependency pass found no further concrete code-backed gap; do not invent one merely to continue CI.
 
-Active candidate from the exact parity audit: **Tesseract language baseline parity**. Pinned Stirling 2.14.3's Docker runtime installs `eng`, `deu`, `fra`, `por`, `chi_sim` and `osd`; PDF_Tunner currently ships `eng`, `spa`, `osd`. Add the four missing upstream languages from the already pinned `tessdata_fast` commit `87416418657359cb625c412a48b6e1d6d41c29bd`, pin each Git blob SHA, require all seven models in package metadata/SHA256SUMS/`--list-langs`, and execute a real isolated Tesseract load/execute probe for each newly added model. Keep `spa` as a PDF_Tunner extension. Continue the remaining dependency audit only after this candidate completes. FFmpeg remains disabled upstream and must not be re-enabled casually.
+Active functional candidate: extend the already accepted WeasyPrint gate with the real Stirling `/api/v1/convert/eml/pdf` route using pinned `frontend/editor/src/core/tests/test-fixtures/sample.eml`; require a valid PDF and extract expected fixture text using package-local Poppler `pdftotext.exe`. This proves the EML parser → sanitized HTML → packaged WeasyPrint chain without adding a new dependency. URL→PDF remains disabled by default in pinned Stirling 2.14.3 because upstream labels it INTERNAL ONLY with known security issues; do not enable it merely for validation.
 
-Long-run protocol: exact Actions run ID/latest attempt is the primary tracking key; terminal Actions conclusion outranks commit status; keep concise progress updates flowing and continue independent audit work while CI is active; do not push a replacement heavy run while a useful run is still active.
+Long-run protocol: after launching a heavy GitHub Action, capture its exact Run ID/attempt once and stop polling. The user will confirm visually when it finishes; only then inspect terminal result/logs/evidence and continue. Never launch a replacement heavy run while a useful run is active.
 
 No final Release has been published.
