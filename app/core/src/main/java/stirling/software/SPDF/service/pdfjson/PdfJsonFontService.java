@@ -258,7 +258,7 @@ public class PdfJsonFontService {
                 pythonScript);
 
         try (TempFile inputFile = new TempFile(tempFileManager, ".cff");
-                TempFile outputFile = new TempFile(tempFileManager, ".otf");
+                TempFile outputFile = new TempFile(tempFileManager, ".ttf");
                 TempFile toUnicodeFile =
                         toUnicode != null ? new TempFile(tempFileManager, ".tounicode") : null) {
             Files.write(inputFile.getPath(), fontBytes);
