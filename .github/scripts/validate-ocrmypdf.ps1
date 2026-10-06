@@ -133,13 +133,13 @@ function Test-OcrRuntime {
 
         $cffHelpOutput = @(& $python $cffConverterScript --help 2>&1)
         if ($LASTEXITCODE -ne 0) { throw "Packaged CFF converter --help failed with exit code $LASTEXITCODE." }
-        if (($cffHelpOutput -join "`n") -notmatch 'Convert CFF font data to OpenType-CFF format') {
-            throw 'Packaged CFF converter did not expose its expected command-line interface.'
+        if (($cffHelpOutput -join "`n") -notmatch 'Convert CFF font data to TrueType \(TTF\) format') {
+            throw 'Packaged CFF converter did not expose its expected TrueType command-line interface.'
         }
 
         $cffTestRoot = Join-Path ([System.IO.Path]::GetTempPath()) ("pdf-tunner-cff-" + [Guid]::NewGuid().ToString('N'))
         $rawCffPath = Join-Path $cffTestRoot 'stix-two-text.cff'
-        $convertedOtfPath = Join-Path $cffTestRoot 'stix-two-text-converted.otf'
+        $convertedTtfPath = Join-Path $cffTestRoot 'stix-two-text-converted.ttf'
         New-Item -ItemType Directory -Force -Path $cffTestRoot | Out-Null
         try {
             $extractCff = @(& $python -c "import sys; from fontTools.ttLib import TTFont; font=TTFont(sys.argv[1]); assert 'CFF ' in font; open(sys.argv[2],'wb').write(font['CFF '].compile(font))" $CffFixtureSource $rawCffPath 2>&1)
@@ -151,17 +151,17 @@ function Test-OcrRuntime {
                 throw 'The STIX Two Text fixture did not produce a usable raw CFF input.'
             }
 
-            $convertCff = @(& $python $cffConverterScript --input $rawCffPath --output $convertedOtfPath 2>&1)
+            $convertCff = @(& $python $cffConverterScript --input $rawCffPath --output $convertedTtfPath 2>&1)
             if ($LASTEXITCODE -ne 0) {
                 $convertCff | Out-Host
                 throw "Packaged CFF conversion failed with exit code $LASTEXITCODE."
             }
-            $verifyCff = @(& $python -c "import sys; from fontTools.ttLib import TTFont; font=TTFont(sys.argv[1]); assert font.sfntVersion=='OTTO'; assert 'CFF ' in font; assert len(font.getGlyphOrder()) > 0; print(len(font.getGlyphOrder()))" $convertedOtfPath 2>&1)
+            $verifyCff = @(& $python -c "import sys; from fontTools.ttLib import TTFont; font=TTFont(sys.argv[1]); assert font.sfntVersion=='\\x00\\x01\\x00\\x00'; assert 'glyf' in font and 'loca' in font; assert 'CFF ' not in font; assert len(font.getGlyphOrder()) == 2221; assert len(font['glyf'].glyphs) == 2221; print(len(font.getGlyphOrder()))" $convertedTtfPath 2>&1)
             if ($LASTEXITCODE -ne 0) {
                 $verifyCff | Out-Host
-                throw 'Packaged CFF converter output was not a valid CFF-flavored OpenType font.'
+                throw 'Packaged CFF converter output was not a valid 2,221-glyph TrueType font.'
             }
-            Write-Host "PASS: package-local CFF converter rebuilt a valid OpenType-CFF font with $($verifyCff[-1]) glyphs."
+            Write-Host "PASS: package-local CFF converter rebuilt a valid TrueType font with $($verifyCff[-1]) glyphs; no FontForge fallback is required."
         }
         finally {
             Remove-Item -LiteralPath $cffTestRoot -Recurse -Force -ErrorAction SilentlyContinue
