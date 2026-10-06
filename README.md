@@ -11,13 +11,13 @@
 - Target: **Windows 10/11 x64 portable ZIP**, extract and run without installation.
 - `main` remains the clean pinned upstream base during v1 development.
 - No final PDF_Tunner v1 Release exists yet.
-- Latest complete green primary regression: **Run #122** (`37472331284`), job `112299193532`, commit `b5947844ea8a4525626dba96099105c2730a4085`.
+- Latest complete green primary regression: **Run #123** (`37490571449`), job `112361901093`, commit `1c94033ae6883077e84dfc4debefac5f6aac330e`.
 - **jbig2enc 0.32 is formally accepted by Run #108**, including exact source/tag, authenticated Meson inputs, static MSVC build, upstream tests, isolated package-first ToolProbe, relocation and a real OCRmyPDF `--optimize 2` result containing `/JBIG2Decode`.
 - **RAR/CBR is formally accepted by Run #117**: deterministic real CBR→PDF, package-first optional encoder probe for PDF→CBR, explicit no-encoder failure, no bundled `rar.exe`, and the complete primary workflow including second-launch window restore all passed.
 - Run #115 and #116 remain recorded below as failure history; #117 closed the RAR/CBR and HWND restoration gates, #118 reconfirmed the complete regression, and #119 accepted portable CFF PDF-JSON conversion.
 - CI handoff incident: Run #117 completed successfully at 10:57 UTC, but its commit status stayed `pending` from 10:18 UTC because the status bridge only published at workflow start. Commit e48 adds terminal publication in an `always()` step and skips heavy CI for root README/AGENTS/RELEASE_STATUS-only changes. Run #118 attempt 1 hit an HTTPS timeout downloading pngquant from `pngquant.org`; the failed-job-only retry (attempt 2) completed green. The bridge published terminal `failure` for attempt 1 and `success` for attempt 2, confirming the repair.
 - **CFF PDF-JSON conversion is formally accepted by Run #119**: the package-local converter, exact script provenance, real OpenType-CFF conversion and relocation all passed inside the complete primary workflow.
-- Active parity candidate: match pinned Stirling 2.14.3's bundled Tesseract language baseline by adding authenticated `deu`, `fra`, `por` and `chi_sim` models while retaining PDF_Tunner's existing `eng`, `spa` and `osd`; then continue the exact pinned-source dependency audit.
+- **Tesseract upstream language parity is formally accepted by Run #123**: package-local `eng`, `spa`, `deu`, `fra`, `por`, `chi_sim`, `osd`, exact `tessdata_fast` blob pins, real isolated load/execute probes and live-backend acceptance all passed. The current exact external/embedded dependency audit found no further concrete code-backed gap, so the active block moves to representative functional E2E coverage; first candidate: real EML→PDF through packaged WeasyPrint.
 
 ## Accepted portable layers
 
@@ -28,7 +28,7 @@
 | qpdf | `12.4.0` MinGW64; Run #66 `33086404875` |
 | ImageMagick | `7.1.2-30` portable Q16 x64; Run #67 `33092698357` |
 | Ghostscript | `10.07.1` Win64; Run #68 `33104114920` |
-| Tesseract | release `5.5.3`, CLI `5.5.3.20260724`, pinned `eng`/`spa`/`osd`; Run #70 `33122172947` |
+| Tesseract | release `5.5.3`, CLI `5.5.3.20260724`, pinned `eng`/`spa`/`deu`/`fra`/`por`/`chi_sim`/`osd`; upstream language parity Run #123 `37490571449` |
 | Python + OCRmyPDF | Python `3.12.14` x64 + OCRmyPDF `17.10.0`; Run #77 `33201568275` |
 | LibreOffice + UNO conversion | LibreOffice `26.2.5` + package-relative native `unoconvert.exe`; Run #83 `33497784837` |
 | Poppler | `26.02.0` Windows x64; Run #86 `33507551477` |
@@ -216,8 +216,8 @@ Heavy CI uses branch-scoped concurrency with `cancel-in-progress: true`. Do not 
 2. **CFF PDF-JSON font conversion** — accepted by Run #119;
 3. **PDF→WebP Python/Poppler parity** — accepted by Run #120;
 4. **Secure CFF→TTF reconstruction** — accepted by Run #122 using authenticated fontTools 4.64.0 Cu2QuPen, so portable PDF reconstruction no longer needs the FontForge fallback;
-5. **Tesseract upstream language parity** — active candidate: add pinned `deu`, `fra`, `por` and `chi_sim` to existing `eng`, `spa`, `osd`, with exact blob provenance and isolated runtime probes;
-6. finish exact dependency audit against pinned Stirling 2.14.3 and close any remaining concrete gap.
+5. **Tesseract upstream language parity** — accepted by Run #123 with pinned `deu`, `fra`, `por`, `chi_sim` plus existing `eng`, `spa`, `osd`, exact blob provenance and isolated/runtime-backend probes;
+6. the current exact pinned-source pass found no further concrete external/embedded dependency gap; reopen only if later code review produces new evidence.
 
 PDF_Tunner deliberately does **not** bundle the current official Windows FontForge 20251009 build for this fallback. That release is affected by multiple 2025 memory-safety advisories, including NVD CVE-2025-15279; feeding embedded fonts from untrusted PDFs into that parser would introduce an avoidable attack surface. Explicit upstream/custom FontForge configuration remains supported, but the portable default must not depend on it.
 
@@ -225,7 +225,7 @@ The upstream PDF-to-video controller and external FFmpeg probe are disabled in p
 
 ### B. Representative functional E2E
 
-Cover OCR, Office↔PDF, HTML/URL/base-URL/EML, WeasyPrint, Poppler, Calibre/eBook, Python/NumPy/OpenCV, qpdf/Ghostscript/ImageMagick/Tesseract/OCRmyPDF, conversion fonts, VeraPDF, jbig2enc, RAR/CBR behavior and representative Stirling API families. Tests must prove runner-installed software is not satisfying package gates.
+Cover OCR, Office↔PDF, HTML/URL/base-URL/EML, WeasyPrint, Poppler, Calibre/eBook, Python/NumPy/OpenCV, qpdf/Ghostscript/ImageMagick/Tesseract/OCRmyPDF, conversion fonts, VeraPDF, jbig2enc, RAR/CBR behavior and representative Stirling API families. Tests must prove runner-installed software is not satisfying package gates. **Active candidate:** real `/api/v1/convert/eml/pdf` using Stirling's pinned `sample.eml`, packaged WeasyPrint, and packaged Poppler `pdftotext` content verification. URL→PDF remains disabled by default in pinned Stirling 2.14.3 because upstream marks it INTERNAL ONLY with known security issues; do not enable it merely for CI coverage.
 
 ### C. Release readiness
 
@@ -241,10 +241,10 @@ Cover OCR, Office↔PDF, HTML/URL/base-URL/EML, WeasyPrint, Poppler, Calibre/eBo
 
 ## Compact handoff
 
-- Latest complete green primary: **Run #122** (`37472331284`), job `112299193532`, commit `b5947844ea8a4525626dba96099105c2730a4085`.
-- Run #122 ZIP SHA-256 `20DAAAD8F7CA3D1F1FC41FE3D6197A68DB36F8DF5CBB0D462BFE8CB0C5545953`; size `1,911,909,447` bytes; layout `31,639` files / `4,392,527,297` bytes; lightweight artifact `11420435593`, size `7,857`, digest `sha256:93f604924c3ed619936e50c65daac66abffdbc49f21efa213dba8951fffd5400`.
-- **Secure CFF→TTF reconstruction** is accepted by Run #122: authenticated fontTools `4.64.0`/Cu2QuPen produced real 2,221-glyph TrueType output and removed the automatic portable need for FontForge. Run #121 is retained as the failed test-gate history corrected by the #122 commit.
-- **PDF→WebP Python/Poppler parity** remains accepted by Run #120; **CFF Python conversion** by Run #119; **RAR/CBR** by Run #117; **jbig2enc 0.32** by Run #108.
-- Active candidate from the parity audit: **Tesseract language baseline parity**. Pinned Stirling 2.14.3 bundles `eng`, `deu`, `fra`, `por`, `chi_sim` and `osd`; PDF_Tunner already has `eng`, `spa`, `osd`, so this candidate adds the four missing upstream models with exact `tessdata_fast` blob pins and real package-local runtime probes. Keep `spa` as a PDF_Tunner extension, then continue the remaining dependency audit.
-- Long-run protocol: track exact Actions run ID/attempt, use terminal Actions conclusion as primary evidence, keep concise progress updates flowing, and continue independent audits while CI runs.
+- Latest complete green primary: **Run #123** (`37490571449`), job `112361901093`, commit `1c94033ae6883077e84dfc4debefac5f6aac330e`.
+- Run #123 ZIP SHA-256 `DE34229B659F25FFD04551A0EFE8A405C2AEFC49B019C07E63B59765832EBFC7`; size `1,916,091,006` bytes; layout `31,643` files / `4,399,635,662` bytes; lightweight artifact `11428065560`, size `7,856`, digest `sha256:39dfe7d1e4569eec902bdf573abacd6eaa2a6e14562a4f0e4999d3ca0ffa7307`.
+- **Tesseract upstream language parity** is accepted by Run #123: `eng`, `spa`, `deu`, `fra`, `por`, `chi_sim`, `osd`, with exact model blob pins, package-local resolution, real load/execute probes and backend acceptance.
+- The current exact external/embedded dependency audit found no further concrete code-backed gap after #123. Earlier accepted layers remain green, including CFF→TTF (#122), PDF→WebP (#120), CFF Python (#119), RAR/CBR (#117) and jbig2enc (#108).
+- Active functional candidate: real **EML→PDF** using pinned Stirling `frontend/editor/src/core/tests/test-fixtures/sample.eml`, packaged WeasyPrint, and packaged Poppler `pdftotext` to verify preserved subject/body text. URL→PDF stays disabled by upstream default/security policy.
+- Long-run protocol: after launching a heavy GitHub Action, capture the exact Run ID once, then stop polling; the user will confirm visually when it finishes before any further run inspection.
 - No final Release has been published.
