@@ -44,7 +44,7 @@ try {
     Copy-Item -LiteralPath $sourceRoot -Destination $popplerRoot -Recurse -Force
 
     $binRoot = Join-Path $popplerRoot 'Library\bin'
-    $requiredExecutables = @('pdftohtml.exe', 'pdfinfo.exe', 'pdfimages.exe')
+    $requiredExecutables = @('pdftohtml.exe', 'pdfinfo.exe', 'pdfimages.exe', 'pdftoppm.exe')
     $checksumLines = [System.Collections.Generic.List[string]]::new()
     foreach ($name in $requiredExecutables) {
         $path = Join-Path $binRoot $name
