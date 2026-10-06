@@ -117,6 +117,7 @@ Direct runtime probes include Ghostscript `gs`, OCRmyPDF `ocrmypdf`, LibreOffice
 | **RAR / CBR contract** | **Run #117 `37295728617`; embedded CBR→PDF, optional package-first PDF→CBR encoder, no bundled `rar.exe`** |
 | **CFF PDF-JSON conversion** | **Run #119 `37358156494`, job `111925742002`, commit `71a34bb065e419869cff96006ae9df06288d1f20`; real 2,221-glyph conversion + relocation** |
 | **PDF→WebP Python/Poppler parity** | **Run #120 `37459765068`, job `112256117833`, commit `098ab25f2ed95d6f8bc290b053d2ff5f2cf148f2`; `pdf2image 1.17.0` + package-local Poppler + real E2E/relocation** |
+| **Secure CFF→TTF reconstruction** | **Run #122 `37472331284`, job `112299193532`, commit `b5947844ea8a4525626dba96099105c2730a4085`; fontTools `4.64.0` Cu2QuPen, real 2,221-glyph TTF + relocation** |
 
 ### Fixed provenance values that must not drift silently
 
@@ -140,6 +141,7 @@ Direct runtime probes include Ghostscript `gs`, OCRmyPDF `ocrmypdf`, LibreOffice
 - Noto CJK `Sans2.004` Regular subset SHA-256 values remain exactly those documented in README history; do not change them without new authenticated evidence.
 - jbig2enc Meson `1.10.0` wheel SHA-256: `4b27aafce281e652dcb437b28007457411245d975c48b5db3a797d3e93ae1585`.
 - jbig2enc source tag `0.32` resolves exactly to commit `309b2d55c7dfdcf0ab6afccb6d88834afc0bf2c0`.
+- CFF converter script SHA-256 accepted by Run #122: `fb8b7f3d2911512f32760b50ccb593b7f26838c87d9cf9d53b4d3414e6783a85`.
 
 ## Accepted milestone — jbig2enc 0.32
 
@@ -172,6 +174,16 @@ Run #119 (\`37358156494\`, job \`111925742002\`, commit \`71a34bb065e419869cff96
 - lightweight artifact \`11366833930\`, size \`7,758\`, digest \`sha256:632172c024a509f811443ff48501be974d1bcfdaf60c1846198a903facf89eb6\`.
 
 CFF PDF-JSON portability is closed/accepted; do not reopen it without new evidence.
+
+## Latest accepted milestone — secure CFF→TTF reconstruction
+
+The pinned PDF reconstruction path can request a TTF representation after the Python CFF wrapper has produced OpenType-CFF. Rather than bundling FontForge, PDF_Tunner now uses the already authenticated fontTools `4.64.0` Cu2QuPen implementation inside the package-local converter to produce genuine TrueType outlines.
+
+Run #121 (`37471270073`, commit `73e07e12cf647f4a14c50d7194936c8063b3eff0`) failed only because the PowerShell-embedded Python assertion compared against a literal escaped byte sequence. Commit `b5947844ea8a4525626dba96099105c2730a4085` corrected the gate to test the real `00 01 00 00` sfnt signature. Run #122 (`37472331284`, job `112299193532`) then passed the complete primary workflow. Acceptance requires and now proves: real TrueType sfnt signature, `glyf` and `loca`, no `CFF ` table, exactly 2,221 fixture glyphs, relocation, live backend, final package containment and every earlier accepted gate.
+
+Evidence: converter SHA-256 `fb8b7f3d2911512f32760b50ccb593b7f26838c87d9cf9d53b4d3414e6783a85`; ZIP SHA-256 `20DAAAD8F7CA3D1F1FC41FE3D6197A68DB36F8DF5CBB0D462BFE8CB0C5545953`; ZIP size `1,911,909,447` bytes; layout `31,639` files / `4,392,527,297` bytes; artifact `11420435593`, size `7,857`, digest `sha256:93f604924c3ed619936e50c65daac66abffdbc49f21efa213dba8951fffd5400`.
+
+Secure CFF→TTF reconstruction is closed/accepted; do not reopen it without new evidence. Explicit custom FontForge configuration remains upstream-compatible, but PDF_Tunner portable defaults no longer require FontForge.
 
 ## Accepted contract — RAR / CBR
 
@@ -234,7 +246,7 @@ The primary workflow builds and validates the portable ZIP but ordinary CI uploa
 1. **RAR/CBR portability contract** — accepted by Run #117;
 2. **CFF PDF-JSON font conversion** — accepted by Run #119;
 3. **PDF→WebP Python/Poppler parity** — accepted by Run #120;
-4. **Secure CFF→TTF reconstruction** — active candidate: the package-local Python converter must produce actual TTF outlines using fontTools 4.64.0's bundled Cu2QuPen path, preventing the automatic PDF-reconstruction path from needing FontForge;
+4. **Secure CFF→TTF reconstruction** — accepted by Run #122 using fontTools 4.64.0's bundled Cu2QuPen path; the automatic portable PDF-reconstruction path no longer needs FontForge;
 5. finish exact pinned-source dependency parity audit and close any remaining concrete dependency gap.
 
 ### B. Functional validation
@@ -255,15 +267,13 @@ Representative E2E must cover Office→PDF and supported PDF→Office, HTML/URL/
 
 ## Current handoff — 2026-10-06
 
-Accepted/closed: native portable/Tauri containment; Fixed WebView2; qpdf; ImageMagick; Ghostscript; Tesseract; Python 3.12.14 + OCRmyPDF 17.10.0; authenticated 29-package Python lock; NumPy 2.5.2; OpenCV `4.14.0.94`; `pdf2image 1.17.0` + PDF→WebP/Poppler parity; LibreOffice 26.2.5 + native `unoconvert`; Poppler 26.02.0; WeasyPrint 69.0; Calibre 9.14.0; unpaper 6.1 + pngquant 2.17.0; conversion fonts; embedded VeraPDF 1.30.2 E2E; **jbig2enc 0.32**; **RAR/CBR portability contract**; **CFF Python PDF-JSON conversion**.
+Accepted/closed: native portable/Tauri containment; Fixed WebView2; qpdf; ImageMagick; Ghostscript; Tesseract; Python 3.12.14 + OCRmyPDF 17.10.0; authenticated 29-package Python lock; NumPy 2.5.2; OpenCV `4.14.0.94`; `pdf2image 1.17.0` + PDF→WebP/Poppler parity; LibreOffice 26.2.5 + native `unoconvert`; Poppler 26.02.0; WeasyPrint 69.0; Calibre 9.14.0; unpaper 6.1 + pngquant 2.17.0; conversion fonts; embedded VeraPDF 1.30.2 E2E; **jbig2enc 0.32**; **RAR/CBR portability contract**; **CFF Python PDF-JSON conversion**; **secure CFF→TTF reconstruction**.
 
-Latest complete green primary: **Run #120** (`37459765068`), job `112256117833`, commit `098ab25f2ed95d6f8bc290b053d2ff5f2cf148f2`; ZIP SHA-256 `CC51384F82CE3F05E11329294659DE548996F7299DBEFD1A28D7ED7851E6FC4B`; size `1,911,924,279` bytes; layout `31,639` files / `4,392,524,882` bytes; lightweight artifact `11414435818`, size `7,854`, digest `sha256:d81fe9e35ea3cdabd88c7259c9cbb5eea3c2a4ea3ce9e570d141350a2f0f7a75`.
+Latest complete green primary: **Run #122** (`37472331284`), job `112299193532`, commit `b5947844ea8a4525626dba96099105c2730a4085`; ZIP SHA-256 `20DAAAD8F7CA3D1F1FC41FE3D6197A68DB36F8DF5CBB0D462BFE8CB0C5545953`; size `1,911,909,447` bytes; layout `31,639` files / `4,392,527,297` bytes; lightweight artifact `11420435593`, size `7,857`, digest `sha256:93f604924c3ed619936e50c65daac66abffdbc49f21efa213dba8951fffd5400`.
 
-Run #120 accepts the PDF→WebP gap: authenticated `pdf2image 1.17.0`, package-local Poppler `pdfinfo`/`pdftoppm`, Stirling's real `png_to_webp.py` PDF-mode E2E, relocation to a path with spaces and live-backend regression all passed with every earlier gate enabled.
+Run #122 accepts secure CFF→TTF reconstruction without bundled FontForge. The package-local converter uses authenticated fontTools 4.64.0/Cu2QuPen and passes exact TrueType structure, 2,221-glyph parity, relocation and the full live-backend/package regression. Run #121 is retained as failure history for the test-only byte-signature escaping error fixed by commit `b594784...`.
 
-Active candidate: **secure CFF→TTF reconstruction without bundled FontForge**. The audit proved `PdfJsonConversionService` invokes `convertCffUsingFontForge` when the Python converter yields OTF rather than TTF. Instead of packaging the official Windows FontForge 20251009 build, which is affected by current 2025 memory-safety advisories including NVD CVE-2025-15279, PDF_Tunner will reuse the already authenticated fontTools 4.64.0 implementation of `Cu2QuPen` to convert the reconstructed OTF-CFF outlines to true TTF. CI must prove exact sfnt TrueType bytes `00 01 00 00`, `glyf`/`loca`, absence of `CFF `, exactly 2,221 fixture glyphs and relocation. Keep the PowerShell-embedded Python assertion single-escaped so Python evaluates the binary signature rather than a literal backslash sequence. Explicit custom/upstream FontForge configuration stays supported; PDF_Tunner does not bundle the vulnerable executable.
-
-Continue the exact pinned-source dependency audit after FontForge, then representative E2E and final branding/portability/cleanup/release-readiness. FFmpeg remains disabled in pinned Stirling 2.14.3 because of CVE concerns; do not bundle or re-enable it without a separate security review.
+Active block: continue the exact pinned-source dependency parity audit against Stirling 2.14.3. Only concrete code-backed gaps should become candidates; after external/embedded parity is closed, proceed to representative functional E2E and final branding/portability/cleanup/release-readiness. FFmpeg remains disabled upstream and must not be re-enabled casually.
 
 Long-run protocol: exact Actions run ID/latest attempt is the primary tracking key; terminal Actions conclusion outranks commit status; keep concise progress updates flowing and continue independent audit work while CI is active; do not push a replacement heavy run while a useful run is still active.
 
