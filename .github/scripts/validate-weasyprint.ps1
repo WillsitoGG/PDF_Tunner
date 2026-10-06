@@ -203,6 +203,24 @@ try {
         $backendMarkdownPdf = Join-Path $validationRoot 'backend-markdown.pdf'
         Invoke-StirlingMultipart -Uri ($BackendBaseUrl.TrimEnd('/') + '/api/v1/convert/markdown/pdf') -InputFile $markdown -MimeType 'text/markdown' -OutputFile $backendMarkdownPdf
 
+        $emlFixtureSource = (Resolve-Path -LiteralPath './frontend/editor/src/core/tests/test-fixtures/sample.eml').Path
+        $emlFixture = Join-Path $validationRoot 'sample.eml'
+        $backendEmlPdf = Join-Path $validationRoot 'backend-eml.pdf'
+        Copy-Item -LiteralPath $emlFixtureSource -Destination $emlFixture -Force
+        Invoke-StirlingMultipart -Uri ($BackendBaseUrl.TrimEnd('/') + '/api/v1/convert/eml/pdf') -InputFile $emlFixture -MimeType 'message/rfc822' -OutputFile $backendEmlPdf
+
+        $pdftotext = Join-Path $portable 'tools\poppler\Library\bin\pdftotext.exe'
+        if (-not (Test-Path -LiteralPath $pdftotext -PathType Leaf)) {
+            throw "Packaged Poppler pdftotext.exe is missing for EML-to-PDF content validation: $pdftotext"
+        }
+        $emlText = Invoke-CapturedProcess -FilePath $pdftotext -Arguments @('-layout', $backendEmlPdf, '-')
+        if ($emlText.ExitCode -ne 0) {
+            throw "Packaged pdftotext failed for the real Stirling EML-to-PDF result: $($emlText.Output)"
+        }
+        if ($emlText.Output -notmatch '(?i)Test Email for Convert Tool') {
+            throw "Real Stirling EML-to-PDF output did not preserve the expected fixture subject/body text: $($emlText.Output)"
+        }
+
         $logs = @(Get-ChildItem -LiteralPath $BackendLogRoot -Recurse -Force -File -Filter '*.log' -ErrorAction SilentlyContinue)
         $logText = ($logs | ForEach-Object { Get-Content -LiteralPath $_.FullName -Raw -ErrorAction SilentlyContinue }) -join "`n"
         if ([string]::IsNullOrWhiteSpace($logText)) { throw 'No backend logs were available for WeasyPrint acceptance.' }
@@ -221,7 +239,7 @@ try {
     Write-Host "PASS: official WeasyPrint $Version archive/hash and AMD64 executable validated."
     Write-Host 'PASS: package-local native shim resolves only inside tools/bin and contains PyInstaller temp under data/tmp/weasyprint.'
     Write-Host 'PASS: real WeasyPrint HTML-to-PDF conversion and relocation with spaces validated as requested.'
-    if ($BackendBaseUrl) { Write-Host 'PASS: real Stirling HTML-to-PDF and Markdown-to-PDF routes validated through packaged WeasyPrint.' }
+    if ($BackendBaseUrl) { Write-Host 'PASS: real Stirling HTML-to-PDF, Markdown-to-PDF and EML-to-PDF routes validated through packaged WeasyPrint; EML text was verified with packaged Poppler pdftotext.' }
 }
 finally {
     Remove-Item -LiteralPath $validationRoot -Recurse -Force -ErrorAction SilentlyContinue
