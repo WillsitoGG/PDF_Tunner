@@ -11,7 +11,7 @@
 - Target: **Windows 10/11 x64 portable ZIP**, extract and run without installation.
 - `main` remains the clean pinned upstream base during v1 development.
 - No final PDF_Tunner v1 Release exists yet.
-- Latest complete green primary regression: **Run #123** (`37490571449`), job `112361901093`, commit `1c94033ae6883077e84dfc4debefac5f6aac330e`.
+- Latest complete green primary regression: **Run #124 attempt 2** (`37496831786`), job `112394477890`, commit `4542baa5a59732bb87780403ae4f372dd88764ac`.
 - **jbig2enc 0.32 is formally accepted by Run #108**, including exact source/tag, authenticated Meson inputs, static MSVC build, upstream tests, isolated package-first ToolProbe, relocation and a real OCRmyPDF `--optimize 2` result containing `/JBIG2Decode`.
 - **RAR/CBR is formally accepted by Run #117**: deterministic real CBR→PDF, package-first optional encoder probe for PDF→CBR, explicit no-encoder failure, no bundled `rar.exe`, and the complete primary workflow including second-launch window restore all passed.
 - Run #115 and #116 remain recorded below as failure history; #117 closed the RAR/CBR and HWND restoration gates, #118 reconfirmed the complete regression, and #119 accepted portable CFF PDF-JSON conversion.
@@ -35,7 +35,7 @@
 | Python dependency lock | authenticated 29-package Windows lock including `pdf2image 1.17.0`; Run #120 `37459765068` |
 | NumPy | `2.5.2`; Run #90 `33530454097` |
 | OpenCV | `opencv-python-headless 4.14.0.94`, runtime/core `4.14.0`, real `split_photos.py`; Run #92 `33557169326` |
-| WeasyPrint | official Windows `69.0`, package-relative shim, real HTML→PDF + Markdown→PDF; Run #95 `33695530172` |
+| WeasyPrint | official Windows `69.0`, package-relative shim, real HTML→PDF + Markdown→PDF + EML→PDF; EML acceptance Run #124 attempt 2 `37496831786` |
 | Calibre | official Windows x64 `9.14.0`, package-relative `ebook-convert`; Run #96 `33748509811` |
 | OCRmyPDF auxiliaries | unpaper `6.1` + pngquant `2.17.0`; Run #99 `33786563784` |
 | Conversion fonts | LibreOffice MSI Latin baseline + pinned Noto Sans CJK `Sans2.004` Regular regional subsets; Run #103 `33896293861` |
@@ -225,7 +225,7 @@ The upstream PDF-to-video controller and external FFmpeg probe are disabled in p
 
 ### B. Representative functional E2E
 
-Cover OCR, Office↔PDF, HTML/URL/base-URL/EML, WeasyPrint, Poppler, Calibre/eBook, Python/NumPy/OpenCV, qpdf/Ghostscript/ImageMagick/Tesseract/OCRmyPDF, conversion fonts, VeraPDF, jbig2enc, RAR/CBR behavior and representative Stirling API families. Tests must prove runner-installed software is not satisfying package gates. **Active candidate:** real `/api/v1/convert/eml/pdf` using Stirling's pinned `sample.eml`, packaged WeasyPrint, and packaged Poppler `pdftotext` content verification. URL→PDF remains disabled by default in pinned Stirling 2.14.3 because upstream marks it INTERNAL ONLY with known security issues; do not enable it merely for CI coverage.
+Cover OCR, Office↔PDF, HTML/URL/base-URL/EML, WeasyPrint, Poppler, Calibre/eBook, Python/NumPy/OpenCV, qpdf/Ghostscript/ImageMagick/Tesseract/OCRmyPDF, conversion fonts, VeraPDF, jbig2enc, RAR/CBR behavior and representative Stirling API families. Tests must prove runner-installed software is not satisfying package gates. **EML→PDF is accepted by Run #124 attempt 2** using Stirling's pinned `sample.eml`, packaged WeasyPrint and packaged Poppler `pdftotext` content verification. **Active candidate:** extend the already accepted LibreOffice backend contract from Office→PDF + PDF→DOCX to the distinct `/api/v1/convert/pdf/presentation` route with `outputFormat=pptx`, and verify a coherent OOXML `ppt/presentation.xml`. URL→PDF remains disabled by default in pinned Stirling 2.14.3 because upstream marks it INTERNAL ONLY with known security issues; do not enable it merely for CI coverage.
 
 ### C. Release readiness
 
@@ -241,10 +241,11 @@ Cover OCR, Office↔PDF, HTML/URL/base-URL/EML, WeasyPrint, Poppler, Calibre/eBo
 
 ## Compact handoff
 
-- Latest complete green primary: **Run #123** (`37490571449`), job `112361901093`, commit `1c94033ae6883077e84dfc4debefac5f6aac330e`.
-- Run #123 ZIP SHA-256 `DE34229B659F25FFD04551A0EFE8A405C2AEFC49B019C07E63B59765832EBFC7`; size `1,916,091,006` bytes; layout `31,643` files / `4,399,635,662` bytes; lightweight artifact `11428065560`, size `7,856`, digest `sha256:39dfe7d1e4569eec902bdf573abacd6eaa2a6e14562a4f0e4999d3ca0ffa7307`.
-- **Tesseract upstream language parity** is accepted by Run #123: `eng`, `spa`, `deu`, `fra`, `por`, `chi_sim`, `osd`, with exact model blob pins, package-local resolution, real load/execute probes and backend acceptance.
-- The current exact external/embedded dependency audit found no further concrete code-backed gap after #123. Earlier accepted layers remain green, including CFF→TTF (#122), PDF→WebP (#120), CFF Python (#119), RAR/CBR (#117) and jbig2enc (#108).
-- Active functional candidate: real **EML→PDF** using pinned Stirling `frontend/editor/src/core/tests/test-fixtures/sample.eml`, packaged WeasyPrint, and packaged Poppler `pdftotext` to verify preserved subject/body text. URL→PDF stays disabled by upstream default/security policy.
+- Latest complete green primary: **Run #124 attempt 2** (`37496831786`), job `112394477890`, commit `4542baa5a59732bb87780403ae4f372dd88764ac`.
+- Attempt 1 failed before the new EML gate because `pngquant.org` timed out during the already accepted OCR auxiliary download; no product/test code failure was implicated. The failed-job-only retry passed the complete workflow.
+- Run #124 attempt 2 ZIP SHA-256 `78B3772A83E9B87B8BD36535A0F1F096E31C9C294C561B1D23DF3DF7BDAEBF8F`; size `1,916,086,164` bytes; layout `31,643` files / `4,399,635,662` bytes; lightweight artifact `11430589725`, size `7,854`, digest `sha256:66e380fd3d85af75632ec94ab828efb73958686ccacd2a65893b4352778600c8`.
+- **EML→PDF is accepted**: the real Stirling route used the pinned `sample.eml`, package-local WeasyPrint and package-local Poppler `pdftotext`, preserving expected fixture text.
+- External/embedded parity remains closed after Run #123; Run #124 moves representative functional E2E forward without adding dependencies.
+- Active candidate: **PDF→PPTX** via the real `/api/v1/convert/pdf/presentation` route, reusing the accepted package-local LibreOffice/`unoconvert` contract and validating the OOXML presentation payload. Office→PDF and PDF→DOCX are already accepted by the existing gate.
 - Long-run protocol: after launching a heavy GitHub Action, capture the exact Run ID once, then stop polling; the user will confirm visually when it finishes before any further run inspection.
 - No final Release has been published.

@@ -108,7 +108,7 @@ Direct runtime probes include Ghostscript `gs`, OCRmyPDF `ocrmypdf`, LibreOffice
 | Poppler `26.02.0` | Run #86 `33507551477` |
 | authenticated Python lock + NumPy `2.5.2` | Run #90 `33530454097` |
 | OpenCV `4.14.0.94` / runtime `4.14.0` | Run #92 `33557169326` |
-| WeasyPrint `69.0` | Run #95 `33695530172` |
+| WeasyPrint `69.0`, HTML/Markdown/EML backend routes | EML acceptance Run #124 attempt 2 `37496831786`, job `112394477890`, commit `4542baa5a59732bb87780403ae4f372dd88764ac` |
 | Calibre `9.14.0` | Run #96 `33748509811` |
 | unpaper `6.1` + pngquant `2.17.0` | Run #99 `33786563784` |
 | conversion fonts | Run #103 `33896293861`, job `101099606785`, commit `1a0ad7b216d2b70b4bff0e4b8c9394b5d666797f` |
@@ -269,13 +269,13 @@ Representative E2E must cover Office→PDF and supported PDF→Office, HTML/URL/
 
 ## Current handoff — 2026-10-06
 
-Accepted/closed: native portable/Tauri containment; Fixed WebView2; qpdf; ImageMagick; Ghostscript; **Tesseract 5.5.3 with upstream language parity plus Spanish**; Python 3.12.14 + OCRmyPDF 17.10.0; authenticated 29-package Python lock; NumPy 2.5.2; OpenCV `4.14.0.94`; `pdf2image 1.17.0` + PDF→WebP/Poppler parity; LibreOffice 26.2.5 + native `unoconvert`; Poppler 26.02.0; WeasyPrint 69.0; Calibre 9.14.0; unpaper 6.1 + pngquant 2.17.0; conversion fonts; embedded VeraPDF 1.30.2 E2E; **jbig2enc 0.32**; **RAR/CBR portability contract**; **CFF Python PDF-JSON conversion**; **secure CFF→TTF reconstruction**.
+Accepted/closed: native portable/Tauri containment; Fixed WebView2; qpdf; ImageMagick; Ghostscript; Tesseract 5.5.3 with upstream language parity plus Spanish; Python 3.12.14 + OCRmyPDF 17.10.0; authenticated 29-package Python lock; NumPy 2.5.2; OpenCV `4.14.0.94`; `pdf2image 1.17.0` + PDF→WebP/Poppler parity; LibreOffice 26.2.5 + native `unoconvert`; Poppler 26.02.0; **WeasyPrint 69.0 with real HTML→PDF, Markdown→PDF and EML→PDF**; Calibre 9.14.0; unpaper 6.1 + pngquant 2.17.0; conversion fonts; embedded VeraPDF 1.30.2 E2E; jbig2enc 0.32; RAR/CBR portability contract; CFF Python PDF-JSON conversion; secure CFF→TTF reconstruction.
 
-Latest complete green primary: **Run #123** (`37490571449`), job `112361901093`, commit `1c94033ae6883077e84dfc4debefac5f6aac330e`; ZIP SHA-256 `DE34229B659F25FFD04551A0EFE8A405C2AEFC49B019C07E63B59765832EBFC7`; size `1,916,091,006` bytes; layout `31,643` files / `4,399,635,662` bytes; lightweight artifact `11428065560`, size `7,856`, digest `sha256:39dfe7d1e4569eec902bdf573abacd6eaa2a6e14562a4f0e4999d3ca0ffa7307`.
+Latest complete green primary: **Run #124 attempt 2** (`37496831786`), job `112394477890`, commit `4542baa5a59732bb87780403ae4f372dd88764ac`; ZIP SHA-256 `78B3772A83E9B87B8BD36535A0F1F096E31C9C294C561B1D23DF3DF7BDAEBF8F`; size `1,916,086,164` bytes; layout `31,643` files / `4,399,635,662` bytes; lightweight artifact `11430589725`, size `7,854`, digest `sha256:66e380fd3d85af75632ec94ab828efb73958686ccacd2a65893b4352778600c8`.
 
-Run #123 accepts Tesseract language-baseline parity: exact `tessdata_fast` blob pins, package metadata/SHA inventory, `--list-langs`, English/Spanish OCR, real load/execute probes for German/French/Portuguese/Simplified Chinese, OSD and live-backend acceptance all passed inside the complete primary regression. The current exact external/embedded dependency pass found no further concrete code-backed gap; do not invent one merely to continue CI.
+Run #124 attempt 1 failed before the candidate gate because the external `pngquant.org` host did not respond during the already accepted OCR auxiliary download. No code change was justified. The failed-job-only retry passed the entire primary workflow. EML acceptance proof: real `/api/v1/convert/eml/pdf`, pinned Stirling `frontend/editor/src/core/tests/test-fixtures/sample.eml`, package-local WeasyPrint, valid PDF output, and expected fixture text extracted by package-local Poppler `pdftotext.exe`.
 
-Active functional candidate: extend the already accepted WeasyPrint gate with the real Stirling `/api/v1/convert/eml/pdf` route using pinned `frontend/editor/src/core/tests/test-fixtures/sample.eml`; require a valid PDF and extract expected fixture text using package-local Poppler `pdftotext.exe`. This proves the EML parser → sanitized HTML → packaged WeasyPrint chain without adding a new dependency. URL→PDF remains disabled by default in pinned Stirling 2.14.3 because upstream labels it INTERNAL ONLY with known security issues; do not enable it merely for validation.
+Active functional candidate: extend `.github/scripts/validate-libreoffice-core.ps1` so the existing real backend Office→PDF + PDF→DOCX contract also calls `/api/v1/convert/pdf/presentation` with `outputFormat=pptx` and rejects anything that is not a coherent OOXML presentation containing `ppt/presentation.xml`. This exercises the distinct pinned Stirling `impress_pdf_import` path while reusing accepted package-local LibreOffice/`unoconvert`; do not add another runtime or script family.
 
 Long-run protocol: after launching a heavy GitHub Action, capture its exact Run ID/attempt once and stop polling. The user will confirm visually when it finishes; only then inspect terminal result/logs/evidence and continue. Never launch a replacement heavy run while a useful run is active.
 

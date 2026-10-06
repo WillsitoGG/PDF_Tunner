@@ -171,6 +171,23 @@ function Assert-Docx {
     }
 }
 
+function Assert-Pptx {
+    param([Parameter(Mandatory = $true)][string]$Path)
+    if (-not (Test-Path -LiteralPath $Path -PathType Leaf)) { throw "Expected PPTX is missing: $Path" }
+    if ((Get-Item -LiteralPath $Path).Length -le 128) { throw "PPTX is unexpectedly small: $Path" }
+    $bytes = [System.IO.File]::ReadAllBytes($Path)
+    if ($bytes.Length -lt 4 -or $bytes[0] -ne 0x50 -or $bytes[1] -ne 0x4b) { throw "Output is not a ZIP/PPTX: $Path" }
+    Add-Type -AssemblyName System.IO.Compression.FileSystem
+    $archive = [System.IO.Compression.ZipFile]::OpenRead($Path)
+    try {
+        $presentation = $archive.GetEntry('ppt/presentation.xml')
+        if ($null -eq $presentation -or $presentation.Length -le 24) { throw "PPTX has no coherent ppt/presentation.xml: $Path" }
+    }
+    finally {
+        $archive.Dispose()
+    }
+}
+
 function Get-LibreOfficeProcessesUnderRoot {
     param([Parameter(Mandatory = $true)][string]$Root)
     $programRoot = [System.IO.Path]::GetFullPath((Join-Path $Root 'tools\libreoffice\program')).TrimEnd('\') + '\'
@@ -340,6 +357,7 @@ function Invoke-BackendConversionContract {
     $input = Join-Path $work 'backend-source.docx'
     $pdf = Join-Path $work 'backend-office-to-pdf.pdf'
     $docx = Join-Path $work 'backend-pdf-to-docx.docx'
+    $pptx = Join-Path $work 'backend-pdf-to-presentation.pptx'
     New-Item -ItemType Directory -Force -Path $work | Out-Null
     New-MinimalDocx -Path $input -ScratchRoot $work -Text 'PDF_Tunner real Stirling backend LibreOffice contract.'
 
@@ -355,6 +373,13 @@ function Invoke-BackendConversionContract {
         -OutputFile $docx `
         -Fields @{ outputFormat = 'docx' }
     Assert-Docx -Path $docx
+
+    Invoke-StirlingMultipart -Uri ($BaseUrl.TrimEnd('/') + '/api/v1/convert/pdf/presentation') `
+        -InputFile $pdf `
+        -InputContentType 'application/pdf' `
+        -OutputFile $pptx `
+        -Fields @{ outputFormat = 'pptx' }
+    Assert-Pptx -Path $pptx
 
     $logs = @(Get-ChildItem -LiteralPath $LogRoot -Recurse -Force -File -Filter '*.log' -ErrorAction SilentlyContinue)
     if ($logs.Count -eq 0) { throw 'No package-local backend logs were available to prove LibreOffice and unoconvert dependency acceptance.' }
@@ -375,7 +400,7 @@ function Invoke-BackendConversionContract {
     if (-not (Test-Path -LiteralPath $localTemp -PathType Container)) { throw "Backend unoconvert contract did not retain package-local LibreOffice TEMP/TMP: $localTemp" }
     Assert-CleanShimProfiles -Root $Root
     Assert-NoLibreOfficeProcesses -Root $Root -Label 'real Stirling backend operations'
-    Write-Host 'PASS: real Stirling backend Office->PDF and PDF->DOCX routes used accepted package-local unoconvert.'
+    Write-Host 'PASS: real Stirling backend Office->PDF, PDF->DOCX and PDF->PPTX routes used accepted package-local unoconvert.'
 }
 
 $portable = (Resolve-Path -LiteralPath $PortableRoot).Path
