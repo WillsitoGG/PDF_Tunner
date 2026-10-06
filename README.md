@@ -197,8 +197,10 @@ Heavy CI uses branch-scoped concurrency with `cancel-in-progress: true`. Do not 
 1. **RAR/CBR portability contract** — accepted by Run #117;
 2. **CFF PDF-JSON font conversion** — accepted by Run #119;
 3. **PDF→WebP Python/Poppler parity** — accepted by Run #120;
-4. **FontForge CFF fallback** — concrete remaining parity surface discovered by the audit: pinned Stirling installs FontForge and PDF→JSON→PDF calls it when the Python CFF path yields OTF but PDF reconstruction still needs a TTF representation;
+4. **Secure CFF→TTF reconstruction** — active candidate: make the package-local Python converter produce real TrueType outlines using the already authenticated fontTools 4.64.0 Cu2QuPen implementation, so portable PDF reconstruction no longer needs the FontForge fallback;
 5. finish exact dependency audit against pinned Stirling 2.14.3 and close any remaining concrete gap.
+
+PDF_Tunner deliberately does **not** bundle the current official Windows FontForge 20251009 build for this fallback. That release is affected by multiple 2025 memory-safety advisories, including NVD CVE-2025-15279; feeding embedded fonts from untrusted PDFs into that parser would introduce an avoidable attack surface. Explicit upstream/custom FontForge configuration remains supported, but the portable default must not depend on it.
 
 The upstream PDF-to-video controller and external FFmpeg probe are disabled in pinned Stirling 2.14.3; do not add FFmpeg to the portable bundle unless that feature is deliberately re-enabled and security-reviewed.
 
@@ -224,6 +226,7 @@ Cover OCR, Office↔PDF, HTML/URL/base-URL/EML, WeasyPrint, Poppler, Calibre/eBo
 - Run #120 ZIP SHA-256 `CC51384F82CE3F05E11329294659DE548996F7299DBEFD1A28D7ED7851E6FC4B`; size `1,911,924,279` bytes; layout `31,639` files / `4,392,524,882` bytes; lightweight artifact `11414435818`, size `7,854`, digest `sha256:d81fe9e35ea3cdabd88c7259c9cbb5eea3c2a4ea3ce9e570d141350a2f0f7a75`.
 - **PDF→WebP Python/Poppler parity** is accepted by Run #120: authenticated `pdf2image 1.17.0`, package-local `pdfinfo`/`pdftoppm`, real Stirling `png_to_webp.py` PDF→WebP E2E, relocation and live-backend regression all passed.
 - **CFF Python conversion** remains accepted by Run #119; **RAR/CBR** by Run #117; **jbig2enc 0.32** by Run #108.
-- Next concrete audit surface: **FontForge CFF fallback** used by PDF→JSON→PDF reconstruction; then continue exact parity, representative E2E and final release-readiness audits.
+- Active candidate: replace the automatic need for the **FontForge CFF fallback** by producing actual TTF outlines with authenticated fontTools 4.64.0/Cu2QuPen. The latest official Windows FontForge 20251009 is intentionally not bundled because of current HIGH memory-safety advisories affecting untrusted font parsing.
+- Run #120 remains the latest accepted baseline until this complete candidate regression is green; then continue exact parity, representative E2E and final release-readiness audits.
 - Long-run protocol: track exact Actions run ID/attempt, use terminal Actions conclusion as primary evidence, keep concise progress updates flowing, and continue independent audits while CI runs.
 - No final Release has been published.

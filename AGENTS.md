@@ -234,7 +234,7 @@ The primary workflow builds and validates the portable ZIP but ordinary CI uploa
 1. **RAR/CBR portability contract** — accepted by Run #117;
 2. **CFF PDF-JSON font conversion** — accepted by Run #119;
 3. **PDF→WebP Python/Poppler parity** — accepted by Run #120;
-4. **FontForge CFF fallback** — active parity audit surface because pinned Stirling installs FontForge and PDF→JSON→PDF directly attempts `convertCffUsingFontForge` when Python conversion does not provide a TTF representation for PDF reconstruction;
+4. **Secure CFF→TTF reconstruction** — active candidate: the package-local Python converter must produce actual TTF outlines using fontTools 4.64.0's bundled Cu2QuPen path, preventing the automatic PDF-reconstruction path from needing FontForge;
 5. finish exact pinned-source dependency parity audit and close any remaining concrete dependency gap.
 
 ### B. Functional validation
@@ -261,7 +261,7 @@ Latest complete green primary: **Run #120** (`37459765068`), job `112256117833`,
 
 Run #120 accepts the PDF→WebP gap: authenticated `pdf2image 1.17.0`, package-local Poppler `pdfinfo`/`pdftoppm`, Stirling's real `png_to_webp.py` PDF-mode E2E, relocation to a path with spaces and live-backend regression all passed with every earlier gate enabled.
 
-Active next audit surface: **FontForge CFF fallback**. This is not merely a user-selectable legacy method: `PdfJsonConversionService` directly calls `convertCffUsingFontForge` when primary CFF conversion does not yield a TTF suitable for PDF reconstruction. Pinned Stirling also installs FontForge in its base runtime. Determine a secure, reproducible Windows-portable implementation or document a justified exception; do not silently mark full CFF reconstruction parity closed until this is resolved.
+Active candidate: **secure CFF→TTF reconstruction without bundled FontForge**. The audit proved `PdfJsonConversionService` invokes `convertCffUsingFontForge` when the Python converter yields OTF rather than TTF. Instead of packaging the official Windows FontForge 20251009 build, which is affected by current 2025 memory-safety advisories including NVD CVE-2025-15279, PDF_Tunner will reuse the already authenticated fontTools 4.64.0 implementation of `Cu2QuPen` to convert the reconstructed OTF-CFF outlines to true TTF. CI must prove sfnt TrueType identity, `glyf`/`loca`, absence of `CFF `, exactly 2,221 fixture glyphs and relocation. Explicit custom/upstream FontForge configuration stays supported; PDF_Tunner does not bundle the vulnerable executable.
 
 Continue the exact pinned-source dependency audit after FontForge, then representative E2E and final branding/portability/cleanup/release-readiness. FFmpeg remains disabled in pinned Stirling 2.14.3 because of CVE concerns; do not bundle or re-enable it without a separate security review.
 
