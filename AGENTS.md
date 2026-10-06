@@ -114,6 +114,8 @@ Direct runtime probes include Ghostscript `gs`, OCRmyPDF `ocrmypdf`, LibreOffice
 | conversion fonts | Run #103 `33896293861`, job `101099606785`, commit `1a0ad7b216d2b70b4bff0e4b8c9394b5d666797f` |
 | embedded VeraPDF `1.30.2` | Run #105 `33956010668`, attempt 2, job `101283384499`, commit `e2c2e0544bbd0f092980386b0e764550146c799e` |
 | **jbig2enc `0.32`** | **Run #108 `34138754142`, job `101795708391`, commit `64f86ce6f567f49be1e677697221c52a8b26131f`** |
+| **RAR / CBR contract** | **Run #117 `37295728617`; embedded CBR→PDF, optional package-first PDF→CBR encoder, no bundled `rar.exe`** |
+| **CFF PDF-JSON conversion** | **Run #119 `37358156494`, job `111925742002`, commit `71a34bb065e419869cff96006ae9df06288d1f20`; real 2,221-glyph conversion + relocation** |
 
 ### Fixed provenance values that must not drift silently
 
@@ -137,7 +139,7 @@ Direct runtime probes include Ghostscript `gs`, OCRmyPDF `ocrmypdf`, LibreOffice
 - jbig2enc Meson `1.10.0` wheel SHA-256: `4b27aafce281e652dcb437b28007457411245d975c48b5db3a797d3e93ae1585`.
 - jbig2enc source tag `0.32` resolves exactly to commit `309b2d55c7dfdcf0ab6afccb6d88834afc0bf2c0`.
 
-## Latest accepted milestone — jbig2enc 0.32
+## Accepted milestone — jbig2enc 0.32
 
 Run #106 (`33967722557`) reproduced the jbig2enc runtime-E2E failure. Commit `4b33063c721ea9eb58cddd955f8b306adb83a169` added phase-qualified observability, and Run #107 (`34122536256`, job `101743654235`) proved source pinning, Meson setup/compile/tests/install, staging and initial ToolProbe had passed; only the runtime E2E failed because its test-only PATH hid accepted `tools/bin/pngquant.exe`.
 
@@ -154,7 +156,22 @@ Run #108 (`34138754142`, job `101795708391`) passed the complete primary workflo
 
 jbig2enc is closed/accepted; do not reopen it without new evidence.
 
-## Active candidate contract — RAR / CBR
+## Latest accepted milestone — CFF PDF-JSON conversion
+
+Pinned Stirling 2.14.3 configures PDF-JSON CFF conversion for Linux container paths. In PDF_Tunner portable mode, only those exact upstream defaults are redirected to package-local \`tools/python/python.exe\` and \`tools/python/cff/convert_cff_to_ttf.py\`; explicit custom configuration remains unchanged.
+
+Run #119 (\`37358156494\`, job \`111925742002\`, commit \`71a34bb065e419869cff96006ae9df06288d1f20\`) passed the complete primary workflow. Acceptance evidence:
+
+- converter script SHA-256 \`9d57d9ae721c97ff7581099c1dce55a1d3350b255f2b198055bf0e1c5bc3d15c\`;
+- real package-local conversion rebuilt a valid 2,221-glyph OpenType-CFF font;
+- the same conversion passed after relocation to a Windows path containing spaces;
+- ZIP SHA-256 \`80821D577F7F4B8246AD69E95CDCCE9140D85ACA5AFE6EAB0ED3D60A2FCB1BE1\`, size \`1,911,877,412\` bytes;
+- layout \`31,621\` files / \`4,392,452,052\` bytes;
+- lightweight artifact \`11366833930\`, size \`7,758\`, digest \`sha256:632172c024a509f811443ff48501be974d1bcfdaf60c1846198a903facf89eb6\`.
+
+CFF PDF-JSON portability is closed/accepted; do not reopen it without new evidence.
+
+## Accepted contract — RAR / CBR
 
 Pinned Stirling behavior is asymmetric and must remain explicit:
 
@@ -213,7 +230,8 @@ The primary workflow builds and validates the portable ZIP but ordinary CI uploa
 ### A. External toolchain / embedded runtime parity
 
 1. **RAR/CBR portability contract** — accepted by Run #117;
-2. finish exact pinned-source dependency parity audit and close any remaining concrete dependency gap.
+2. **CFF PDF-JSON font conversion** — accepted by Run #119;
+3. finish exact pinned-source dependency parity audit and close any remaining concrete dependency gap.
 
 ### B. Functional validation
 
@@ -231,18 +249,16 @@ Representative E2E must cover Office→PDF and supported PDF→Office, HTML/URL/
 8. publish clean v1 ZIP only when all gates are complete and explicitly authorized;
 9. manual clean-machine Windows 10/11 checklist.
 
-## Current handoff — 2026-10-05
+## Current handoff — 2026-10-06
 
-Conversation recovery: the previous thread ended while a heavy Actions run remained in progress and never reported its terminal result. Run #117 later succeeded. To keep long work from appearing blocked, track the exact run ID/latest attempt, send brief progress while polling, and work on independent audit tasks during the wait. The latest terminal Actions conclusion is primary; commit status is secondary while a run is active.
+Accepted/closed: native portable/Tauri containment; Fixed WebView2; qpdf; ImageMagick; Ghostscript; Tesseract; Python 3.12.14 + OCRmyPDF 17.10.0; authenticated Python lock; NumPy 2.5.2; OpenCV \`4.14.0.94\`; LibreOffice 26.2.5 + native \`unoconvert\`; Poppler 26.02.0; WeasyPrint 69.0; Calibre 9.14.0; unpaper 6.1 + pngquant 2.17.0; conversion fonts; embedded VeraPDF 1.30.2 E2E; **jbig2enc 0.32**; **RAR/CBR portability contract**; **CFF PDF-JSON conversion**.
 
-Accepted/closed: native portable/Tauri containment; Fixed WebView2; qpdf; ImageMagick; Ghostscript; Tesseract; Python 3.12.14 + OCRmyPDF 17.10.0; authenticated Python lock; NumPy 2.5.2; OpenCV `4.14.0.94`; LibreOffice 26.2.5 + native `unoconvert`; Poppler 26.02.0; WeasyPrint 69.0; Calibre 9.14.0; unpaper 6.1 + pngquant 2.17.0; conversion fonts; embedded VeraPDF 1.30.2 E2E; **jbig2enc 0.32**; **RAR/CBR portability contract**.
+Latest complete green primary: **Run #119** (\`37358156494\`), job \`111925742002\`, commit \`71a34bb065e419869cff96006ae9df06288d1f20\`; ZIP SHA-256 \`80821D577F7F4B8246AD69E95CDCCE9140D85ACA5AFE6EAB0ED3D60A2FCB1BE1\`; size \`1,911,877,412\` bytes; layout \`31,621\` files / \`4,392,452,052\` bytes; lightweight artifact \`11366833930\`, size \`7,758\`, digest \`sha256:632172c024a509f811443ff48501be974d1bcfdaf60c1846198a903facf89eb6\`.
 
-Latest complete green primary: **Run #118 attempt 2** (`37349080255`), job `111906701402`, commit `e48aa2660704a0360aebaf1057fadfe0a9931d0e`; ZIP SHA-256 `8E3A77DD34F55BFC4FF5DC2C68459E4BE9E7CA0A3FB7EAE48835476D950012AC`; size `1,911,867,377` bytes; layout `31,618` files / `4,392,412,889` bytes; lightweight artifact `11365760878`, size `7,657`, digest `sha256:8777302bef8b69296ccb5f28f65780c3e7a82249b6613130a006cde61f0d018b`.
+Run #119 accepts the portable CFF PDF-JSON layer: exact upstream-default mapping, package-local converter provenance, real 2,221-glyph OpenType-CFF conversion and relocation all passed inside the complete primary regression. Every earlier accepted gate, including backend startup, RAR/CBR and second-launch window restore, remained green.
 
-Run #117 passed all primary steps, including the corrected title-specific HWND probe and second-launch window restore, as well as the real backend and RAR/CBR gates. RAR/CBR is now accepted: real CBR→PDF, package-first optional encoder probe for PDF→CBR, explicit failure without an encoder, and no bundled `rar.exe`.
+Next block: perform the exact pinned-source dependency parity audit against Stirling 2.14.3, then close remaining representative E2E gaps and final branding/portability/cleanup/release-readiness work. The PDF-to-video controller and external FFmpeg probe remain disabled in pinned Stirling 2.14.3; do not bundle FFmpeg or re-enable that surface until its security status is re-audited.
 
-CI status-bridge incident: Run #117 completed successfully at 10:57 UTC, while commit status context `pdf-tunner/windows-portable-push` remained `pending` from 10:18 UTC. Commit e48 adds terminal-status publication in an `always()` final step and ignores root README/AGENTS/RELEASE_STATUS-only pushes for the heavy workflow. Run #118 attempt 1 failed only because the `pngquant.org` HTTPS download timed out; the failed-job-only retry (attempt 2) passed the complete workflow. The bridge published terminal `failure` and then terminal `success`, verifying the fix. When resuming a run, query the Actions run by ID for status/conclusion and use commit status as a secondary signal.
+Long-run protocol: exact Actions run ID/latest attempt is the primary tracking key; terminal Actions conclusion outranks commit status; keep concise progress updates flowing and continue independent audit work while CI is active; do not push a replacement heavy run while a useful run is still active.
 
-Run #115 remains as failure history; its corrected deterministic fixture SHA is `f3d3e772d72fc274146f45eaf8c37b97dad35f5add83b22c0d1e7c5c603373d0`.
-
-Active next candidate: close the CFF PDF-JSON font conversion gap by mapping pinned Linux defaults to bundled portable Python, staging the upstream converter, and testing real CFF conversion after relocation; validate in Run #119. Then continue exact dependency parity, representative E2E, branding/portability/cleanup and release-readiness. No final Release has been published. The PDF-to-video controller and external FFmpeg probe are disabled in pinned Stirling 2.14.3; do not bundle FFmpeg or re-enable that surface until its security status is re-audited.
+No final Release has been published.
