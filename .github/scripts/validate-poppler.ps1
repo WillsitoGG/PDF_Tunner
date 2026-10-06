@@ -135,6 +135,7 @@ $executables = [ordered]@{
     pdftohtml = Join-Path $binRoot 'pdftohtml.exe'
     pdfinfo = Join-Path $binRoot 'pdfinfo.exe'
     pdfimages = Join-Path $binRoot 'pdfimages.exe'
+    pdftoppm = Join-Path $binRoot 'pdftoppm.exe'
 }
 
 foreach ($required in @($provenance, $checksums, $versionFile) + @($executables.Values)) {

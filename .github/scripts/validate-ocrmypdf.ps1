@@ -21,7 +21,10 @@ $expectedOpenCvPackageName = 'opencv-python-headless'
 $expectedOpenCvVersion = '4.14.0.94'
 $expectedOpenCvRuntimeVersion = '4.14.0'
 $expectedOpenCvWheelSha256 = 'cbed65415b8f6a9541c705afe3e64795840524d0ff3bc58f507826284a1dc64b'
+$expectedPdf2ImageVersion = '1.17.0'
+$expectedPdf2ImageWheelSha256 = 'ecdd58d7afb810dffe21ef2b1bbc057ef434dabbac6c33778a38a3f7744a27e2'
 $splitPhotosScript = (Resolve-Path -LiteralPath './app/core/src/main/resources/static/python/split_photos.py').Path
+$pngToWebpScript = (Resolve-Path -LiteralPath './app/core/src/main/resources/static/python/png_to_webp.py').Path
 $cffConverterScriptSource = (Resolve-Path -LiteralPath './scripts/convert_cff_to_ttf.py').Path
 $cffFixtureSource = (Resolve-Path -LiteralPath './app/core/src/main/resources/type3/library/fonts/stix/STIXTwoText-Regular.otf').Path
 $cffConverterSourceHash = (Get-FileHash -LiteralPath $cffConverterScriptSource -Algorithm SHA256).Hash.ToLowerInvariant()
@@ -102,6 +105,7 @@ function Test-OcrRuntime {
         [Parameter(Mandatory = $true)][string]$ExpectedOpenCvVersion,
         [Parameter(Mandatory = $true)][string]$ExpectedOpenCvRuntimeVersion,
         [Parameter(Mandatory = $true)][string]$SplitPhotosScript,
+        [Parameter(Mandatory = $true)][string]$PngToWebpScript,
         [Parameter(Mandatory = $true)][string]$CffFixtureSource
     )
 
@@ -110,10 +114,11 @@ function Test-OcrRuntime {
     $ocr = Join-Path $pythonRoot 'ocrmypdf.exe'
     $cffConverterScript = Join-Path $pythonRoot 'cff\convert_cff_to_ttf.py'
     $ghostscriptRoot = Join-Path $Root 'tools\ghostscript\bin'
+    $popplerRoot = Join-Path $Root 'tools\poppler\Library\bin'
     $tesseractRoot = Join-Path $Root 'tools\tesseract'
     $tessdata = Join-Path $tesseractRoot 'tessdata'
 
-    foreach ($path in @($python, $ocr, $cffConverterScript, (Join-Path $ghostscriptRoot 'gs.exe'), (Join-Path $tesseractRoot 'tesseract.exe'))) {
+    foreach ($path in @($python, $ocr, $cffConverterScript, (Join-Path $ghostscriptRoot 'gs.exe'), (Join-Path $popplerRoot 'pdfinfo.exe'), (Join-Path $popplerRoot 'pdftoppm.exe'), (Join-Path $tesseractRoot 'tesseract.exe'))) {
         if (-not (Test-Path -LiteralPath $path -PathType Leaf)) { throw "Required OCRmyPDF runtime file is missing: $path" }
     }
     if ((Get-PeMachine -Path $python) -ne 0x8664) { throw 'Bundled python.exe is not AMD64.' }
@@ -123,7 +128,7 @@ function Test-OcrRuntime {
     $oldTessdata = $env:TESSDATA_PREFIX
     try {
         $system32 = Join-Path $env:SystemRoot 'System32'
-        $env:PATH = "$pythonRoot;$ghostscriptRoot;$tesseractRoot;$system32;$env:SystemRoot"
+        $env:PATH = "$pythonRoot;$popplerRoot;$ghostscriptRoot;$tesseractRoot;$system32;$env:SystemRoot"
         $env:TESSDATA_PREFIX = $tessdata
 
         $cffHelpOutput = @(& $python $cffConverterScript --help 2>&1)
@@ -166,6 +171,8 @@ function Test-OcrRuntime {
             'python' = $python
             'ocrmypdf' = $ocr
             'gs' = (Join-Path $ghostscriptRoot 'gs.exe')
+            'pdfinfo' = (Join-Path $popplerRoot 'pdfinfo.exe')
+            'pdftoppm' = (Join-Path $popplerRoot 'pdftoppm.exe')
             'tesseract' = (Join-Path $tesseractRoot 'tesseract.exe')
         }
         foreach ($name in $expectations.Keys) {
@@ -287,6 +294,38 @@ function Test-OcrRuntime {
         Remove-Item -LiteralPath $openCvFixture, $openCvOutputDir -Recurse -Force -ErrorAction SilentlyContinue
         Write-Host "PASS: OpenCV distribution $ExpectedOpenCvVersion / runtime $ExpectedOpenCvRuntimeVersion package-local AMD64 import and Stirling split_photos.py E2E succeeded."
 
+        $webpFixturePdf = Join-Path $Root 'pdf2image-webp-fixture.pdf'
+        $webpOutputDir = Join-Path $Root 'pdf2image-webp-output'
+        Remove-Item -LiteralPath $webpFixturePdf, $webpOutputDir -Recurse -Force -ErrorAction SilentlyContinue
+        New-Item -ItemType Directory -Force -Path $webpOutputDir | Out-Null
+        try {
+            $pdf2imageProbe = @(& python -c "import pathlib, sys; from importlib.metadata import version; from fpdf import FPDF; import pdf2image; assert version('pdf2image') == '1.17.0'; assert pathlib.Path(pdf2image.__file__).resolve().is_relative_to(pathlib.Path(sys.executable).resolve().parent); p=FPDF(unit='pt', format=(200,120)); p.add_page(); p.set_font('Helvetica', size=18); p.text(20,50,'PDF_Tunner WebP'); p.output(sys.argv[1])" $webpFixturePdf 2>&1)
+            if ($LASTEXITCODE -ne 0) {
+                $pdf2imageProbe | Out-Host
+                throw "pdf2image package-local import/fixture probe failed with exit code $LASTEXITCODE."
+            }
+            $webpConversion = @(& python $PngToWebpScript $webpFixturePdf $webpOutputDir --dpi 72 2>&1)
+            if ($LASTEXITCODE -ne 0) {
+                $webpConversion | Out-Host
+                throw "Stirling png_to_webp.py PDF-mode E2E failed with exit code $LASTEXITCODE."
+            }
+            $webpFile = Join-Path $webpOutputDir 'page_1.webp'
+            if (-not (Test-Path -LiteralPath $webpFile -PathType Leaf) -or (Get-Item -LiteralPath $webpFile).Length -lt 100) {
+                $webpConversion | Out-Host
+                throw 'Stirling png_to_webp.py did not produce a usable page_1.webp.'
+            }
+            $webpBytes = [System.IO.File]::ReadAllBytes($webpFile)
+            $riff = [System.Text.Encoding]::ASCII.GetString($webpBytes, 0, 4)
+            $webpSignature = [System.Text.Encoding]::ASCII.GetString($webpBytes, 8, 4)
+            if ($riff -ne 'RIFF' -or $webpSignature -ne 'WEBP') {
+                throw 'Stirling png_to_webp.py output is not a valid RIFF/WEBP container.'
+            }
+            Write-Host "PASS: pdf2image $expectedPdf2ImageVersion + package-local Poppler pdfinfo/pdftoppm executed Stirling png_to_webp.py PDF-to-WebP E2E."
+        }
+        finally {
+            Remove-Item -LiteralPath $webpFixturePdf, $webpOutputDir -Recurse -Force -ErrorAction SilentlyContinue
+        }
+
         $fixture = Join-Path $Root 'ocrmypdf-fixture.png'
         $outputPdf = Join-Path $Root 'ocrmypdf-output.pdf'
         Remove-Item -LiteralPath $fixture, $outputPdf -Force -ErrorAction SilentlyContinue
@@ -404,6 +443,9 @@ if (@($lockEntries | Where-Object { $_.Name -eq 'ocrmypdf' -and $_.Version -eq $
 if (@($lockEntries | Where-Object { $_.Name -eq 'numpy' -and $_.Version -eq $NumPyVersion -and $_.Hash -eq $NumPyWheelSha256.ToLowerInvariant() }).Count -ne 1) {
     throw 'Dependency lock does not contain the requested NumPy version and wheel hash.'
 }
+if (@($lockEntries | Where-Object { $_.Name -eq 'pdf2image' -and $_.Version -eq $expectedPdf2ImageVersion -and $_.Hash -eq $expectedPdf2ImageWheelSha256 }).Count -ne 1) {
+    throw 'Dependency lock does not contain the pinned pdf2image version and wheel hash.'
+}
 if (@($openCvLockEntries | Where-Object { $_.Name -eq $expectedOpenCvPackageName -and $_.Version -eq $expectedOpenCvVersion -and $_.Hash -eq $expectedOpenCvWheelSha256 }).Count -ne 1) {
     throw 'OpenCV dependency lock does not contain the requested OpenCV distribution, version and wheel hash.'
 }
@@ -415,7 +457,7 @@ if ($inventoryDiff.Count -gt 0) {
     throw 'DEPENDENCIES.txt does not exactly match the authenticated dependency lock.'
 }
 
-Test-OcrRuntime -Root $portable -ExpectedPackages $expectedRuntimeEntries -ExpectedNumPyVersion $NumPyVersion -ExpectedOpenCvVersion $expectedOpenCvVersion -ExpectedOpenCvRuntimeVersion $expectedOpenCvRuntimeVersion -SplitPhotosScript $splitPhotosScript -CffFixtureSource $cffFixtureSource
+Test-OcrRuntime -Root $portable -ExpectedPackages $expectedRuntimeEntries -ExpectedNumPyVersion $NumPyVersion -ExpectedOpenCvVersion $expectedOpenCvVersion -ExpectedOpenCvRuntimeVersion $expectedOpenCvRuntimeVersion -SplitPhotosScript $splitPhotosScript -PngToWebpScript $pngToWebpScript -CffFixtureSource $cffFixtureSource
 
 if ($RequireRelocation) {
     $tempRoot = Join-Path ([System.IO.Path]::GetTempPath()) ("pdf-tunner-ocr-relocation-" + [Guid]::NewGuid().ToString('N'))
@@ -424,7 +466,7 @@ if ($RequireRelocation) {
         New-Item -ItemType Directory -Force -Path $relocated | Out-Null
         Copy-Item -LiteralPath (Join-Path $portable 'tools') -Destination $relocated -Recurse -Force
         New-Item -ItemType Directory -Force -Path (Join-Path $relocated 'data') | Out-Null
-        Test-OcrRuntime -Root $relocated -ExpectedPackages $expectedRuntimeEntries -ExpectedNumPyVersion $NumPyVersion -ExpectedOpenCvVersion $expectedOpenCvVersion -ExpectedOpenCvRuntimeVersion $expectedOpenCvRuntimeVersion -SplitPhotosScript $splitPhotosScript -CffFixtureSource $cffFixtureSource
+        Test-OcrRuntime -Root $relocated -ExpectedPackages $expectedRuntimeEntries -ExpectedNumPyVersion $NumPyVersion -ExpectedOpenCvVersion $expectedOpenCvVersion -ExpectedOpenCvRuntimeVersion $expectedOpenCvRuntimeVersion -SplitPhotosScript $splitPhotosScript -PngToWebpScript $pngToWebpScript -CffFixtureSource $cffFixtureSource
         Write-Host "PASS: OCRmyPDF + NumPy + OpenCV runtime remains functional after relocation to '$relocated'."
     }
     finally {
@@ -445,4 +487,4 @@ if ($backendLogs.Count -gt 0) {
     Write-Host 'PASS: Stirling backend did not disable the OpenCV dependency group.'
 }
 
-Write-Host "PASS: Python $PythonVersion + OCRmyPDF $OcrMyPdfVersion + NumPy $NumPyVersion + OpenCV distribution $expectedOpenCvVersion / runtime $expectedOpenCvRuntimeVersion functional validation succeeded."
+Write-Host "PASS: Python $PythonVersion + OCRmyPDF $OcrMyPdfVersion + NumPy $NumPyVersion + pdf2image $expectedPdf2ImageVersion + OpenCV distribution $expectedOpenCvVersion / runtime $expectedOpenCvRuntimeVersion functional validation succeeded."

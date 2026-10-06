@@ -126,7 +126,8 @@ Direct runtime probes include Ghostscript `gs`, OCRmyPDF `ocrmypdf`, LibreOffice
 - Tesseract installer SHA-256: `bee9e3434bd94fd65387d9be28cd467a41f61b1275383b55b0f59a1331270ae4`
 - Python archive SHA-256: `8e6aad12ef6fc9685e67ce66253f8f72d6e8fa02cb7187e5850bd4db5ecd9e2a`
 - OCRmyPDF wheel SHA-256: `34ba1b595ecacc94b6dc3c9d4fa51953de63082cd16cf8595251bd72120b930a`
-- Python dependency lock SHA-256: `ededb999049d81b85527f4d4aa679179e747669df300083d91bc2dd4e14e430f`
+- Python dependency lock SHA-256 (29-package PDF→WebP candidate): `ccc4a3e0e44cafb5f12ecd3e72f52e06016e31dbd9dd86292bcb537ba29e4e7c`
+- pdf2image `1.17.0` wheel SHA-256: `ecdd58d7afb810dffe21ef2b1bbc057ef434dabbac6c33778a38a3f7744a27e2`
 - NumPy wheel SHA-256: `28ac63476ec7651484215ee7fa15a1f78b57c14621f01e392afe17b9a1390ce4`
 - OpenCV wheel SHA-256: `cbed65415b8f6a9541c705afe3e64795840524d0ff3bc58f507826284a1dc64b`
 - LibreOffice MSI SHA-256: `f15ba07bfcb0186986cf3171063506f5d207c11f8cc051ba0d135209e9e915f9`
@@ -231,7 +232,8 @@ The primary workflow builds and validates the portable ZIP but ordinary CI uploa
 
 1. **RAR/CBR portability contract** — accepted by Run #117;
 2. **CFF PDF-JSON font conversion** — accepted by Run #119;
-3. finish exact pinned-source dependency parity audit and close any remaining concrete dependency gap.
+3. **PDF→WebP Python/Poppler parity** — active candidate: add authenticated `pdf2image 1.17.0`, require `pdfinfo` + `pdftoppm` from packaged Poppler and exercise the real `png_to_webp.py` PDF path under isolated package-first PATH;
+4. finish exact pinned-source dependency parity audit and close any remaining concrete dependency gap.
 
 ### B. Functional validation
 
@@ -257,7 +259,9 @@ Latest complete green primary: **Run #119** (\`37358156494\`), job \`11192574200
 
 Run #119 accepts the portable CFF PDF-JSON layer: exact upstream-default mapping, package-local converter provenance, real 2,221-glyph OpenType-CFF conversion and relocation all passed inside the complete primary regression. Every earlier accepted gate, including backend startup, RAR/CBR and second-launch window restore, remained green.
 
-Next block: perform the exact pinned-source dependency parity audit against Stirling 2.14.3, then close remaining representative E2E gaps and final branding/portability/cleanup/release-readiness work. The PDF-to-video controller and external FFmpeg probe remain disabled in pinned Stirling 2.14.3; do not bundle FFmpeg or re-enable that surface until its security status is re-audited.
+Active next candidate: the parity audit found a concrete PDF→WebP gap. `png_to_webp.py` imports `pdf2image`, which the pinned Docker runtime installs but the accepted Windows Python lock did not contain. The candidate extends the authenticated lock to 29 packages with `pdf2image 1.17.0`, requires packaged Poppler `pdfinfo`/`pdftoppm`, and adds a real PDF→WebP E2E that also reruns after relocation. Run #119 remains the latest accepted baseline until the complete candidate regression is green.
+
+Continue the exact pinned-source dependency audit while that regression runs. FontForge is installed in the pinned Docker runtime and remains exposed as the legacy optional CFF converter method; classify that separate parity surface after the higher-priority PDF→WebP gap is closed. Then close remaining representative E2E and final branding/portability/cleanup/release-readiness work. The PDF-to-video controller and external FFmpeg probe remain disabled in pinned Stirling 2.14.3; do not bundle FFmpeg or re-enable that surface until its security status is re-audited.
 
 Long-run protocol: exact Actions run ID/latest attempt is the primary tracking key; terminal Actions conclusion outranks commit status; keep concise progress updates flowing and continue independent audit work while CI is active; do not push a replacement heavy run while a useful run is still active.
 

@@ -32,7 +32,7 @@
 | Python + OCRmyPDF | Python `3.12.14` x64 + OCRmyPDF `17.10.0`; Run #77 `33201568275` |
 | LibreOffice + UNO conversion | LibreOffice `26.2.5` + package-relative native `unoconvert.exe`; Run #83 `33497784837` |
 | Poppler | `26.02.0` Windows x64; Run #86 `33507551477` |
-| Python dependency lock | authenticated 28-package Windows lock; Run #87 and later complete regressions |
+| Python dependency lock | authenticated 28-package baseline accepted through Run #119; 29-package `pdf2image 1.17.0` candidate pending validation |
 | NumPy | `2.5.2`; Run #90 `33530454097` |
 | OpenCV | `opencv-python-headless 4.14.0.94`, runtime/core `4.14.0`, real `split_photos.py`; Run #92 `33557169326` |
 | WeasyPrint | official Windows `69.0`, package-relative shim, real HTML→PDF + Markdown→PDF; Run #95 `33695530172` |
@@ -195,7 +195,8 @@ Heavy CI uses branch-scoped concurrency with `cancel-in-progress: true`. Do not 
 
 1. **RAR/CBR portability contract** — accepted by Run #117;
 2. **CFF PDF-JSON font conversion** — accepted by Run #119;
-3. finish exact dependency audit against pinned Stirling 2.14.3 and close any remaining concrete gap.
+3. **PDF→WebP Python/Poppler parity** — active candidate: authenticate `pdf2image 1.17.0`, require package-local `pdfinfo`/`pdftoppm`, and run Stirling's real `png_to_webp.py` in PDF mode;
+4. finish exact dependency audit against pinned Stirling 2.14.3 and close any remaining concrete gap.
 
 The upstream PDF-to-video controller and external FFmpeg probe are disabled in pinned Stirling 2.14.3; do not add FFmpeg to the portable bundle unless that feature is deliberately re-enabled and security-reviewed.
 
@@ -221,6 +222,7 @@ Cover OCR, Office↔PDF, HTML/URL/base-URL/EML, WeasyPrint, Poppler, Calibre/eBo
 - Run #119 ZIP SHA-256 \`80821D577F7F4B8246AD69E95CDCCE9140D85ACA5AFE6EAB0ED3D60A2FCB1BE1\`; size \`1,911,877,412\` bytes; layout \`31,621\` files / \`4,392,452,052\` bytes; lightweight artifact \`11366833930\`, size \`7,758\`, digest \`sha256:632172c024a509f811443ff48501be974d1bcfdaf60c1846198a903facf89eb6\`.
 - **CFF PDF-JSON conversion** is accepted by Run #119; **RAR/CBR** remains accepted by Run #117; **jbig2enc 0.32** remains accepted by Run #108.
 - Run #119 reconfirmed the complete backend, dependency, relocation, packaging and second-launch window-state regression with every earlier accepted gate enabled.
-- Next: exact pinned-source dependency parity audit, followed by representative E2E and final branding/portability/cleanup/release-readiness audits.
+- Active candidate for the next primary regression: close the discovered PDF→WebP gap with authenticated `pdf2image 1.17.0`, package-local Poppler `pdfinfo`/`pdftoppm`, and a real `png_to_webp.py` PDF→WebP E2E. Run #119 remains the latest accepted baseline until that full regression is green.
+- Continue the pinned-source dependency audit in parallel; FontForge remains a separate legacy CFF-method parity candidate to classify after PDF→WebP.
 - Long-run protocol: track exact Actions run ID/attempt, use terminal Actions conclusion as primary evidence, keep concise progress updates flowing, and continue independent audits while CI runs.
 - No final Release has been published.
