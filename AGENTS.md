@@ -142,6 +142,7 @@ Direct runtime probes include Ghostscript `gs`, OCRmyPDF `ocrmypdf`, LibreOffice
 - jbig2enc Meson `1.10.0` wheel SHA-256: `4b27aafce281e652dcb437b28007457411245d975c48b5db3a797d3e93ae1585`.
 - jbig2enc source tag `0.32` resolves exactly to commit `309b2d55c7dfdcf0ab6afccb6d88834afc0bf2c0`.
 - CFF converter script SHA-256 accepted by Run #122: `fb8b7f3d2911512f32760b50ccb593b7f26838c87d9cf9d53b4d3414e6783a85`.
+- Tesseract `tessdata_fast` commit remains `87416418657359cb625c412a48b6e1d6d41c29bd`; active parity candidate blobs: `deu=97ed7b2b60f2771c07040660ef0f6daf596dc7bf`, `fra=d9e2b2160be0d1ca3b8f1bf2730fae476ef3b4a6`, `por=e9f373e95c66b4bf557c263721ef31f78e5bc301`, `chi_sim=388bac276d033d06e5ed5ba7a7ad14ae58f97dab`.
 
 ## Accepted milestone — jbig2enc 0.32
 
@@ -247,7 +248,8 @@ The primary workflow builds and validates the portable ZIP but ordinary CI uploa
 2. **CFF PDF-JSON font conversion** — accepted by Run #119;
 3. **PDF→WebP Python/Poppler parity** — accepted by Run #120;
 4. **Secure CFF→TTF reconstruction** — accepted by Run #122 using fontTools 4.64.0's bundled Cu2QuPen path; the automatic portable PDF-reconstruction path no longer needs FontForge;
-5. finish exact pinned-source dependency parity audit and close any remaining concrete dependency gap.
+5. **Tesseract upstream language parity** — active candidate: add pinned `deu`, `fra`, `por`, `chi_sim` to existing `eng`, `spa`, `osd`, with exact blob provenance, package inventory and real isolated load/execute probes;
+6. finish exact pinned-source dependency parity audit and close any remaining concrete dependency gap.
 
 ### B. Functional validation
 
@@ -273,7 +275,7 @@ Latest complete green primary: **Run #122** (`37472331284`), job `112299193532`,
 
 Run #122 accepts secure CFF→TTF reconstruction without bundled FontForge. The package-local converter uses authenticated fontTools 4.64.0/Cu2QuPen and passes exact TrueType structure, 2,221-glyph parity, relocation and the full live-backend/package regression. Run #121 is retained as failure history for the test-only byte-signature escaping error fixed by commit `b594784...`.
 
-Active block: continue the exact pinned-source dependency parity audit against Stirling 2.14.3. Only concrete code-backed gaps should become candidates; after external/embedded parity is closed, proceed to representative functional E2E and final branding/portability/cleanup/release-readiness. FFmpeg remains disabled upstream and must not be re-enabled casually.
+Active candidate from the exact parity audit: **Tesseract language baseline parity**. Pinned Stirling 2.14.3's Docker runtime installs `eng`, `deu`, `fra`, `por`, `chi_sim` and `osd`; PDF_Tunner currently ships `eng`, `spa`, `osd`. Add the four missing upstream languages from the already pinned `tessdata_fast` commit `87416418657359cb625c412a48b6e1d6d41c29bd`, pin each Git blob SHA, require all seven models in package metadata/SHA256SUMS/`--list-langs`, and execute a real isolated Tesseract load/execute probe for each newly added model. Keep `spa` as a PDF_Tunner extension. Continue the remaining dependency audit only after this candidate completes. FFmpeg remains disabled upstream and must not be re-enabled casually.
 
 Long-run protocol: exact Actions run ID/latest attempt is the primary tracking key; terminal Actions conclusion outranks commit status; keep concise progress updates flowing and continue independent audit work while CI is active; do not push a replacement heavy run while a useful run is still active.
 
