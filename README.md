@@ -11,7 +11,7 @@
 - Target: **Windows 10/11 x64 portable ZIP**, extract and run without installation.
 - `main` remains the clean pinned upstream base during v1 development.
 - No final PDF_Tunner v1 Release exists yet.
-- Latest complete green primary regression: **Run #120** (`37459765068`), job `112256117833`, commit `098ab25f2ed95d6f8bc290b053d2ff5f2cf148f2`.
+- Latest complete green primary regression: **Run #122** (`37472331284`), job `112299193532`, commit `b5947844ea8a4525626dba96099105c2730a4085`.
 - **jbig2enc 0.32 is formally accepted by Run #108**, including exact source/tag, authenticated Meson inputs, static MSVC build, upstream tests, isolated package-first ToolProbe, relocation and a real OCRmyPDF `--optimize 2` result containing `/JBIG2Decode`.
 - **RAR/CBR is formally accepted by Run #117**: deterministic real CBR→PDF, package-first optional encoder probe for PDF→CBR, explicit no-encoder failure, no bundled `rar.exe`, and the complete primary workflow including second-launch window restore all passed.
 - Run #115 and #116 remain recorded below as failure history; #117 closed the RAR/CBR and HWND restoration gates, #118 reconfirmed the complete regression, and #119 accepted portable CFF PDF-JSON conversion.
@@ -44,6 +44,7 @@
 | **RAR / CBR contract** | **CBR→PDF embedded `junrar`; optional package-first user RAR encoder for PDF→CBR; no bundled `rar.exe`; Run #117 `37295728617`** |
 | **CFF PDF-JSON conversion** | **package-local Python + `cff/convert_cff_to_ttf.py`; real 2,221-glyph OpenType-CFF conversion + relocation; Run #119 `37358156494`** |
 | **PDF→WebP Python/Poppler parity** | **`pdf2image 1.17.0` + package-local Poppler `pdfinfo`/`pdftoppm`; real `png_to_webp.py` E2E + relocation; Run #120 `37459765068`** |
+| **Secure CFF→TTF reconstruction** | **fontTools `4.64.0` Cu2QuPen; real 2,221-glyph TrueType output with `glyf`/`loca`, no `CFF ` table, relocation; Run #122 `37472331284`** |
 
 Pinned conversion-font hashes retained from the accepted Run #103 layer:
 
@@ -128,6 +129,23 @@ Run #119 (\`37358156494\`, job \`111925742002\`, commit \`71a34bb065e419869cff96
 
 CFF PDF-JSON portability is closed/accepted; do not reopen it without new evidence.
 
+## Latest acceptance — secure CFF→TTF reconstruction
+
+The parity audit found that PDF reconstruction could still call Stirling's FontForge fallback whenever the Python CFF converter produced OpenType-CFF rather than TrueType. PDF_Tunner now closes that path without bundling FontForge: the package-local converter uses the already authenticated fontTools `4.64.0` Cu2QuPen implementation to rebuild real TrueType outlines.
+
+Run #121 (`37471270073`, commit `73e07e12cf647f4a14c50d7194936c8063b3eff0`) exercised the new gate but exposed a test-only binary-signature escaping error. Commit `b5947844ea8a4525626dba96099105c2730a4085` corrected only that gate. **Run #122** (`37472331284`, job `112299193532`) then passed the complete primary workflow with every earlier gate enabled. Acceptance evidence:
+
+- package-local CFF converter SHA-256 `fb8b7f3d2911512f32760b50ccb593b7f26838c87d9cf9d53b4d3414e6783a85`;
+- real conversion produced a valid TrueType font with exactly `2,221` glyphs and no FontForge requirement;
+- the same gate passed after relocation and during the live-backend regression;
+- ZIP SHA-256 `20DAAAD8F7CA3D1F1FC41FE3D6197A68DB36F8DF5CBB0D462BFE8CB0C5545953`;
+- ZIP size `1,911,909,447` bytes;
+- portable layout `31,639` files / `4,392,527,297` payload bytes;
+- lightweight evidence artifact `11420435593`, size `7,857` bytes, digest `sha256:93f604924c3ed619936e50c65daac66abffdbc49f21efa213dba8951fffd5400`;
+- the multi-gigabyte ZIP itself was not uploaded.
+
+Secure CFF→TTF reconstruction is closed/accepted; do not reopen it without new evidence.
+
 ## Accepted contract — RAR / CBR portability
 
 Pinned Stirling 2.14.3 has asymmetric CBR behavior:
@@ -197,7 +215,7 @@ Heavy CI uses branch-scoped concurrency with `cancel-in-progress: true`. Do not 
 1. **RAR/CBR portability contract** — accepted by Run #117;
 2. **CFF PDF-JSON font conversion** — accepted by Run #119;
 3. **PDF→WebP Python/Poppler parity** — accepted by Run #120;
-4. **Secure CFF→TTF reconstruction** — active candidate: make the package-local Python converter produce real TrueType outlines using the already authenticated fontTools 4.64.0 Cu2QuPen implementation, so portable PDF reconstruction no longer needs the FontForge fallback;
+4. **Secure CFF→TTF reconstruction** — accepted by Run #122 using authenticated fontTools 4.64.0 Cu2QuPen, so portable PDF reconstruction no longer needs the FontForge fallback;
 5. finish exact dependency audit against pinned Stirling 2.14.3 and close any remaining concrete gap.
 
 PDF_Tunner deliberately does **not** bundle the current official Windows FontForge 20251009 build for this fallback. That release is affected by multiple 2025 memory-safety advisories, including NVD CVE-2025-15279; feeding embedded fonts from untrusted PDFs into that parser would introduce an avoidable attack surface. Explicit upstream/custom FontForge configuration remains supported, but the portable default must not depend on it.
@@ -222,11 +240,10 @@ Cover OCR, Office↔PDF, HTML/URL/base-URL/EML, WeasyPrint, Poppler, Calibre/eBo
 
 ## Compact handoff
 
-- Latest complete green primary: **Run #120** (`37459765068`), job `112256117833`, commit `098ab25f2ed95d6f8bc290b053d2ff5f2cf148f2`.
-- Run #120 ZIP SHA-256 `CC51384F82CE3F05E11329294659DE548996F7299DBEFD1A28D7ED7851E6FC4B`; size `1,911,924,279` bytes; layout `31,639` files / `4,392,524,882` bytes; lightweight artifact `11414435818`, size `7,854`, digest `sha256:d81fe9e35ea3cdabd88c7259c9cbb5eea3c2a4ea3ce9e570d141350a2f0f7a75`.
-- **PDF→WebP Python/Poppler parity** is accepted by Run #120: authenticated `pdf2image 1.17.0`, package-local `pdfinfo`/`pdftoppm`, real Stirling `png_to_webp.py` PDF→WebP E2E, relocation and live-backend regression all passed.
-- **CFF Python conversion** remains accepted by Run #119; **RAR/CBR** by Run #117; **jbig2enc 0.32** by Run #108.
-- Active candidate: replace the automatic need for the **FontForge CFF fallback** by producing actual TTF outlines with authenticated fontTools 4.64.0/Cu2QuPen. The latest official Windows FontForge 20251009 is intentionally not bundled because of current HIGH memory-safety advisories affecting untrusted font parsing. Candidate QA also requires the exact binary sfnt signature `00 01 00 00`, `glyf`/`loca`, no `CFF ` table and exactly 2,221 fixture glyphs.
-- Run #120 remains the latest accepted baseline until this complete candidate regression is green; then continue exact parity, representative E2E and final release-readiness audits.
+- Latest complete green primary: **Run #122** (`37472331284`), job `112299193532`, commit `b5947844ea8a4525626dba96099105c2730a4085`.
+- Run #122 ZIP SHA-256 `20DAAAD8F7CA3D1F1FC41FE3D6197A68DB36F8DF5CBB0D462BFE8CB0C5545953`; size `1,911,909,447` bytes; layout `31,639` files / `4,392,527,297` bytes; lightweight artifact `11420435593`, size `7,857`, digest `sha256:93f604924c3ed619936e50c65daac66abffdbc49f21efa213dba8951fffd5400`.
+- **Secure CFF→TTF reconstruction** is accepted by Run #122: authenticated fontTools `4.64.0`/Cu2QuPen produced real 2,221-glyph TrueType output and removed the automatic portable need for FontForge. Run #121 is retained as the failed test-gate history corrected by the #122 commit.
+- **PDF→WebP Python/Poppler parity** remains accepted by Run #120; **CFF Python conversion** by Run #119; **RAR/CBR** by Run #117; **jbig2enc 0.32** by Run #108.
+- Active block: continue the exact pinned-source dependency parity audit against Stirling 2.14.3 and close only concrete gaps found in code; after that, complete representative E2E and final release-readiness audits.
 - Long-run protocol: track exact Actions run ID/attempt, use terminal Actions conclusion as primary evidence, keep concise progress updates flowing, and continue independent audits while CI runs.
 - No final Release has been published.
