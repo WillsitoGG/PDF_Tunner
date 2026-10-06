@@ -24,6 +24,22 @@ param(
 
     [Parameter(Mandatory = $true)]
     [ValidatePattern('^[0-9a-fA-F]{40}$')]
+    [string]$DeuBlobSha,
+
+    [Parameter(Mandatory = $true)]
+    [ValidatePattern('^[0-9a-fA-F]{40}$')]
+    [string]$FraBlobSha,
+
+    [Parameter(Mandatory = $true)]
+    [ValidatePattern('^[0-9a-fA-F]{40}$')]
+    [string]$PorBlobSha,
+
+    [Parameter(Mandatory = $true)]
+    [ValidatePattern('^[0-9a-fA-F]{40}$')]
+    [string]$ChiSimBlobSha,
+
+    [Parameter(Mandatory = $true)]
+    [ValidatePattern('^[0-9a-fA-F]{40}$')]
     [string]$OsdBlobSha,
 
     [string]$BackendLogRoot,
@@ -111,10 +127,14 @@ $provenanceFile = Join-Path $tesseractRoot 'PROVENANCE.txt'
 $shaFile = Join-Path $tesseractRoot 'SHA256SUMS.txt'
 $eng = Join-Path $tessdataRoot 'eng.traineddata'
 $spa = Join-Path $tessdataRoot 'spa.traineddata'
+$deu = Join-Path $tessdataRoot 'deu.traineddata'
+$fra = Join-Path $tessdataRoot 'fra.traineddata'
+$por = Join-Path $tessdataRoot 'por.traineddata'
+$chiSim = Join-Path $tessdataRoot 'chi_sim.traineddata'
 $osd = Join-Path $tessdataRoot 'osd.traineddata'
 $pluginDir = Join-Path $tesseractRoot '$PLUGINSDIR'
 
-foreach ($path in @($exe, $versionFile, $provenanceFile, $shaFile, $eng, $spa, $osd)) {
+foreach ($path in @($exe, $versionFile, $provenanceFile, $shaFile, $eng, $spa, $deu, $fra, $por, $chiSim, $osd)) {
     if (-not (Test-Path -LiteralPath $path -PathType Leaf)) {
         throw "Required Tesseract package file is missing: $path"
     }
@@ -136,9 +156,13 @@ $requiredMetadata = @{
     'INSTALLER_SHA256' = $ExpectedInstallerSha256.ToLowerInvariant()
     'TESSDATA_REPOSITORY' = 'https://github.com/tesseract-ocr/tessdata_fast'
     'TESSDATA_COMMIT' = $TessdataCommit.ToLowerInvariant()
-    'TESSDATA_LANGUAGES' = 'eng,spa,osd'
+    'TESSDATA_LANGUAGES' = 'eng,spa,deu,fra,por,chi_sim,osd'
     'TESSDATA_ENG_GIT_BLOB' = $EngBlobSha.ToLowerInvariant()
     'TESSDATA_SPA_GIT_BLOB' = $SpaBlobSha.ToLowerInvariant()
+    'TESSDATA_DEU_GIT_BLOB' = $DeuBlobSha.ToLowerInvariant()
+    'TESSDATA_FRA_GIT_BLOB' = $FraBlobSha.ToLowerInvariant()
+    'TESSDATA_POR_GIT_BLOB' = $PorBlobSha.ToLowerInvariant()
+    'TESSDATA_CHI_SIM_GIT_BLOB' = $ChiSimBlobSha.ToLowerInvariant()
     'TESSDATA_OSD_GIT_BLOB' = $OsdBlobSha.ToLowerInvariant()
 }
 foreach ($key in $requiredMetadata.Keys) {
@@ -168,16 +192,24 @@ if ($machine -ne 0x8664) {
 $modelBlobs = @{
     'eng' = (Get-GitBlobSha1 -Path $eng)
     'spa' = (Get-GitBlobSha1 -Path $spa)
+    'deu' = (Get-GitBlobSha1 -Path $deu)
+    'fra' = (Get-GitBlobSha1 -Path $fra)
+    'por' = (Get-GitBlobSha1 -Path $por)
+    'chi_sim' = (Get-GitBlobSha1 -Path $chiSim)
     'osd' = (Get-GitBlobSha1 -Path $osd)
 }
 if ($modelBlobs['eng'] -ne $EngBlobSha.ToLowerInvariant()) { throw 'eng.traineddata Git blob SHA mismatch.' }
 if ($modelBlobs['spa'] -ne $SpaBlobSha.ToLowerInvariant()) { throw 'spa.traineddata Git blob SHA mismatch.' }
+if ($modelBlobs['deu'] -ne $DeuBlobSha.ToLowerInvariant()) { throw 'deu.traineddata Git blob SHA mismatch.' }
+if ($modelBlobs['fra'] -ne $FraBlobSha.ToLowerInvariant()) { throw 'fra.traineddata Git blob SHA mismatch.' }
+if ($modelBlobs['por'] -ne $PorBlobSha.ToLowerInvariant()) { throw 'por.traineddata Git blob SHA mismatch.' }
+if ($modelBlobs['chi_sim'] -ne $ChiSimBlobSha.ToLowerInvariant()) { throw 'chi_sim.traineddata Git blob SHA mismatch.' }
 if ($modelBlobs['osd'] -ne $OsdBlobSha.ToLowerInvariant()) { throw 'osd.traineddata Git blob SHA mismatch.' }
 
 $shaText = Get-Content -LiteralPath $shaFile -Raw
 $exeHash = (Get-FileHash -LiteralPath $exe -Algorithm SHA256).Hash.ToLowerInvariant()
 if ($shaText -notmatch "(?im)^$exeHash\s+tesseract\.exe\s*$") { throw 'Tesseract SHA256SUMS.txt does not contain tesseract.exe hash.' }
-foreach ($name in @('eng','spa','osd')) {
+foreach ($name in @('eng','spa','deu','fra','por','chi_sim','osd')) {
     $path = Join-Path $tessdataRoot "$name.traineddata"
     $hash = (Get-FileHash -LiteralPath $path -Algorithm SHA256).Hash.ToLowerInvariant()
     if ($shaText -notmatch "(?im)^$hash\s+tessdata/$name\.traineddata\s*$") {
@@ -223,7 +255,7 @@ try {
 
     $languages = @(& tesseract --list-langs 2>&1)
     if ($LASTEXITCODE -ne 0) { throw "Packaged tesseract --list-langs failed with exit code $LASTEXITCODE." }
-    foreach ($required in @('eng','spa','osd')) {
+    foreach ($required in @('eng','spa','deu','fra','por','chi_sim','osd')) {
         if (-not ($languages -contains $required)) { throw "Packaged Tesseract language list is missing '$required'." }
     }
 
@@ -238,6 +270,17 @@ try {
     if ($LASTEXITCODE -ne 0) { throw "Spanish Tesseract OCR failed with exit code $LASTEXITCODE." }
     $spaText = ((Get-Content -LiteralPath "$spaOut.txt" -Raw) -replace '[^A-Za-z0-9]+',' ').Trim().ToUpperInvariant()
     if ($spaText -notlike '*PRUEBA OCR ESPANOL 2026*') { throw "Spanish OCR output did not contain expected text: '$spaText'" }
+
+    foreach ($language in @('deu','fra','por','chi_sim')) {
+        $languageProbe = @(& tesseract $engImage stdout -l $language --psm 6 2>&1)
+        if ($LASTEXITCODE -ne 0) {
+            $languageProbe | Out-Host
+            throw "Tesseract runtime probe for '$language' failed with exit code $LASTEXITCODE."
+        }
+        if ([string]::IsNullOrWhiteSpace(($languageProbe -join "`n"))) {
+            throw "Tesseract runtime probe for '$language' returned no OCR output."
+        }
+    }
 
     $osdLines = 1..11 | ForEach-Object { "PDF TUNNER ORIENTATION DETECTION DOCUMENT LINE $_ 2026" }
     New-OcrFixture -Path $osdImage -Lines $osdLines -Rotate90
@@ -273,4 +316,4 @@ if ($RequireBackendProbe) {
     Write-Host 'Stirling backend accepted Tesseract and confirmed the package-local tessdata path.'
 }
 
-Write-Host "PASS: packaged Tesseract release $Version / CLI $expectedCliVersion is AMD64, provenance/model pins verified, resolves package-locally, and completed English + Spanish OCR plus OSD functional validation."
+Write-Host "PASS: packaged Tesseract release $Version / CLI $expectedCliVersion is AMD64, provenance/model pins verified, resolves package-locally, and completed English + Spanish OCR, real load/execute probes for German/French/Portuguese/Simplified Chinese, plus OSD validation."
