@@ -116,6 +116,7 @@ Direct runtime probes include Ghostscript `gs`, OCRmyPDF `ocrmypdf`, LibreOffice
 | **jbig2enc `0.32`** | **Run #108 `34138754142`, job `101795708391`, commit `64f86ce6f567f49be1e677697221c52a8b26131f`** |
 | **RAR / CBR contract** | **Run #117 `37295728617`; embedded CBR→PDF, optional package-first PDF→CBR encoder, no bundled `rar.exe`** |
 | **CFF PDF-JSON conversion** | **Run #119 `37358156494`, job `111925742002`, commit `71a34bb065e419869cff96006ae9df06288d1f20`; real 2,221-glyph conversion + relocation** |
+| **PDF→WebP Python/Poppler parity** | **Run #120 `37459765068`, job `112256117833`, commit `098ab25f2ed95d6f8bc290b053d2ff5f2cf148f2`; `pdf2image 1.17.0` + package-local Poppler + real E2E/relocation** |
 
 ### Fixed provenance values that must not drift silently
 
@@ -126,7 +127,7 @@ Direct runtime probes include Ghostscript `gs`, OCRmyPDF `ocrmypdf`, LibreOffice
 - Tesseract installer SHA-256: `bee9e3434bd94fd65387d9be28cd467a41f61b1275383b55b0f59a1331270ae4`
 - Python archive SHA-256: `8e6aad12ef6fc9685e67ce66253f8f72d6e8fa02cb7187e5850bd4db5ecd9e2a`
 - OCRmyPDF wheel SHA-256: `34ba1b595ecacc94b6dc3c9d4fa51953de63082cd16cf8595251bd72120b930a`
-- Python dependency lock SHA-256 (29-package PDF→WebP candidate): `ccc4a3e0e44cafb5f12ecd3e72f52e06016e31dbd9dd86292bcb537ba29e4e7c`
+- Python dependency lock SHA-256 (29-package accepted baseline from Run #120): `ccc4a3e0e44cafb5f12ecd3e72f52e06016e31dbd9dd86292bcb537ba29e4e7c`
 - pdf2image `1.17.0` wheel SHA-256: `ecdd58d7afb810dffe21ef2b1bbc057ef434dabbac6c33778a38a3f7744a27e2`
 - NumPy wheel SHA-256: `28ac63476ec7651484215ee7fa15a1f78b57c14621f01e392afe17b9a1390ce4`
 - OpenCV wheel SHA-256: `cbed65415b8f6a9541c705afe3e64795840524d0ff3bc58f507826284a1dc64b`
@@ -232,8 +233,9 @@ The primary workflow builds and validates the portable ZIP but ordinary CI uploa
 
 1. **RAR/CBR portability contract** — accepted by Run #117;
 2. **CFF PDF-JSON font conversion** — accepted by Run #119;
-3. **PDF→WebP Python/Poppler parity** — active candidate: add authenticated `pdf2image 1.17.0`, require `pdfinfo` + `pdftoppm` from packaged Poppler and exercise the real `png_to_webp.py` PDF path under isolated package-first PATH;
-4. finish exact pinned-source dependency parity audit and close any remaining concrete dependency gap.
+3. **PDF→WebP Python/Poppler parity** — accepted by Run #120;
+4. **FontForge CFF fallback** — active parity audit surface because pinned Stirling installs FontForge and PDF→JSON→PDF directly attempts `convertCffUsingFontForge` when Python conversion does not provide a TTF representation for PDF reconstruction;
+5. finish exact pinned-source dependency parity audit and close any remaining concrete dependency gap.
 
 ### B. Functional validation
 
@@ -253,15 +255,15 @@ Representative E2E must cover Office→PDF and supported PDF→Office, HTML/URL/
 
 ## Current handoff — 2026-10-06
 
-Accepted/closed: native portable/Tauri containment; Fixed WebView2; qpdf; ImageMagick; Ghostscript; Tesseract; Python 3.12.14 + OCRmyPDF 17.10.0; authenticated Python lock; NumPy 2.5.2; OpenCV \`4.14.0.94\`; LibreOffice 26.2.5 + native \`unoconvert\`; Poppler 26.02.0; WeasyPrint 69.0; Calibre 9.14.0; unpaper 6.1 + pngquant 2.17.0; conversion fonts; embedded VeraPDF 1.30.2 E2E; **jbig2enc 0.32**; **RAR/CBR portability contract**; **CFF PDF-JSON conversion**.
+Accepted/closed: native portable/Tauri containment; Fixed WebView2; qpdf; ImageMagick; Ghostscript; Tesseract; Python 3.12.14 + OCRmyPDF 17.10.0; authenticated 29-package Python lock; NumPy 2.5.2; OpenCV `4.14.0.94`; `pdf2image 1.17.0` + PDF→WebP/Poppler parity; LibreOffice 26.2.5 + native `unoconvert`; Poppler 26.02.0; WeasyPrint 69.0; Calibre 9.14.0; unpaper 6.1 + pngquant 2.17.0; conversion fonts; embedded VeraPDF 1.30.2 E2E; **jbig2enc 0.32**; **RAR/CBR portability contract**; **CFF Python PDF-JSON conversion**.
 
-Latest complete green primary: **Run #119** (\`37358156494\`), job \`111925742002\`, commit \`71a34bb065e419869cff96006ae9df06288d1f20\`; ZIP SHA-256 \`80821D577F7F4B8246AD69E95CDCCE9140D85ACA5AFE6EAB0ED3D60A2FCB1BE1\`; size \`1,911,877,412\` bytes; layout \`31,621\` files / \`4,392,452,052\` bytes; lightweight artifact \`11366833930\`, size \`7,758\`, digest \`sha256:632172c024a509f811443ff48501be974d1bcfdaf60c1846198a903facf89eb6\`.
+Latest complete green primary: **Run #120** (`37459765068`), job `112256117833`, commit `098ab25f2ed95d6f8bc290b053d2ff5f2cf148f2`; ZIP SHA-256 `CC51384F82CE3F05E11329294659DE548996F7299DBEFD1A28D7ED7851E6FC4B`; size `1,911,924,279` bytes; layout `31,639` files / `4,392,524,882` bytes; lightweight artifact `11414435818`, size `7,854`, digest `sha256:d81fe9e35ea3cdabd88c7259c9cbb5eea3c2a4ea3ce9e570d141350a2f0f7a75`.
 
-Run #119 accepts the portable CFF PDF-JSON layer: exact upstream-default mapping, package-local converter provenance, real 2,221-glyph OpenType-CFF conversion and relocation all passed inside the complete primary regression. Every earlier accepted gate, including backend startup, RAR/CBR and second-launch window restore, remained green.
+Run #120 accepts the PDF→WebP gap: authenticated `pdf2image 1.17.0`, package-local Poppler `pdfinfo`/`pdftoppm`, Stirling's real `png_to_webp.py` PDF-mode E2E, relocation to a path with spaces and live-backend regression all passed with every earlier gate enabled.
 
-Active next candidate: the parity audit found a concrete PDF→WebP gap. `png_to_webp.py` imports `pdf2image`, which the pinned Docker runtime installs but the accepted Windows Python lock did not contain. The candidate extends the authenticated lock to 29 packages with `pdf2image 1.17.0`, requires packaged Poppler `pdfinfo`/`pdftoppm`, and adds a real PDF→WebP E2E that also reruns after relocation. Run #119 remains the latest accepted baseline until the complete candidate regression is green.
+Active next audit surface: **FontForge CFF fallback**. This is not merely a user-selectable legacy method: `PdfJsonConversionService` directly calls `convertCffUsingFontForge` when primary CFF conversion does not yield a TTF suitable for PDF reconstruction. Pinned Stirling also installs FontForge in its base runtime. Determine a secure, reproducible Windows-portable implementation or document a justified exception; do not silently mark full CFF reconstruction parity closed until this is resolved.
 
-Continue the exact pinned-source dependency audit while that regression runs. FontForge is installed in the pinned Docker runtime and remains exposed as the legacy optional CFF converter method; classify that separate parity surface after the higher-priority PDF→WebP gap is closed. Then close remaining representative E2E and final branding/portability/cleanup/release-readiness work. The PDF-to-video controller and external FFmpeg probe remain disabled in pinned Stirling 2.14.3; do not bundle FFmpeg or re-enable that surface until its security status is re-audited.
+Continue the exact pinned-source dependency audit after FontForge, then representative E2E and final branding/portability/cleanup/release-readiness. FFmpeg remains disabled in pinned Stirling 2.14.3 because of CVE concerns; do not bundle or re-enable it without a separate security review.
 
 Long-run protocol: exact Actions run ID/latest attempt is the primary tracking key; terminal Actions conclusion outranks commit status; keep concise progress updates flowing and continue independent audit work while CI is active; do not push a replacement heavy run while a useful run is still active.
 
