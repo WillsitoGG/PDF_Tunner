@@ -40,17 +40,68 @@ function Get-ZipEntryHash {
     }
 }
 
+function Assert-FrontendBranding {
+    param([Parameter(Mandatory = $true)][string]$DistRoot)
+
+    $indexPath = Join-Path $DistRoot 'index.html'
+    if (-not (Test-Path -LiteralPath $indexPath -PathType Leaf)) {
+        throw "Tauri frontend dist index is missing: $indexPath"
+    }
+    $index = Get-Content -LiteralPath $indexPath -Raw
+    if ($index -notmatch '<title>PDF_Tunner</title>') {
+        throw 'Built Tauri frontend index does not contain <title>PDF_Tunner</title>.'
+    }
+    if ($index -notmatch 'property="og:site_name"\s+content="PDF_Tunner"') {
+        throw 'Built Tauri frontend index does not expose og:site_name=PDF_Tunner.'
+    }
+    if ($index -notmatch 'pdf-tunner/icon-light\.svg') {
+        throw 'Built Tauri frontend index does not reference the PDF_Tunner favicon.'
+    }
+
+    foreach ($relative in @(
+        'pdf-tunner/icon-light.svg',
+        'pdf-tunner/icon-dark.svg',
+        'pdf-tunner/wordmark-black.svg',
+        'pdf-tunner/wordmark-grey.svg',
+        'pdf-tunner/wordmark-white.svg'
+    )) {
+        $path = Join-Path $DistRoot $relative
+        if (-not (Test-Path -LiteralPath $path -PathType Leaf)) {
+            throw "Built Tauri frontend branding asset is missing: $relative"
+        }
+        if ((Get-Content -LiteralPath $path -Raw) -notmatch 'PDF_Tunner') {
+            throw "Built Tauri frontend branding asset does not identify PDF_Tunner: $relative"
+        }
+    }
+
+    foreach ($manifestName in @('manifest.json','manifest-classic.json')) {
+        $path = Join-Path $DistRoot $manifestName
+        if (-not (Test-Path -LiteralPath $path -PathType Leaf)) {
+            throw "Built Tauri frontend manifest is missing: $manifestName"
+        }
+        $manifest = Get-Content -LiteralPath $path -Raw | ConvertFrom-Json
+        if ($manifest.name -ne 'PDF_Tunner' -or $manifest.short_name -ne 'PDF_Tunner') {
+            throw "Built Tauri frontend manifest is not PDF_Tunner branded: $manifestName"
+        }
+        if (@($manifest.icons).Count -lt 1 -or $manifest.icons[0].src -ne 'pdf-tunner/icon-light.svg') {
+            throw "Built Tauri frontend manifest does not reference the PDF_Tunner icon: $manifestName"
+        }
+    }
+
+    Write-Host 'PASS: Tauri frontend dist contains PDF_Tunner title, metadata, manifests and visual assets.'
+}
+
 $portable = (Resolve-Path -LiteralPath $PortableRoot).Path
 $exe = Join-Path $portable 'PDF_Tunner.exe'
 if (-not (Test-Path -LiteralPath $exe -PathType Leaf)) { throw "PDF_Tunner.exe missing: $exe" }
 
 $configPath = (Resolve-Path -LiteralPath './frontend/editor/src-tauri/tauri.pdf-tunner.conf.json').Path
 $config = Get-Content -LiteralPath $configPath -Raw | ConvertFrom-Json
-if ($config.productName -ne 'PDF_Tunner') { throw "Tauri productName is not PDF_Tunner." }
-if ($config.mainBinaryName -ne 'PDF_Tunner') { throw "Tauri mainBinaryName is not PDF_Tunner." }
-if ($config.app.windows[0].title -ne 'PDF_Tunner') { throw "Tauri main-window title is not PDF_Tunner." }
+if ($config.productName -ne 'PDF_Tunner') { throw 'Tauri productName is not PDF_Tunner.' }
+if ($config.mainBinaryName -ne 'PDF_Tunner') { throw 'Tauri mainBinaryName is not PDF_Tunner.' }
+if ($config.app.windows[0].title -ne 'PDF_Tunner') { throw 'Tauri main-window title is not PDF_Tunner.' }
 if ($config.identifier -ne 'com.willsitogg.pdf-tunner') { throw "Unexpected PDF_Tunner Tauri identifier: $($config.identifier)" }
-if (@($config.bundle.icon) -notcontains 'icons/pdf-tunner.ico') { throw "Tauri bundle icon does not use icons/pdf-tunner.ico." }
+if (@($config.bundle.icon) -notcontains 'icons/pdf-tunner.ico') { throw 'Tauri bundle icon does not use icons/pdf-tunner.ico.' }
 
 $sourceIco = (Resolve-Path -LiteralPath './frontend/editor/src-tauri/icons/pdf-tunner.ico').Path
 $icoBytes = [System.IO.File]::ReadAllBytes($sourceIco)
@@ -70,6 +121,12 @@ finally {
     $associatedIcon.Dispose()
 }
 
+# The desktop product intentionally has two different web payloads:
+# - frontend/editor/dist is the React frontend embedded by Tauri in PDF_Tunner.exe;
+# - libs/*.jar is the backend-only Spring payload, whose root is api-landing.html.
+$frontendDist = (Resolve-Path -LiteralPath './frontend/editor/dist').Path
+Assert-FrontendBranding -DistRoot $frontendDist
+
 $jar = $null
 foreach ($candidate in @(Get-ChildItem -LiteralPath (Join-Path $portable 'libs') -File -Filter '*.jar' -ErrorAction Stop)) {
     $probe = [System.IO.Compression.ZipFile]::OpenRead($candidate.FullName)
@@ -88,9 +145,12 @@ if ($null -eq $jar) { throw 'Could not locate the packaged backend JAR containin
 $archive = [System.IO.Compression.ZipFile]::OpenRead($jar.FullName)
 try {
     $index = Read-ZipText -Archive $archive -Suffix 'static/index.html'
-    if ($index -notmatch '<title>PDF_Tunner</title>') { throw 'Built frontend index does not contain <title>PDF_Tunner</title>.' }
-    if ($index -notmatch 'property="og:site_name"\s+content="PDF_Tunner"') { throw 'Built frontend index does not expose og:site_name=PDF_Tunner.' }
-    if ($index -notmatch 'pdf-tunner/icon-light\.svg') { throw 'Built frontend index does not reference the PDF_Tunner favicon.' }
+    if ($index -notmatch '<title>PDF_Tunner - API Server</title>') {
+        throw 'Backend-only JAR root is not the PDF_Tunner API landing page.'
+    }
+    if ($index -notmatch '/pdf-tunner/wordmark-black\.svg') {
+        throw 'Backend-only JAR root does not reference the PDF_Tunner wordmark.'
+    }
 
     foreach ($asset in @(
         'static/pdf-tunner/icon-light.svg',
@@ -100,17 +160,7 @@ try {
         'static/pdf-tunner/wordmark-white.svg'
     )) {
         $content = Read-ZipText -Archive $archive -Suffix $asset
-        if ($content -notmatch 'PDF_Tunner') { throw "Packaged branding asset does not identify PDF_Tunner: $asset" }
-    }
-
-    foreach ($manifestName in @('static/manifest.json','static/manifest-classic.json')) {
-        $manifest = (Read-ZipText -Archive $archive -Suffix $manifestName) | ConvertFrom-Json
-        if ($manifest.name -ne 'PDF_Tunner' -or $manifest.short_name -ne 'PDF_Tunner') {
-            throw "Packaged manifest is not PDF_Tunner branded: $manifestName"
-        }
-        if (@($manifest.icons).Count -lt 1 -or $manifest.icons[0].src -ne 'pdf-tunner/icon-light.svg') {
-            throw "Packaged manifest does not reference the PDF_Tunner icon: $manifestName"
-        }
+        if ($content -notmatch 'PDF_Tunner') { throw "Packaged backend branding asset does not identify PDF_Tunner: $asset" }
     }
 
     $mobile = Read-ZipText -Archive $archive -Suffix 'static/mobile-upload.html'
@@ -144,8 +194,8 @@ if (-not [string]::IsNullOrWhiteSpace($BackendBaseUrl)) {
     }
 
     $root = Invoke-WebRequest -Uri "$base/" -UseBasicParsing -TimeoutSec 30
-    if ($root.StatusCode -ne 200 -or $root.Content -notmatch '<title>PDF_Tunner</title>') {
-        throw 'Live backend root did not serve the PDF_Tunner-branded frontend shell.'
+    if ($root.StatusCode -ne 200 -or $root.Content -notmatch '<title>PDF_Tunner - API Server</title>') {
+        throw 'Live backend root did not serve the PDF_Tunner API landing page.'
     }
 
     $brandAsset = Invoke-WebRequest -Uri "$base/pdf-tunner/icon-light.svg" -UseBasicParsing -TimeoutSec 30
@@ -153,9 +203,10 @@ if (-not [string]::IsNullOrWhiteSpace($BackendBaseUrl)) {
         throw 'Live backend did not serve the PDF_Tunner branding asset.'
     }
 
-    Write-Host 'PASS: live backend exposes PDF_Tunner app-config, document title and branding assets.'
+    Write-Host 'PASS: live backend exposes PDF_Tunner app-config, API landing identity and branding assets.'
 }
 
 Write-Host "PDF_Tunner executable: $exe"
-Write-Host "PDF_Tunner packaged JAR: $($jar.FullName)"
-Write-Host 'PASS: PDF_Tunner title, interface assets, manifests, signing logos and Windows executable branding are present in the assembled portable product.'
+Write-Host "PDF_Tunner Tauri frontend dist: $frontendDist"
+Write-Host "PDF_Tunner packaged backend JAR: $($jar.FullName)"
+Write-Host 'PASS: PDF_Tunner frontend, backend surfaces, signing logos and Windows executable branding are present in the assembled portable product.'
