@@ -104,7 +104,7 @@ public class AppConfig {
     @Bean(name = "navBarText")
     public String navBarText() {
         String navBar = applicationProperties.getUi().getAppNameNavbar();
-        return (navBar != null && !navBar.isBlank()) ? navBar : "PDF_Tunner";
+        return (navBar != null) ? navBar : "PDF_Tunner";
     }
 
     @Bean(name = "enableAlphaFunctionality")
