@@ -11,7 +11,7 @@
 - Target: **Windows 10/11 x64 portable ZIP**, extract and run without installation.
 - `main` remains the clean pinned upstream base during v1 development.
 - No final PDF_Tunner v1 Release exists yet.
-- Latest complete green primary regression: **Run #125** (`37506294413`), job `112415696986`, commit `d4bc92c604e17ae41c3143ae69d5fdb07722b59f`.
+- Latest complete green primary regression: **Run #126** (`37520006317`), job `112462690373`, commit `66a363ea5354d29b172318941ede16d15524017c`.
 - **jbig2enc 0.32 is formally accepted by Run #108**, including exact source/tag, authenticated Meson inputs, static MSVC build, upstream tests, isolated package-first ToolProbe, relocation and a real OCRmyPDF `--optimize 2` result containing `/JBIG2Decode`.
 - **RAR/CBR is formally accepted by Run #117**: deterministic real CBR→PDF, package-first optional encoder probe for PDF→CBR, explicit no-encoder failure, no bundled `rar.exe`, and the complete primary workflow including second-launch window restore all passed.
 - Run #115 and #116 remain recorded below as failure history; #117 closed the RAR/CBR and HWND restoration gates, #118 reconfirmed the complete regression, and #119 accepted portable CFF PDF-JSON conversion.
@@ -241,10 +241,10 @@ Cover OCR, Office↔PDF, HTML/URL/base-URL/EML, WeasyPrint, Poppler, Calibre/eBo
 
 ## Compact handoff
 
-- Latest complete green primary: **Run #125** (`37506294413`), job `112415696986`, commit `d4bc92c604e17ae41c3143ae69d5fdb07722b59f`.
-- Run #125 ZIP SHA-256 `727D037129C29D29584B42FC8EFA63958EF9CC6E3FDFD0CAF4AF64CC8E70C1E6`; size `1,916,101,178` bytes; layout `31,643` files / `4,399,635,662` bytes; lightweight artifact `11434467875`, size `7,853`, digest `sha256:0b7e257c74b0616f6b0a3d6eaee0454913cd99f3ce332fd5854b210805b29034`.
-- **PDF→PPTX is accepted**: the live backend passed Office→PDF, PDF→DOCX and PDF→PPTX through package-local LibreOffice/`unoconvert`; the PPTX output contained coherent `ppt/presentation.xml`.
-- **EML→PDF remains accepted by Run #124 attempt 2**; external/embedded parity remains closed after Run #123.
-- Active candidate: **PDF table conversions** using pinned Stirling `testing/cucumber/exampleFiles/tables.pdf`: `/api/v1/convert/pdf/csv` must return exactly three non-empty CSV entries and `/api/v1/convert/pdf/xlsx` a coherent OOXML workbook with at least one worksheet.
+- Latest complete green primary: **Run #126** (`37520006317`), job `112462690373`, commit `66a363ea5354d29b172318941ede16d15524017c`.
+- Run #126 ZIP SHA-256 `6D2951FA86A450F4FB7BA56E7E7B18B3E917BF62A5347E9695A2AD8352F48884`; size `1,916,082,482` bytes; layout `31,643` files / `4,399,635,662` bytes; lightweight artifact `11441752861`, size `7,853`, digest `sha256:9de69f4e4333c5209057075484683c66d7a1e81f628b02cb6ff794c8f6729bf2`.
+- **PDF table conversions are accepted**: real `/api/v1/convert/pdf/csv` returned exactly three non-empty CSV files from pinned `testing/cucumber/exampleFiles/tables.pdf`, and real `/api/v1/convert/pdf/xlsx` returned a coherent OOXML workbook with worksheet payload.
+- **PDF→PPTX remains accepted by Run #125**; **EML→PDF** by Run #124 attempt 2; external/embedded parity remains closed after Run #123.
+- Representative functional E2E now covers the principal external-runtime families plus internal Java table conversion. The active block moves to **release-readiness audit**: exact non-Enterprise parity against pinned Stirling 2.14.3, branding, portability/state/process, cleanup and downstream diff hygiene. Add new heavy functional gates only when this audit finds a concrete uncovered risk.
 - Long-run protocol: after launching a heavy GitHub Action, capture the exact Run ID once, then stop polling; the user will confirm visually when it finishes before any further run inspection.
 - No final Release has been published.
