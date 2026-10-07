@@ -1,0 +1,161 @@
+[CmdletBinding()]
+param(
+    [Parameter(Mandatory = $true)][string]$PortableRoot,
+    [string]$BackendBaseUrl
+)
+
+$ErrorActionPreference = 'Stop'
+Set-StrictMode -Version Latest
+
+function Read-ZipText {
+    param(
+        [Parameter(Mandatory = $true)][System.IO.Compression.ZipArchive]$Archive,
+        [Parameter(Mandatory = $true)][string]$Suffix
+    )
+    $entry = $Archive.Entries | Where-Object {
+        $_.FullName -eq $Suffix -or $_.FullName.EndsWith('/' + $Suffix)
+    } | Select-Object -First 1
+    if ($null -eq $entry) { throw "JAR entry missing: $Suffix" }
+    $reader = [System.IO.StreamReader]::new($entry.Open())
+    try { return $reader.ReadToEnd() } finally { $reader.Dispose() }
+}
+
+function Get-ZipEntryHash {
+    param(
+        [Parameter(Mandatory = $true)][System.IO.Compression.ZipArchive]$Archive,
+        [Parameter(Mandatory = $true)][string]$Suffix
+    )
+    $entry = $Archive.Entries | Where-Object {
+        $_.FullName -eq $Suffix -or $_.FullName.EndsWith('/' + $Suffix)
+    } | Select-Object -First 1
+    if ($null -eq $entry) { throw "JAR entry missing: $Suffix" }
+    $stream = $entry.Open()
+    $sha = [System.Security.Cryptography.SHA256]::Create()
+    try {
+        return ([BitConverter]::ToString($sha.ComputeHash($stream))).Replace('-', '').ToLowerInvariant()
+    }
+    finally {
+        $sha.Dispose()
+        $stream.Dispose()
+    }
+}
+
+$portable = (Resolve-Path -LiteralPath $PortableRoot).Path
+$exe = Join-Path $portable 'PDF_Tunner.exe'
+if (-not (Test-Path -LiteralPath $exe -PathType Leaf)) { throw "PDF_Tunner.exe missing: $exe" }
+
+$configPath = (Resolve-Path -LiteralPath './frontend/editor/src-tauri/tauri.pdf-tunner.conf.json').Path
+$config = Get-Content -LiteralPath $configPath -Raw | ConvertFrom-Json
+if ($config.productName -ne 'PDF_Tunner') { throw "Tauri productName is not PDF_Tunner." }
+if ($config.mainBinaryName -ne 'PDF_Tunner') { throw "Tauri mainBinaryName is not PDF_Tunner." }
+if ($config.app.windows[0].title -ne 'PDF_Tunner') { throw "Tauri main-window title is not PDF_Tunner." }
+if ($config.identifier -ne 'com.willsitogg.pdf-tunner') { throw "Unexpected PDF_Tunner Tauri identifier: $($config.identifier)" }
+if (@($config.bundle.icon) -notcontains 'icons/pdf-tunner.ico') { throw "Tauri bundle icon does not use icons/pdf-tunner.ico." }
+
+$sourceIco = (Resolve-Path -LiteralPath './frontend/editor/src-tauri/icons/pdf-tunner.ico').Path
+$icoBytes = [System.IO.File]::ReadAllBytes($sourceIco)
+if ($icoBytes.Length -lt 1024 -or $icoBytes[0] -ne 0 -or $icoBytes[1] -ne 0 -or $icoBytes[2] -ne 1 -or $icoBytes[3] -ne 0) {
+    throw "Generated PDF_Tunner source icon is not a valid ICO: $sourceIco"
+}
+
+Add-Type -AssemblyName System.Drawing
+$associatedIcon = [System.Drawing.Icon]::ExtractAssociatedIcon($exe)
+if ($null -eq $associatedIcon) { throw 'PDF_Tunner.exe has no extractable Windows icon.' }
+try {
+    if ($associatedIcon.Width -lt 16 -or $associatedIcon.Height -lt 16) {
+        throw "PDF_Tunner.exe icon is unexpectedly small: $($associatedIcon.Width)x$($associatedIcon.Height)"
+    }
+}
+finally {
+    $associatedIcon.Dispose()
+}
+
+$jar = $null
+foreach ($candidate in @(Get-ChildItem -LiteralPath (Join-Path $portable 'libs') -File -Filter '*.jar' -ErrorAction Stop)) {
+    $probe = [System.IO.Compression.ZipFile]::OpenRead($candidate.FullName)
+    try {
+        if ($probe.Entries | Where-Object { $_.FullName.EndsWith('/static/index.html') } | Select-Object -First 1) {
+            $jar = $candidate
+            break
+        }
+    }
+    finally {
+        $probe.Dispose()
+    }
+}
+if ($null -eq $jar) { throw 'Could not locate the packaged backend JAR containing static/index.html.' }
+
+$archive = [System.IO.Compression.ZipFile]::OpenRead($jar.FullName)
+try {
+    $index = Read-ZipText -Archive $archive -Suffix 'static/index.html'
+    if ($index -notmatch '<title>PDF_Tunner</title>') { throw 'Built frontend index does not contain <title>PDF_Tunner</title>.' }
+    if ($index -notmatch 'property="og:site_name"\s+content="PDF_Tunner"') { throw 'Built frontend index does not expose og:site_name=PDF_Tunner.' }
+    if ($index -notmatch 'pdf-tunner/icon-light\.svg') { throw 'Built frontend index does not reference the PDF_Tunner favicon.' }
+
+    foreach ($asset in @(
+        'static/pdf-tunner/icon-light.svg',
+        'static/pdf-tunner/icon-dark.svg',
+        'static/pdf-tunner/wordmark-black.svg',
+        'static/pdf-tunner/wordmark-grey.svg',
+        'static/pdf-tunner/wordmark-white.svg'
+    )) {
+        $content = Read-ZipText -Archive $archive -Suffix $asset
+        if ($content -notmatch 'PDF_Tunner') { throw "Packaged branding asset does not identify PDF_Tunner: $asset" }
+    }
+
+    foreach ($manifestName in @('static/manifest.json','static/manifest-classic.json')) {
+        $manifest = (Read-ZipText -Archive $archive -Suffix $manifestName) | ConvertFrom-Json
+        if ($manifest.name -ne 'PDF_Tunner' -or $manifest.short_name -ne 'PDF_Tunner') {
+            throw "Packaged manifest is not PDF_Tunner branded: $manifestName"
+        }
+        if (@($manifest.icons).Count -lt 1 -or $manifest.icons[0].src -ne 'pdf-tunner/icon-light.svg') {
+            throw "Packaged manifest does not reference the PDF_Tunner icon: $manifestName"
+        }
+    }
+
+    $mobile = Read-ZipText -Archive $archive -Suffix 'static/mobile-upload.html'
+    if ($mobile -notmatch '<title>PDF_Tunner - Mobile Upload</title>' -or $mobile -notmatch 'PDF_Tunner &middot;') {
+        throw 'Packaged mobile upload surface is not PDF_Tunner branded.'
+    }
+
+    $apiLanding = Read-ZipText -Archive $archive -Suffix 'static/api-landing.html'
+    if ($apiLanding -notmatch '<title>PDF_Tunner - API Server</title>' -or $apiLanding -notmatch '/pdf-tunner/wordmark-black\.svg') {
+        throw 'Packaged API landing surface is not PDF_Tunner branded.'
+    }
+
+    $signatureSourceHash = (Get-FileHash -LiteralPath './app/core/src/main/resources/static/images/signature.png' -Algorithm SHA256).Hash.ToLowerInvariant()
+    $signatureJarHash = Get-ZipEntryHash -Archive $archive -Suffix 'static/images/signature.png'
+    if ($signatureSourceHash -ne $signatureJarHash) { throw 'Packaged cert-sign logo does not match generated PDF_Tunner signature asset.' }
+
+    $wordmarkSourceHash = (Get-FileHash -LiteralPath './app/core/src/main/resources/static/images/stirling-logo-white.png' -Algorithm SHA256).Hash.ToLowerInvariant()
+    $wordmarkJarHash = Get-ZipEntryHash -Archive $archive -Suffix 'static/images/stirling-logo-white.png'
+    if ($wordmarkSourceHash -ne $wordmarkJarHash) { throw 'Packaged signing wordmark does not match generated PDF_Tunner wordmark asset.' }
+}
+finally {
+    $archive.Dispose()
+}
+
+if (-not [string]::IsNullOrWhiteSpace($BackendBaseUrl)) {
+    $base = $BackendBaseUrl.TrimEnd('/')
+
+    $appConfig = Invoke-RestMethod -Uri "$base/api/v1/config/app-config" -Method Get -TimeoutSec 30
+    if ($appConfig.appNameNavbar -ne 'PDF_Tunner') {
+        throw "Live app-config appNameNavbar is not PDF_Tunner: '$($appConfig.appNameNavbar)'"
+    }
+
+    $root = Invoke-WebRequest -Uri "$base/" -UseBasicParsing -TimeoutSec 30
+    if ($root.StatusCode -ne 200 -or $root.Content -notmatch '<title>PDF_Tunner</title>') {
+        throw 'Live backend root did not serve the PDF_Tunner-branded frontend shell.'
+    }
+
+    $brandAsset = Invoke-WebRequest -Uri "$base/pdf-tunner/icon-light.svg" -UseBasicParsing -TimeoutSec 30
+    if ($brandAsset.StatusCode -ne 200 -or $brandAsset.Content -notmatch 'PDF_Tunner') {
+        throw 'Live backend did not serve the PDF_Tunner branding asset.'
+    }
+
+    Write-Host 'PASS: live backend exposes PDF_Tunner app-config, document title and branding assets.'
+}
+
+Write-Host "PDF_Tunner executable: $exe"
+Write-Host "PDF_Tunner packaged JAR: $($jar.FullName)"
+Write-Host 'PASS: PDF_Tunner title, interface assets, manifests, signing logos and Windows executable branding are present in the assembled portable product.'
