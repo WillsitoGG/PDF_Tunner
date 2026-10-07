@@ -22,8 +22,8 @@ const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(HERE, "..");
 const read = (p) => fs.readFileSync(path.join(ROOT, p), "utf8");
 
-const SITE_NAME = "Stirling PDF";
-const SITE_TITLE = "Stirling PDF";
+const SITE_NAME = "PDF_Tunner";
+const SITE_TITLE = "PDF_Tunner";
 const SITE_DESC = "The Free Adobe Acrobat alternative (10M+ Downloads)";
 const DEFAULT_IMAGE_BASENAME = "home";
 
