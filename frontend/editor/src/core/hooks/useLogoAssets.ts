@@ -9,6 +9,7 @@ export function useLogoAssets() {
   return useMemo(() => {
     const folder = getLogoFolder(logoVariant);
     const folderPath = `${BASE_PATH}/${folder}`;
+    const pdfTunnerBrandPath = `${BASE_PATH}/pdf-tunner`;
 
     return {
       logoVariant,
@@ -16,15 +17,15 @@ export function useLogoAssets() {
       folderPath,
       getAssetPath: (name: string) => `${folderPath}/${name}`,
       wordmark: {
-        black: `${folderPath}/StirlingPDFLogoBlackText.svg`,
-        grey: `${folderPath}/StirlingPDFLogoGreyText.svg`,
-        white: `${folderPath}/StirlingPDFLogoWhiteText.svg`,
+        black: `${pdfTunnerBrandPath}/wordmark-black.svg`,
+        grey: `${pdfTunnerBrandPath}/wordmark-grey.svg`,
+        white: `${pdfTunnerBrandPath}/wordmark-white.svg`,
       },
-      tooltipLogo: `${folderPath}/logo-tooltip.svg`,
+      tooltipLogo: `${pdfTunnerBrandPath}/icon-light.svg`,
       firstPage: `${folderPath}/Firstpage.png`,
-      favicon: `${folderPath}/favicon.ico`,
-      logo192: `${folderPath}/logo192.png`,
-      logo512: `${folderPath}/logo512.png`,
+      favicon: `${pdfTunnerBrandPath}/icon-light.svg`,
+      logo192: `${pdfTunnerBrandPath}/icon-light.svg`,
+      logo512: `${pdfTunnerBrandPath}/icon-light.svg`,
       manifestHref:
         logoVariant === "classic"
           ? `${BASE_PATH}/manifest-classic.json`
