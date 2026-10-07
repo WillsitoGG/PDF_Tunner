@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="PDF_Tunner">
+  <path d="M14 6h25l11 11v41H14z" fill="none" stroke="#111111" stroke-width="4" stroke-linejoin="round"/>
+  <path d="M39 6v12h11" fill="none" stroke="#111111" stroke-width="4" stroke-linejoin="round"/>
+  <text x="32" y="43" text-anchor="middle" font-family="Segoe UI,Arial,sans-serif" font-size="16" font-weight="700" fill="#111111">PT</text>
+</svg>
