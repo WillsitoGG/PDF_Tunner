@@ -341,6 +341,15 @@ tasks.register('copyBackendOnlySamples', Copy) {
     onlyIf { !buildWithFrontend }
 }
 
+tasks.register('copyBackendOnlyBranding', Copy) {
+    group = 'frontend'
+    description = 'Copy PDF_Tunner identity assets for backend-only API/mobile surfaces'
+    from(new File(frontendEditorDir, 'public/pdf-tunner'))
+    into(new File(resourcesStaticDir, 'pdf-tunner'))
+    dependsOn cleanFrontendAssets
+    onlyIf { !buildWithFrontend }
+}
+
 // Ensure copyFrontendAssets runs after spotless tasks
 tasks.named('copyFrontendAssets').configure {
     mustRunAfter tasks.matching { it.name.startsWith('spotless') }
@@ -361,6 +370,7 @@ if (buildWithFrontend) {
     // When not building the UI, ensure any stale frontend assets are removed and use API landing page
     processResources.dependsOn copyApiLandingPage
     processResources.dependsOn copyBackendOnlySamples
+    processResources.dependsOn copyBackendOnlyBranding
 }
 
 bootJar.dependsOn ':common:jar'
