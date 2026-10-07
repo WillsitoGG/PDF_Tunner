@@ -131,7 +131,7 @@ bootJar {
 
     manifest {
         attributes(
-            'Implementation-Title': 'Stirling-PDF',
+            'Implementation-Title': 'PDF_Tunner',
             'Implementation-Version': project.version,
             'Enable-Native-Access': 'ALL-UNNAMED'
         )
@@ -207,6 +207,7 @@ def generatedFrontendPaths = [
     'samples',
     'pdfium',
     'vendor',
+    'pdf-tunner',
     'pdfjs'
 ]
 
