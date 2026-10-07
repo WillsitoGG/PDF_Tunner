@@ -18,12 +18,17 @@
   },
   "bundle": {
     "active": false,
-    "createUpdaterArtifacts": false
+    "createUpdaterArtifacts": false,
+    "icon": [
+      "icons/pdf-tunner.ico"
+    ]
   },
   "plugins": {
     "deep-link": {
       "desktop": {
-        "schemes": ["pdf-tunner"]
+        "schemes": [
+          "pdf-tunner"
+        ]
       }
     },
     "updater": {

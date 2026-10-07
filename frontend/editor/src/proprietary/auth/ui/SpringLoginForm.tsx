@@ -42,7 +42,7 @@ export default function SpringLoginForm({
   state,
   logoSrc,
   logoDarkSrc,
-  logoAlt = "Stirling PDF",
+  logoAlt = "PDF_Tunner",
   oauthCtaPrefix,
   oauthUseNewStyle,
   showEmailForm,

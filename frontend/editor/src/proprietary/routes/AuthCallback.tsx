@@ -133,12 +133,12 @@ export default function AuthCallback() {
       <div className="auth-logo-block">
         <img
           src={loginHeader}
-          alt="Stirling PDF"
+          alt="PDF_Tunner"
           className="auth-logo-header auth-logo-header--light"
         />
         <img
           src={withBasePath("/modern-logo/LoginDarkModeHeader.svg")}
-          alt="Stirling PDF"
+          alt="PDF_Tunner"
           className="auth-logo-header auth-logo-header--dark"
         />
       </div>
