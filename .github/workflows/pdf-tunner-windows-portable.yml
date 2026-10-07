@@ -130,7 +130,9 @@ jobs:
             './.github/scripts/prepare-calibre.ps1',
             './.github/scripts/validate-calibre.ps1',
             './.github/scripts/validate-rar-cbr.ps1',
-            './.github/scripts/validate-table-conversions.ps1'
+            './.github/scripts/validate-table-conversions.ps1',
+            './.github/scripts/prepare-branding.ps1',
+            './.github/scripts/validate-branding.ps1'
           )
           foreach ($script in $scripts) {
             $tokens = $null
@@ -160,6 +162,11 @@ jobs:
 
       - name: Setup Task
         uses: go-task/setup-task@01a4adf9db2d14c1de7a560f09170b6e0df736aa # v2.1.0
+
+      - name: Generate deterministic PDF_Tunner binary branding assets
+        shell: pwsh
+        run: |
+          & './.github/scripts/prepare-branding.ps1'
 
       - name: Prepare official Stirling desktop build
         shell: pwsh
@@ -230,6 +237,11 @@ jobs:
           Write-Host "Portable root: $portable"
           Write-Host "Executable source: $($exe.FullName)"
           Get-ChildItem -LiteralPath $portable -Force | Format-Table Name, Length, Mode
+
+      - name: Validate assembled PDF_Tunner branding
+        shell: pwsh
+        run: |
+          & './.github/scripts/validate-branding.ps1' -PortableRoot './dist/PDF_Tunner'
 
       - name: Stage official Microsoft Fixed WebView2 Runtime
         shell: pwsh
@@ -565,6 +577,11 @@ jobs:
             throw "Backend health endpoint returned HTTP $($response.StatusCode)."
           }
           Write-Host "Backend health check OK: $statusUri"
+
+          & './.github/scripts/validate-branding.ps1' `
+            -PortableRoot './dist/PDF_Tunner' `
+            -BackendBaseUrl "http://127.0.0.1:$port"
+          Write-Host 'Live PDF_Tunner branding validation completed successfully.'
 
           & './.github/scripts/validate-webview2-fixed-runtime.ps1' `
             -PortableRoot './dist/PDF_Tunner' `
