@@ -11,13 +11,13 @@
 - Target: **Windows 10/11 x64 portable ZIP**, extract and run without installation.
 - `main` remains the clean pinned upstream base during v1 development.
 - No final PDF_Tunner v1 Release exists yet.
-- Latest complete green primary regression: **Run #126** (`37520006317`), job `112462690373`, commit `66a363ea5354d29b172318941ede16d15524017c`.
+- Latest complete green primary regression: **Run #128** (`37647274558`), job `112881213154`, commit `4f1895abccd399434b5d1d2ef6711ccae9d1db43`.
 - **jbig2enc 0.32 is formally accepted by Run #108**, including exact source/tag, authenticated Meson inputs, static MSVC build, upstream tests, isolated package-first ToolProbe, relocation and a real OCRmyPDF `--optimize 2` result containing `/JBIG2Decode`.
 - **RAR/CBR is formally accepted by Run #117**: deterministic real CBR→PDF, package-first optional encoder probe for PDF→CBR, explicit no-encoder failure, no bundled `rar.exe`, and the complete primary workflow including second-launch window restore all passed.
 - Run #115 and #116 remain recorded below as failure history; #117 closed the RAR/CBR and HWND restoration gates, #118 reconfirmed the complete regression, and #119 accepted portable CFF PDF-JSON conversion.
 - CI handoff incident: Run #117 completed successfully at 10:57 UTC, but its commit status stayed `pending` from 10:18 UTC because the status bridge only published at workflow start. Commit e48 adds terminal publication in an `always()` step and skips heavy CI for root README/AGENTS/RELEASE_STATUS-only changes. Run #118 attempt 1 hit an HTTPS timeout downloading pngquant from `pngquant.org`; the failed-job-only retry (attempt 2) completed green. The bridge published terminal `failure` for attempt 1 and `success` for attempt 2, confirming the repair.
 - **CFF PDF-JSON conversion is formally accepted by Run #119**: the package-local converter, exact script provenance, real OpenType-CFF conversion and relocation all passed inside the complete primary workflow.
-- **Tesseract upstream language parity is formally accepted by Run #123**: package-local `eng`, `spa`, `deu`, `fra`, `por`, `chi_sim`, `osd`, exact `tessdata_fast` blob pins, real isolated load/execute probes and live-backend acceptance all passed. The current exact external/embedded dependency audit found no further concrete code-backed gap, so the active block moves to representative functional E2E coverage; first candidate: real EML→PDF through packaged WeasyPrint.
+- **Tesseract upstream language parity is formally accepted by Run #123**: package-local `eng`, `spa`, `deu`, `fra`, `por`, `chi_sim`, `osd`, exact `tessdata_fast` blob pins, real isolated load/execute probes and live-backend acceptance all passed. The current exact external/embedded dependency audit found no further concrete code-backed gap, and subsequent Runs #124–#128 accepted representative EML/Office/table E2E and complete branding/cleanup. Current gate: clean-machine manual validation and explicit release authorization, as detailed in `RELEASE_STATUS.md`.
 
 ## Accepted portable layers
 
@@ -241,10 +241,10 @@ Cover OCR, Office↔PDF, HTML/URL/base-URL/EML, WeasyPrint, Poppler, Calibre/eBo
 
 ## Compact handoff
 
-- Latest complete green primary remains **Run #126** (`37520006317`), job `112462690373`, commit `66a363ea5354d29b172318941ede16d15524017c`.
-- **Run #127** (`37643235516`), job `112867227123`, commit `ac51cf8d3f56d2b19222bebfd2d77ce8e9a77065`, failed only at the new assembled-branding gate after JDK/Task setup, deterministic branding generation, official desktop preparation, Tauri/Cargo tests, Tauri build and portable assembly had all passed.
-- Root cause: the validator incorrectly expected the backend-only Spring JAR's `static/index.html` to be the React/Tauri frontend. Pinned desktop preparation deliberately builds that JAR without `buildWithFrontend`, so its root is `api-landing.html`; the React desktop frontend is embedded separately from `frontend/editor/dist` by Tauri.
-- Current correction validates the two artifacts separately: Tauri `dist` must contain PDF_Tunner title/OG/manifests/SVG identity, while the backend JAR must contain the PDF_Tunner API/mobile/signing identity. Backend-only Gradle packaging now copies `public/pdf-tunner` into `static/pdf-tunner` so those real backend surfaces cannot reference missing branding assets.
-- Release-readiness cleanup in the same candidate removes the explicitly retired `.github/workflows/pdf-tunner-ocrmypdf-candidate.yml`. Failure-only bounded startup diagnostics and all indirect prepare/validate helper scripts remain active and are intentionally retained.
-- Long-run protocol: after launching a heavy GitHub Action, capture the exact Run ID once, then stop polling; the user will confirm visually when it finishes before any further run inspection.
-- Branding/cleanup are **not accepted until the next complete green primary run**. No final Release has been published.
+- Latest complete green primary: **Run #128** (`37647274558`), job `112881213154`, functional commit `4f1895abccd399434b5d1d2ef6711ccae9d1db43`. All steps passed, including the corrected Tauri frontend/backend-only JAR branding split, live API/mobile/signing identity, dependencies, functional gates, portable processes/state and ZIP construction.
+- Final validated Run #128 package `PDF_Tunner-2.14.3-bootstrap-Windows-x64-Portable.zip`: SHA-256 `7F5D5A4A90618097233529F6E2A12CDA8F5167FAE83552789333611C2C0B9078`; size `1,916,067,291` bytes; `31,643` files / `4,399,867,226` uncompressed payload bytes.
+- Lightweight evidence artifact `11497516286`, size `7,853` bytes, digest `sha256:348dfb6a024b9a129bf80d289cda4cc2e2daedc7d3c03a5cc5433552eafacd1d`. The multi-gigabyte ZIP was deliberately **not** uploaded to ordinary CI or a Release.
+- **Branding and cleanup formally accepted by Run #128**. Run #127's false assumption (backend-only JAR as React frontend) is fixed. The retired OCRmyPDF candidate workflow is removed; all active helper scripts remain.
+- Readiness audit: upstream `main` remains pinned/clean, development diff has no committed ZIP/EXE/log build outputs, and the non-Enterprise toolchain/representative E2E checks are green. **Manual Windows 10/11 clean-machine validation has not occurred and remains a gate.** Full checklist, limitations and release authorization contract: [`RELEASE_STATUS.md`](RELEASE_STATUS.md).
+- After manual acceptance, update the final evidence and complete a new `main` integration PR; never reopen PR #1. **No final Release without explicit user authorization.**
+- Long-run protocol: record the new heavy Run ID once, stop polling and resume only when the user reports terminal status.
