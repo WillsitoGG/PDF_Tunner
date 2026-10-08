@@ -1,15 +1,15 @@
 # PDF_Tunner — Release Readiness Status
 
-Status as of 2026-10-08: **automated candidate accepted and full test ZIP temporarily delivered; clean-machine manual validation and release authorization outstanding.** This is not a published v1 release.
+Status as of 2026-10-08: **Run #132 automated validation accepted; new Windows x64 ZIP candidate retained for one day. Windows 10 VM manual acceptance and final release authorization remain outstanding.** No published v1 Release.
 
 ## Immutable basis and accepted build
 
 - Upstream: Stirling PDF **2.14.3**, commit `7fb29d002dbb8fa4b5945d1d1fe8dd164a9f7632`.
-- Current accepted functional candidate: development commit `4f1895abccd399434b5d1d2ef6711ccae9d1db43`, primary **Run #128** `37647274558`, job `112881213154`; all primary steps completed successfully, including product branding, real backend functions, package-local dependencies, portable process/state isolation and second launch.
-- Validated package: `PDF_Tunner-2.14.3-bootstrap-Windows-x64-Portable.zip` (generated and verified during CI; **not retained as an ordinary CI download or Release asset**).
-- ZIP SHA-256: `7F5D5A4A90618097233529F6E2A12CDA8F5167FAE83552789333611C2C0B9078`.
-- ZIP size: `1,916,067,291` bytes; uncompressed portable payload: `31,643` files / `4,399,867,226` bytes.
-- Lightweight evidence artifact: `11497516286`, 7,853 bytes, digest `sha256:348dfb6a024b9a129bf80d289cda4cc2e2daedc7d3c03a5cc5433552eafacd1d`.
+- Current automated-accepted candidate: development commit `d60587d28304c32c5efc9aa263e2af6628493665`, primary **Run #132** `37781952129`, job `113326983968`; complete workflow passed, including targeted host-boundary audit. Historical Run #128 was also green but is superseded by this candidate.
+- Validated test package: `PDF_Tunner-2.14.3-bootstrap-Windows-x64-Portable.zip` (temporarily retained as exceptional one-day Actions artifact **#11554603294** for Windows 10 acceptance; **not a published Release**).
+- ZIP SHA-256 (Run #132): `D2F93495018DD2BC8A362D33F3335649A721235EFE0FE007AD2DDDEDE39896EB`.
+- ZIP size (Run #132): `1,916,053,447` bytes. Earlier Run #128 uncompressed layout: `31,643` files / `4,399,867,226` bytes (do not attribute this layout to #132 without checking its evidence).
+- Lightweight CI evidence artifact (Run #132): `11554831945`, 7,853 bytes, digest `sha256:12d15845e9160134327bff9e988c0c71332b26e6ee4edf9fb52fb8fc5eb90b17`. Audit report artifact: `11554457335`.
 - Run #127 (`37643235516`) failed because a branding gate inspected the backend-only JAR as though it contained the embedded Tauri React frontend. Run #128 accepted the corrected two-artifact gate and the backend-only asset copy. Retired OCRmyPDF candidate workflow was removed.
 - `main` remains the unchanged pinned upstream commit. Do not integrate, tag or publish until readiness decisions are complete.
 
@@ -64,3 +64,12 @@ A new scoped host-boundary process/TCP and AppData/registry audit gate will run 
 ## Run #131 harness defect and early regression guard (2026-10-08)
 
 Run #131 failed at host-audit script: `DirectoryInfo.Length` under strict PowerShell, before actual observation. The fix uses a directory sentinel and introduces a cheap pre-compilation `-SelfTest` plus syntax preflight for the actual script. Host containment audit, ZIP and clean Windows 10 VM testing remain pending. Never infer sandbox compliance from this fix.
+
+
+### Run #132 final Windows CI acceptance and manual handoff (2026-10-08)
+
+The complete Windows x64 portable pipeline **Run #132 attempt 1** (`37781952129`, job `113326983968`, commit `d60587d28304c32c5efc9aa263e2af6628493665`) is **green**. It passed the early host-audit self-test, Tauri/Rust build, real Java/backend/converter/OCR tests, frontend/backend branding checks, package-local dependencies, portable shutdown and second-launch window restore, and the scoped native host-boundary gate. During the 45-second host audit the log reported **6 sampled TCP connections, 0 external connections, 0 changes in watched AppData/TEMP product paths, 0 changes in watched HKCU registry keys; graceful shutdown**. This **does not** prove kernel-level sandbox confinement or the absence of short-lived writes, unsampled traffic, DNS/UDP, or unintended host changes outside the watched locations.
+
+Exceptional **Windows 10 VM candidate ZIP** (not final Release): Actions Run #132 artifact **11554603294**, file `PDF_Tunner-2.14.3-bootstrap-Windows-x64-Portable.zip`, exactly **1,916,053,447 bytes** and SHA-256 **`D2F93495018DD2BC8A362D33F3335649A721235EFE0FE007AD2DDDEDE39896EB`**. Artifact expiry: **2026-10-09 13:48:53 UTC** (15:48:53 Europe/Madrid). Lightweight CI evidence artifact **11554831945**, 7,853 bytes (expires 2026-10-15). Scoped audit JSON artifact **11554457335**, 608 bytes (expires 2026-10-11). Artifacts: https://github.com/WillsitoGG/PDF_Tunner/actions/runs/37781952129 . Do not archive this temporary Actions ZIP as a historical Release.
+
+**Remaining before publication**: clean Windows 10 VM manual run of **this exact SHA-verified ZIP** (do not overwrite old Run #129 folder), screenshots of light/dark PDF_Tunner interface/search and no Stirling update popup, no generic network/PAYG 404 toasts, real offline PDF operations, relocation/relaunch, saved state, local caches/logs and per-process filesystem/registry trace when needed. The old Windows Server GUI automation via WebView2 CDP was inconclusive and is not a substitute. Preserve no-Release/no-`main`-merge policy until user confirms VM acceptance. Package footprint optimization deferred to last phase.
