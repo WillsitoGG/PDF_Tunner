@@ -135,6 +135,10 @@ if ($config.mainBinaryName -ne 'PDF_Tunner') { throw 'Tauri mainBinaryName is no
 if ($config.app.windows[0].title -ne 'PDF_Tunner') { throw 'Tauri main-window title is not PDF_Tunner.' }
 if ($config.identifier -ne 'com.willsitogg.pdf-tunner') { throw "Unexpected PDF_Tunner Tauri identifier: $($config.identifier)" }
 if (@($config.bundle.icon) -notcontains 'icons/pdf-tunner.ico') { throw 'Tauri bundle icon does not use icons/pdf-tunner.ico.' }
+if ($config.bundle.publisher -ne 'PDF_Tunner') { throw 'Portable Windows executable publisher is not PDF_Tunner.' }
+$company = (Get-Item -LiteralPath $exe).VersionInfo.CompanyName
+if ($company -match 'Stirling') { throw "Portable exe still exposes the original Stirling publisher: $company" }
+
 
 $sourceIco = (Resolve-Path -LiteralPath './frontend/editor/src-tauri/icons/pdf-tunner.ico').Path
 $icoBytes = [System.IO.File]::ReadAllBytes($sourceIco)

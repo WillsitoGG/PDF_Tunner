@@ -21,7 +21,8 @@
     "createUpdaterArtifacts": false,
     "icon": [
       "icons/pdf-tunner.ico"
-    ]
+    ],
+    "publisher": "PDF_Tunner"
   },
   "plugins": {
     "deep-link": {

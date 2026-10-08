@@ -121,3 +121,8 @@ Stirling Java calls python3 to probe cv2; that name was observed in the Windows 
 ### LISTADO 1 phase 2: local desktop UI (staged; unverified)
 
 Only on verified native PDF_Tunner portable runs, hide upstream `Welcome to Stirling V2` / SaaS registration first-start modal **before first paint**, suppress the login action in the local-only connection preferences, and omit both software-updates controls/checks and Windows default-PDF-association settings from General. The existing installed desktop/managed/server behaviour remains available when native portable detection returns false. Unknown native detection fails closed for all outbound prompts. Added source regression gates; full TypeScript/native build, Windows 10 screenshots and network monitoring are still pending. Legal/license panels are preserved. No changes to main and no Release.
+
+
+### LISTADO 1: Windows executable publisher identity (staged; unverified)
+
+Windows 10 Process Monitor Process Tree reported `Stirling PDF Inc.` as the PDF_Tunner.exe Company field. The portable Tauri JSON inherits upstream bundle publisher unless overridden; set `bundle.publisher` to `PDF_Tunner` only in the fork's portable Tauri config, while preserving upstream Cargo/legal attribution, and add a Windows executable CompanyName check rejecting any `Stirling` company identity. The final EXE metadata must still be verified by full Windows build and user VM. No change to upstream base/main or installer.
