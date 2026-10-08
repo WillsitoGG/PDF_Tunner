@@ -11,7 +11,7 @@
 - Target: **Windows 10/11 x64 portable ZIP**, extract and run without installation.
 - `main` remains the clean pinned upstream base during v1 development.
 - No final PDF_Tunner v1 Release exists yet.
-- Latest complete green primary regression: **Run #128** (`37647274558`), job `112881213154`, commit `4f1895abccd399434b5d1d2ef6711ccae9d1db43`.
+- Latest complete green primary regression: **Run #129** (`37754829944`), job `113236699098`, commit `804cd9950f71a6aaa4db9572ca2276e8080958aa`; full ZIP retained temporarily for clean-machine manual testing.
 - **jbig2enc 0.32 is formally accepted by Run #108**, including exact source/tag, authenticated Meson inputs, static MSVC build, upstream tests, isolated package-first ToolProbe, relocation and a real OCRmyPDF `--optimize 2` result containing `/JBIG2Decode`.
 - **RAR/CBR is formally accepted by Run #117**: deterministic real CBR→PDF, package-first optional encoder probe for PDF→CBR, explicit no-encoder failure, no bundled `rar.exe`, and the complete primary workflow including second-launch window restore all passed.
 - Run #115 and #116 remain recorded below as failure history; #117 closed the RAR/CBR and HWND restoration gates, #118 reconfirmed the complete regression, and #119 accepted portable CFF PDF-JSON conversion.
@@ -241,11 +241,10 @@ Cover OCR, Office↔PDF, HTML/URL/base-URL/EML, WeasyPrint, Poppler, Calibre/eBo
 
 ## Compact handoff
 
-- Latest complete green primary: **Run #128** (`37647274558`), job `112881213154`, functional commit `4f1895abccd399434b5d1d2ef6711ccae9d1db43`. All steps passed, including the corrected Tauri frontend/backend-only JAR branding split, live API/mobile/signing identity, dependencies, functional gates, portable processes/state and ZIP construction.
-- Final validated Run #128 package `PDF_Tunner-2.14.3-bootstrap-Windows-x64-Portable.zip`: SHA-256 `7F5D5A4A90618097233529F6E2A12CDA8F5167FAE83552789333611C2C0B9078`; size `1,916,067,291` bytes; `31,643` files / `4,399,867,226` uncompressed payload bytes.
-- Lightweight evidence artifact `11497516286`, size `7,853` bytes, digest `sha256:348dfb6a024b9a129bf80d289cda4cc2e2daedc7d3c03a5cc5433552eafacd1d`. The multi-gigabyte ZIP was deliberately **not** uploaded to ordinary CI or a Release.
-- **Branding and cleanup formally accepted by Run #128**. Run #127's false assumption (backend-only JAR as React frontend) is fixed. The retired OCRmyPDF candidate workflow is removed; all active helper scripts remain.
-- Readiness audit: upstream `main` remains pinned/clean, development diff has no committed ZIP/EXE/log build outputs, and the non-Enterprise toolchain/representative E2E checks are green. **Manual Windows 10/11 clean-machine validation has not occurred and remains a gate.** Full checklist, limitations and release authorization contract: [`RELEASE_STATUS.md`](RELEASE_STATUS.md).
-- **Active candidate delivery:** the permanent primary CI now supports an explicit `workflow_dispatch` flag `retain_candidate_zip` and an opt-in `[deliver-portable-candidate]` push subject; ordinary CI remains lightweight. The next single full regression is intentionally opted in to retain its validated ZIP for **one day** using the original ZIP bytes (no extra compression); download it for offline Windows tests. This is a temporary Actions artifact, **not a Release**, and its new SHA-256 must be taken from that run rather than copied from #128.
-- After manual acceptance, update the final evidence and complete a new `main` integration PR; never reopen PR #1. **No final Release without explicit user authorization.**
-- Long-run protocol: record the new heavy Run ID once, stop polling and resume only when the user reports terminal status.
+- **Latest complete green primary and downloadable manual-test candidate: Run #129** (`37754829944`, job `113236699098`, commit `804cd9950f71a6aaa4db9572ca2276e8080958aa`). All primary checks passed, including the opt-in full-ZIP upload.
+- Actual application ZIP `PDF_Tunner-2.14.3-bootstrap-Windows-x64-Portable.zip`: **SHA-256 `5ABDEE66382A04BE063CD19BB7C8A40C844CB143A778E048D78D9891433EF95C`**; size `1,916,065,686` bytes; `31,643` files / `4,399,867,226` uncompressed bytes. The SHA of the produced ZIP equals the uploaded artifact digest because this candidate uses `archive: false`.
+- **Download the temporary actual ZIP:** [Run #129 artifact #11541921231](https://github.com/WillsitoGG/PDF_Tunner/actions/runs/37754829944/artifacts/11541921231). GitHub reports expiry **2026-10-09 09:53:21 UTC (11:53:21 Europe/Madrid)**; save a local copy before expiry. The ZIP is for Windows manual acceptance and is **not a published Release**.
+- Lightweight evidence artifact `11541945715`: size `7,855` bytes; digest `sha256:2d133a638c83e24a9c18c968b375d6c76798fa6dc51d4849793c0e13ce085266`. The evidence itself confirms the same Run ID/attempt, commit, ZIP size/SHA and uncompressed layout.
+- Run #128 formally accepted complete branding, E2E, portability and retired-workflow cleanup; #129 reconfirms all existing gates with **no product-code changes** and proves full candidate upload.
+- **Active gate:** the user must download, SHA-verify and execute real Windows 10/11 clean-machine tests. See [`RELEASE_STATUS.md`](RELEASE_STATUS.md). No additional automated heavy run, `main` integration or final GitHub Release is authorized solely by the successful CI result.
+- Long-run protocol: capture a heavy Run ID once then stop polling; the user reports terminal status. No unnecessary CI executions.
