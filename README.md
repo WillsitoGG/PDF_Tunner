@@ -253,3 +253,8 @@ Cover OCR, Office↔PDF, HTML/URL/base-URL/EML, WeasyPrint, Poppler, Calibre/eBo
 ## Temporary Windows GUI experiment (2026-10-08; Run #129)
 
 The disposable branch `pdf-tunner/windows-ui-qa-run129` uses a hosted Windows Server 2022 runner to download the **exact** one-day Run #129 candidate artifact (`11541921231`, SHA-256 `5ABDEE66382A04BE063CD19BB7C8A40C844CB143A778E048D78D9891433EF95C`) without rebuilding it. After hash verification it extracts into a Unicode/spaces path, starts the actual native executable with runner toolchains excluded from inherited PATH, and attempts actual embedded WebView2 UI smoke automation using Playwright over CDP. Save only short logs and screenshots for two days, never another large artifact. This experiment does not certify clean Windows 10/11 consumer machines, does not authorize a Release or main integration, and must be removed when evidence is recorded.
+
+
+### GUI QA harness correction (2026-10-08)
+
+The first disposable QA Run `37764062772` failed inside the test harness before execution: `actions/download-artifact@v8` successfully downloaded the exact 1.916 GB candidate with a matching SHA-256, but its default unpack behavior left no `*.zip` in the candidate folder. The harness now sets `skip-decompress: true` explicitly so the original ZIP bytes remain available to `Expand-Archive` and the real executable is exercised. This was **not an application failure**; the resumed GUI test must still pass before any UI claim.

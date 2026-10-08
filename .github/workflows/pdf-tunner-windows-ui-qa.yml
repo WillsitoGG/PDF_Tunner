@@ -37,6 +37,7 @@ jobs:
         uses: actions/download-artifact@v8
         with:
           artifact-ids: 11541921231
+          skip-decompress: true
           run-id: 37754829944
           repository: WillsitoGG/PDF_Tunner
           github-token: ${{ github.token }}
