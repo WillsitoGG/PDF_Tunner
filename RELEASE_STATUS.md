@@ -50,3 +50,7 @@ A **separate, authorized delivery of the actual candidate ZIP** is needed before
 - Exact commercial RAR creation requires a separately licensed encoder supplied by the user. Other non-Enterprise features remain subject to their upstream feature/config semantics.
 - **Do not publish a GitHub Release without the user's explicit authorization.** A candidate transport needed for clean-machine testing must be chosen deliberately, with minimal retention/storage impact and clear SHA verification.
 - Following manual acceptance: perform final diff and license/provenance review, update README + AGENTS + this status together, integrate to `main` using a new PR (never PR #1), and publish a single clean Windows x64 portable ZIP as a Release asset only when separately authorized.
+
+## Windows 10 VM issues still pending acceptance (2026-10-08)
+
+Source-only regression-fix branch addresses Stirling branding/search and official update checks, local PAYG 404, and default-association prompting. No accepted build yet; Windows GUI QA Run #2 failed at the CDP harness after starting the real binary. Follow-up: audit network + host filesystem/registry, then one full CI, then fresh VM tests. Disk-footprint optimization deferred.

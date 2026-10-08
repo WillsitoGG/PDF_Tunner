@@ -290,3 +290,8 @@ The isolated review branch `pdf-tunner/v1-vm-brand-update-fix` addresses only co
 ### Wallet 404 local-mode guard and runtime-branding QA (2026-10-08, untested)
 
 The common cloud `useWallet` hook calls the PAYG `/api/v1/payg/wallet` endpoint regardless of whether the Tauri desktop uses the local backend. Added a platform seam `walletApiEnabled`: the web/SaaS default permits the real wallet; the desktop override permits it **only in SaaS connection mode**. A local-only Plan view now reports billing unavailable instead of issuing a nonexistent local GET, without inventing billing state or altering the original SaaS contract. The primary branding validation now checks the actual React logo/brand-switcher source and portable update/route gates in addition to packaged static resources. This is a targeted preventive fix, not proof that the separate generic Network error is resolved. Full primary Windows CI and real Windows 10 VM acceptance remain pending.
+
+
+### Windows 10 VM regression follow-up (2026-10-08; unverified)
+
+Source-side fix branch changes global search text to PDF_Tunner, including translated Stirling brand strings, and refuses three official Stirling update-service requests in a verified portable Tauri process. This complements the pre-existing desktop startup updater gate, the shared visible logo asset replacement, local PAYG 404 guard and portable default-handler prompt suppression. Hosted Windows GUI Run #2 verified candidate download and actual process startup but WebView2 CDP was unavailable; do not count as UI acceptance. The generic network toast and external filesystem/registry write audit still require diagnostics and actual Windows 10 VM checks. Do not publish or optimize package size until functional acceptance.
