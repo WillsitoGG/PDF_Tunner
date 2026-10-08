@@ -1,10 +1,14 @@
 import type { CSSProperties } from "react";
-import markUrl from "@app/assets/brand/branding-logo/logo-mark.svg";
-import wordmarkLightUrl from "@app/assets/brand/branding-logo/wordmark-light.svg";
-import wordmarkDarkUrl from "@app/assets/brand/branding-logo/wordmark-dark.svg";
+import { BASE_PATH } from "@app/constants/app";
+
+// The shared lockup is used by both the landing page and the application header.
+// Resolve PDF_Tunner assets, rather than the Stirling SVGs embedded upstream.
+const markUrl = `${BASE_PATH}/pdf-tunner/icon-light.svg`;
+const wordmarkLightUrl = `${BASE_PATH}/pdf-tunner/wordmark-black.svg`;
+const wordmarkDarkUrl = `${BASE_PATH}/pdf-tunner/wordmark-white.svg`;
 import "@app/ui/Logo.css";
 
-/** iconOnly = mark; textOnly = "Stirling" wordmark; iconAndText = both. */
+/** iconOnly = mark; textOnly = PDF_Tunner wordmark; iconAndText = both. */
 export type LogoVariant = "iconOnly" | "iconAndText" | "textOnly";
 
 interface LogoProps {
@@ -36,7 +40,7 @@ export function Logo({
   gap = "0.5rem",
   className,
   style,
-  alt = "Stirling",
+  alt = "PDF_Tunner",
 }: LogoProps) {
   const showIcon = variant === "iconOnly" || variant === "iconAndText";
   const showText = variant === "textOnly" || variant === "iconAndText";

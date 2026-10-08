@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { getVersion } from "@tauri-apps/api/app";
+import { invoke } from "@tauri-apps/api/core";
 import { updateService, UpdateSummary } from "@app/services/updateService";
 import { useDesktopInstall } from "@app/hooks/useDesktopInstall";
 import {
@@ -73,6 +74,15 @@ export function useDesktopUpdatePopup() {
     hasChecked.current = true;
 
     const timer = setTimeout(async () => {
+      // A portable PDF_Tunner ZIP must never query Stirling\'s update service
+      // or offer the official Stirling installer as our own update.
+      try {
+        if (await invoke<boolean>("is_pdf_tunner_portable")) return;
+      } catch (err) {
+        // Fail closed: do not invoke upstream update checks when mode detection fails.
+        console.warn("[PDF_Tunner] Unable to verify portable mode; skipping upstream updates:", err);
+        return;
+      }
       // In SaaS connection mode the cloud owns app versioning — the self-hosted
       // update check + popup must never run (no external call, no modal).
       if ((await connectionModeService.getCurrentMode()) === "saas") return;

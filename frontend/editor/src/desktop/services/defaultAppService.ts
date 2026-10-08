@@ -85,6 +85,13 @@ export const defaultAppService = {
    * Returns true if: user hasn't dismissed it AND app is not default handler
    */
   async shouldShowPrompt(): Promise<boolean> {
+    // Portable applications do not advertise system-wide file associations.
+    // Keep the explicit user-selected Settings operation unchanged.
+    try {
+      if (await invoke<boolean>("is_pdf_tunner_portable")) return false;
+    } catch {
+      return false; // Avoid registry-affecting prompts when portability cannot be verified.
+    }
     if (this.hasUserDismissedPrompt()) {
       return false;
     }

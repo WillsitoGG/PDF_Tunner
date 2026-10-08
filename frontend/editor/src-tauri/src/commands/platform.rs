@@ -18,3 +18,10 @@ pub fn get_desktop_os() -> DesktopOS {
         _ => DesktopOS::Unknown,
     }
 }
+
+/// Read the portable sentinel established by the native bootstrap at process startup.
+/// This is read-only: no registry, AppData or protocol registration side effects.
+#[tauri::command]
+pub fn is_pdf_tunner_portable() -> bool {
+    std::env::var_os("PDF_TUNNER_PORTABLE_ROOT").is_some()
+}

@@ -42,7 +42,7 @@ pub use auth::{
 };
 pub use default_app::{is_default_pdf_handler, set_as_default_pdf_handler};
 pub use local_proxy::proxy_local_pdf_request;
-pub use platform::get_desktop_os;
+pub use platform::{get_desktop_os, is_pdf_tunner_portable};
 pub use print::print_pdf_file_native;
 pub use updater::{
     can_install_updates, check_for_update, download_and_install_update, get_app_version,
