@@ -91,6 +91,27 @@ function Assert-FrontendBranding {
     Write-Host 'PASS: Tauri frontend dist contains PDF_Tunner title, metadata, manifests and visual assets.'
 }
 
+# Guard actual React lockups; only checking index.html/assets was insufficient
+# (a real Windows 10 VM still displayed Stirling marks after Run #129).
+$reactLogo = Get-Content -LiteralPath './frontend/editor/src/core/ui/Logo.tsx' -Raw
+$brandMark = Get-Content -LiteralPath './frontend/editor/src/core/components/shared/BrandMark.tsx' -Raw
+$portableUpdateHook = Get-Content -LiteralPath './frontend/editor/src/desktop/hooks/useDesktopUpdatePopup.ts' -Raw
+$portableMode = Get-Content -LiteralPath './frontend/editor/src-tauri/src/commands/platform.rs' -Raw
+$localWalletGate = Get-Content -LiteralPath './frontend/editor/src/desktop/hooks/walletApiEnabled.ts' -Raw
+if ($reactLogo -match '@app/assets/brand/branding-logo' -or $reactLogo -notmatch 'pdf-tunner/wordmark-black\.svg' -or $reactLogo -notmatch 'alt = "PDF_Tunner"') {
+    throw 'Shared React lockup still uses original Stirling artwork/alt text.'
+}
+if ($brandMark -match 'aria-label="Stirling"' -or $brandMark -notmatch 'pdf-tunner/icon-light\.svg') {
+    throw 'Header app switcher still uses Stirling SVG or lacks the PDF_Tunner icon.'
+}
+if ($portableUpdateHook -notmatch 'is_pdf_tunner_portable' -or $portableMode -notmatch 'pub fn is_pdf_tunner_portable') {
+    throw 'PDF_Tunner portable update guard is missing; official Stirling updates might be queried.'
+}
+if ($localWalletGate -notmatch 'getCurrentMode' -or $localWalletGate -notmatch '"saas"') {
+    throw 'The portable local backend might receive the unsupported PAYG wallet request.'
+}
+Write-Host 'PASS: runtime React logo paths, native portable update guard and PAYG route guard are present.'
+
 $portable = (Resolve-Path -LiteralPath $PortableRoot).Path
 $exe = Join-Path $portable 'PDF_Tunner.exe'
 if (-not (Test-Path -LiteralPath $exe -PathType Leaf)) { throw "PDF_Tunner.exe missing: $exe" }

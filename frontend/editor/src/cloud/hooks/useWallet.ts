@@ -58,6 +58,7 @@ import apiClient from "@app/services/apiClient";
 import { createPortalSession } from "@app/services/billing";
 import { openExternal } from "@app/platform/openExternal";
 import { getWalletDevPreview } from "@app/hooks/walletDevPreview";
+import { canFetchPaygWallet } from "@app/hooks/walletApiEnabled";
 import type {
   Wallet,
   WalletStatus,
@@ -249,6 +250,14 @@ export function useWallet(): UseWalletResult {
       }
 
       try {
+        // The desktop's embedded local backend deliberately has no PAYG
+        // billing API. Only the SaaS connection may request its wallet.
+        if (!(await canFetchPaygWallet())) {
+          if (cancelled || reqId !== latestReqId.current) return;
+          setWallet(null);
+          setError("PAYG billing is unavailable in local-only mode");
+          return;
+        }
         const res = await apiClient.get<Wallet>("/api/v1/payg/wallet");
         if (cancelled || reqId !== latestReqId.current) return;
         setWallet((prev) => reuseIfEqual(prev, res.data));
