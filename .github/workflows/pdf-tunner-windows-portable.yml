@@ -137,7 +137,8 @@ jobs:
             './.github/scripts/validate-rar-cbr.ps1',
             './.github/scripts/validate-table-conversions.ps1',
             './.github/scripts/prepare-branding.ps1',
-            './.github/scripts/validate-branding.ps1'
+            './.github/scripts/validate-branding.ps1',
+            './.github/scripts/audit-host-boundaries.ps1'
           )
           foreach ($script in $scripts) {
             $tokens = $null
@@ -158,6 +159,12 @@ jobs:
               Remove-Item -LiteralPath $metadata -Force -ErrorAction SilentlyContinue
             }
           }
+
+      - name: Preflight host-boundary audit with temporary fixtures
+        shell: pwsh
+        timeout-minutes: 2
+        run: |
+          & './.github/scripts/audit-host-boundaries.ps1' -SelfTest
 
       - name: Setup JDK 25
         uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5.7.0

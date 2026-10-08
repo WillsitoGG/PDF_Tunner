@@ -59,3 +59,8 @@ Source-only regression-fix branch addresses Stirling branding/search and officia
 ## Boundary audit and user Windows 10 retest (2026-10-08; PENDING)
 
 A new scoped host-boundary process/TCP and AppData/registry audit gate will run before the ZIP candidate is uploaded. Its limits are explicit; broader per-process Windows 10 VM tracing remains unverified. Disk-space optimization deferred. No Release published.
+
+
+## Run #131 harness defect and early regression guard (2026-10-08)
+
+Run #131 failed at host-audit script: `DirectoryInfo.Length` under strict PowerShell, before actual observation. The fix uses a directory sentinel and introduces a cheap pre-compilation `-SelfTest` plus syntax preflight for the actual script. Host containment audit, ZIP and clean Windows 10 VM testing remain pending. Never infer sandbox compliance from this fix.

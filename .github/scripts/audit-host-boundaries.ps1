@@ -1,19 +1,28 @@
 [CmdletBinding()]
 param(
-    [Parameter(Mandatory=$true)][string]$PortableRoot,
-    [Parameter(Mandatory=$true)][string]$ReportDirectory,
+    [Parameter(Mandatory=$false)][string]$PortableRoot,
+    [Parameter(Mandatory=$false)][string]$ReportDirectory,
+    [switch]$SelfTest,
     [ValidateRange(5,180)][int]$ObserveSeconds = 40,
     [switch]$FailOnObservedEscape
 )
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
-$portable=(Resolve-Path -LiteralPath $PortableRoot).Path.TrimEnd('\')
-$exe=Join-Path $portable 'PDF_Tunner.exe'
-if(-not (Test-Path -LiteralPath $exe -PathType Leaf)){throw "Missing executable $exe"}
-if(-not (Test-Path -LiteralPath (Join-Path $portable 'PDF_TUNNER_PORTABLE') -PathType Leaf)){throw 'Portable marker missing'}
-if(-not (Get-Command Get-NetTCPConnection -ErrorAction SilentlyContinue)){throw 'TCP audit unavailable'}
-New-Item -Path $ReportDirectory -ItemType Directory -Force | Out-Null
-$reportDir=(Resolve-Path -LiteralPath $ReportDirectory).Path
+$portable = $null
+$exe = $null
+$reportDir = $null
+if (-not $SelfTest) {
+    if ([string]::IsNullOrWhiteSpace($PortableRoot) -or [string]::IsNullOrWhiteSpace($ReportDirectory)) {
+        throw 'PortableRoot and ReportDirectory are required for the real audit.'
+    }
+    $portable = (Resolve-Path -LiteralPath $PortableRoot).Path.TrimEnd('\')
+    $exe = Join-Path $portable 'PDF_Tunner.exe'
+    if (-not (Test-Path -LiteralPath $exe -PathType Leaf)) { throw "Missing executable $exe" }
+    if (-not (Test-Path -LiteralPath (Join-Path $portable 'PDF_TUNNER_PORTABLE') -PathType Leaf)) { throw 'Portable marker missing' }
+    if (-not (Get-Command Get-NetTCPConnection -ErrorAction SilentlyContinue)) { throw 'TCP audit unavailable' }
+    New-Item -Path $ReportDirectory -ItemType Directory -Force | Out-Null
+    $reportDir = (Resolve-Path -LiteralPath $ReportDirectory).Path
+}
 $hostPaths=@(
     (Join-Path $env:APPDATA 'Stirling-PDF'),
     (Join-Path $env:APPDATA 'com.willsitogg.pdf-tunner'),
@@ -41,7 +50,11 @@ function HostFiles {
         $found=@(Get-Item -LiteralPath $p -Force)
         $found+=@(Get-ChildItem -LiteralPath $p -File -Force -Recurse -ErrorAction SilentlyContinue)
         foreach($x in $found){
-            if($null -ne $x){$snap[$x.FullName]="$($x.Length)|$($x.LastWriteTimeUtc.Ticks)"}
+            if($null -eq $x){continue}
+            # DirectoryInfo has no Length member under StrictMode. Treat a
+            # directory as a sentinel, recording its last-write time separately.
+            $size = if($x -is [System.IO.FileInfo]) { [string]$x.Length } else { '<DIR>' }
+            $snap[$x.FullName] = "$size|$($x.LastWriteTimeUtc.Ticks)"
         }
     }
     return $snap
@@ -96,6 +109,36 @@ function IsLoopback([string]$address){
     if($ip.IsIPv4MappedToIPv6){return [System.Net.IPAddress]::IsLoopback($ip.MapToIPv4())}
     return $false
 }
+# Run on the GitHub Windows runner BEFORE compilation/downloads: this deliberately
+# exercises the same HostFiles and diff functions used by the live gate.
+if($SelfTest){
+    $scratch = Join-Path $env:RUNNER_TEMP 'pdf-tunner-host-audit-selftest'
+    if(Test-Path -LiteralPath $scratch){Remove-Item -LiteralPath $scratch -Recurse -Force}
+    New-Item -Path $scratch -ItemType Directory -Force | Out-Null
+    $hostPaths = @($scratch)
+    try {
+        $empty = HostFiles
+        if(-not $empty.ContainsKey($scratch)){throw 'Self-test: missing root-directory snapshot.'}
+        $sample = Join-Path $scratch 'test-file.txt'
+        Set-Content -LiteralPath $sample -Value 'PDF_Tunner host audit self-test' -Encoding utf8
+        $withFile = HostFiles
+        if(-not $withFile.ContainsKey($sample)){throw 'Self-test: missing created-file snapshot.'}
+        if($withFile[$scratch] -notlike '<DIR>|*'){throw 'Self-test: directory sentinel missing.'}
+        $diff = @(Changes $empty $withFile)
+        if(-not (@($diff | Where-Object { $_.location -eq $sample }).Count -eq 1)){
+            throw 'Self-test: before/after file creation was not detected.'
+        }
+        if(-not (IsLoopback '127.0.0.1')){throw 'Self-test: loopback classified as external.'}
+        if(IsLoopback '8.8.8.8'){throw 'Self-test: public address classified as loopback.'}
+        $registry = RegistryState
+        if($registry.Count -ne $regKeys.Count){throw 'Self-test: HKCU snapshot did not cover every requested key.'}
+        Write-Host 'PASS: host boundary audit self-test (directory/file snapshots, diff, TCP classification, registry keys).'
+    }finally{
+        Remove-Item -LiteralPath $scratch -Recurse -Force -ErrorAction SilentlyContinue
+    }
+    return
+}
+
 $beforeFiles=HostFiles
 $beforeRegistry=RegistryState
 $pids=[System.Collections.Generic.HashSet[int]]::new()
