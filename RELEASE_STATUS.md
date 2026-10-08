@@ -1,6 +1,6 @@
 # PDF_Tunner — Release Readiness Status
 
-Status as of 2026-10-08: **automated candidate accepted; clean-machine validation and release authorization outstanding.** This is not a published v1 release.
+Status as of 2026-10-08: **automated candidate accepted and full test ZIP temporarily delivered; clean-machine manual validation and release authorization outstanding.** This is not a published v1 release.
 
 ## Immutable basis and accepted build
 
@@ -22,14 +22,15 @@ Status as of 2026-10-08: **automated candidate accepted; clean-machine validatio
 - [x] Repository diff hygiene: no committed build ZIPs/EXEs/logs; the retired focused OCRmyPDF workflow is absent; remaining helper scripts are invoked by active workflows.
 - [x] Non-Enterprise external/embedded dependency parity audit against pinned Stirling 2.14.3, subject to documented limitations below.
 
-## Candidate ZIP delivery — pending one opt-in CI run
+## Candidate ZIP delivery — Run #129 accepted and temporarily available
 
-- The primary workflow supports an explicit `workflow_dispatch` input `retain_candidate_zip=true` or a deliberate push commit subject containing `[deliver-portable-candidate]`. All ordinary runs still upload only lightweight evidence.
-- The next delivery commit uses the latter opt-in once to generate and validate the full portable ZIP with the same accepted primary regression, then uploads the **actual single ZIP file** using `actions/upload-artifact@v7.0.1`, `archive: false`, `retention-days: 1`, and error-on-missing. This is an exceptional one-day testing artifact, **not a published Release**.
-- The package will be downloadable from that run's **Artifacts** section after the job completes. Record its *new* ZIP SHA-256, size, Run/job, commit and artifact identity from that run before testing; the earlier Run #128 hash is historical and cannot be assumed identical after a rebuild.
-- Since the GitHub connector cannot read account-specific Actions storage billing/quota, check the upload's terminal result. If GitHub rejects the ~1.9 GB artifact for storage limits, do not repeatedly rebuild/upload blindly; use another approved delivery route instead.
-- Once downloaded, immediately save a local copy and verify on Windows PowerShell: `(Get-FileHash -Algorithm SHA256 -LiteralPath 'C:\path\to\PDF_Tunner-2.14.3-bootstrap-Windows-x64-Portable.zip').Hash`. Compare it with the SHA recorded by the same candidate run.
-- Manual testing remains **not performed** until the user runs and reports the checks below.
+- **Run #129** `37754829944`, job `113236699098`, commit `804cd9950f71a6aaa4db9572ca2276e8080958aa`, complete primary regression **SUCCESS**, including exceptional upload.
+- **[Download complete PDF_Tunner Windows x64 ZIP (artifact #11541921231)](https://github.com/WillsitoGG/PDF_Tunner/actions/runs/37754829944/artifacts/11541921231)**. Original file: `PDF_Tunner-2.14.3-bootstrap-Windows-x64-Portable.zip`, size **1,916,065,686 bytes**.
+- **Run #129 actual ZIP SHA-256: `5ABDEE66382A04BE063CD19BB7C8A40C844CB143A778E048D78D9891433EF95C`**. The original ZIP's digest agrees exactly with the published GitHub Actions artifact digest because `archive: false` preserves the original bytes.
+- GitHub artifact `11541921231` expires **2026-10-09 09:53:21 UTC / 11:53:21 Madrid**. Save a local copy before expiry; this is a temporary CI artifact, **not a final Release**.
+- Accompanying evidence artifact **#11541945715**, digest `sha256:2d133a638c83e24a9c18c968b375d6c76798fa6dc51d4849793c0e13ce085266`, size **7,855 bytes**, confirms `31,643` files / `4,399,867,226` uncompressed bytes. Distinguish it from the application ZIP.
+- On Windows, open **PowerShell** and verify the downloaded ZIP with `(Get-FileHash -Algorithm SHA256 -LiteralPath 'C:\ruta\al\PDF_Tunner-2.14.3-bootstrap-Windows-x64-Portable.zip').Hash`. The result **must equal** `5ABDEE66382A04BE063CD19BB7C8A40C844CB143A778E048D78D9891433EF95C`.
+- This delivery does **not** complete the mandatory manual tests below; users must report their results. No main integration or final Release without the remaining acceptance and authorization.
 
 ## Manual acceptance — NOT YET PERFORMED
 
