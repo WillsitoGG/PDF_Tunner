@@ -54,3 +54,8 @@ A **separate, authorized delivery of the actual candidate ZIP** is needed before
 ## Windows 10 VM issues still pending acceptance (2026-10-08)
 
 Source-only regression-fix branch addresses Stirling branding/search and official update checks, local PAYG 404, and default-association prompting. No accepted build yet; Windows GUI QA Run #2 failed at the CDP harness after starting the real binary. Follow-up: audit network + host filesystem/registry, then one full CI, then fresh VM tests. Disk-footprint optimization deferred.
+
+
+## Boundary audit and user Windows 10 retest (2026-10-08; PENDING)
+
+A new scoped host-boundary process/TCP and AppData/registry audit gate will run before the ZIP candidate is uploaded. Its limits are explicit; broader per-process Windows 10 VM tracing remains unverified. Disk-space optimization deferred. No Release published.

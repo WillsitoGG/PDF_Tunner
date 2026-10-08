@@ -807,6 +807,21 @@ jobs:
         run: |
           & './.github/scripts/validate-portable-window-state.ps1' -PortableRoot './dist/PDF_Tunner' -Tolerance 16
 
+      - name: Audit actual Windows process TCP and scoped host state
+        shell: pwsh
+        timeout-minutes: 4
+        run: |
+          & './.github/scripts/audit-host-boundaries.ps1' -PortableRoot './dist/PDF_Tunner' -ReportDirectory './dist/portable-audit-evidence' -ObserveSeconds 45 -FailOnObservedEscape
+
+      - name: Upload lightweight host-boundary audit report
+        if: always()
+        uses: actions/upload-artifact@v7.0.1
+        with:
+          name: PDF_Tunner-host-boundary-audit
+          path: dist/portable-audit-evidence/*.json
+          if-no-files-found: warn
+          retention-days: 3
+
       - name: Require pinned Fixed WebView2 CAB SHA
         shell: pwsh
         run: |

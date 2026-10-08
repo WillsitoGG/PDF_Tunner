@@ -270,3 +270,8 @@ Source-side fix branch changes global search text to PDF_Tunner, including trans
 ### Brand switcher preservation and regression gates (2026-10-08; unverified)
 
 PDF_Tunner replaces Stirling visual assets in the shared landing/header components. The original editor/processor switcher is still discoverable on hover/focus/open through a downward chevron; the new asset is inverted in dark mode for contrast. The existing primary CI branding step now checks search text, three native portable upstream-update guards and the brand switcher cue. This is source coverage only; the GitHub Windows compilation and actual UI are not yet retested.
+
+
+### Scoped Windows host-boundary audit (2026-10-08; CI pending)
+
+Add `.github/scripts/audit-host-boundaries.ps1`, invoked against the **real assembled native PDF_Tunner.exe** by primary Windows CI. It launches with a restricted inherited PATH, polls process-descendant TCP connections and compares before/after fingerprints of product-specific host AppData/TEMP locations and selected HKCU registry keys. It fails on observed external TCP or host-state changes, publishing only a small JSON for three days. **Important limits:** not full file/registry sandbox isolation proof; polling cannot detect transient/short-lived operations and does not capture DNS/UDP. A green result means only that the scoped gates passed. Real Windows 10 VM acceptance (potentially including ProcMon event tracing) remains required. The new CI push is an exceptional `[deliver-portable-candidate]` opt-in: only after all gates pass, preserve the one-day exact Windows ZIP for user VM testing. No Release or main-branch mutation; defer disk-footprint optimization.
