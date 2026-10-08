@@ -217,6 +217,14 @@ fn run_stirling_pdf_jar(app: &tauri::AppHandle, java_path: &PathBuf, jar_path: &
         "-Dsecurity.csrfDisabled=true",  // Disable CSRF for desktop mode
     ];
 
+    // The no-login bundled server must never be exposed on the LAN.
+    // Restrict only PDF_Tunner portable: retain upstream desktop behaviour.
+    if std::env::var_os("PDF_TUNNER_PORTABLE_ROOT").is_some() {
+        java_options.push("-Dserver.address=127.0.0.1");
+        // Prevent HotSpot from creating hsperfdata_<user> under host TEMP.
+        java_options.push("-XX:-UsePerfData");
+    }
+
     // Enable the login agreement on local desktop installs when it has been provisioned.
     if crate::commands::connection::login_agreement_enabled(app) {
         java_options.push("-Dlegal.loginAgreement.enabled=true");
@@ -261,7 +269,7 @@ fn run_stirling_pdf_jar(app: &tauri::AppHandle, java_path: &PathBuf, jar_path: &
         }
     }
 
-    let sidecar_command = app
+    let mut sidecar_command = app
         .shell()
         .command(java_path.to_str().unwrap())
         .args(java_options)
@@ -270,6 +278,18 @@ fn run_stirling_pdf_jar(app: &tauri::AppHandle, java_path: &PathBuf, jar_path: &
         .env("STIRLING_PDF_CONFIG_DIR", config_dir.to_str().unwrap())
         .env("STIRLING_PDF_LOG_DIR", log_dir.to_str().unwrap())
         .env("STIRLING_PDF_WORK_DIR", work_dir.to_str().unwrap());
+
+    // Redirect TEMP/TMP only for the bundled Java child and its converters.
+    // Do not replace native Tauri/WebView2 host profile environment variables.
+    if let Some(root) = std::env::var_os("PDF_TUNNER_PORTABLE_ROOT") {
+        let child_tmp = PathBuf::from(root).join("data").join("tmp");
+        std::fs::create_dir_all(&child_tmp)
+            .map_err(|e| format!("Unable to prepare portable Java TEMP: {e}"))?;
+        let child_tmp = child_tmp.to_string_lossy().into_owned();
+        sidecar_command = sidecar_command
+            .env("TEMP", child_tmp.clone())
+            .env("TMP", child_tmp);
+    }
 
     add_log("⚙️ Starting backend with bundled JRE...".to_string());
 

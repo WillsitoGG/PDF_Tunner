@@ -106,3 +106,8 @@ Deferred remediation items 6-11 for LISTADO 1:
 11. Add actual TCP/UDP/DNS capture and verify backend listens only on loopback before closing the Firewall warning issue.
 
 Do not change product code or launch CI until the user chooses the isolation contract. Preserve the prior LISTADO 1 items 1-5 and postpone footprint changes.
+
+
+### LISTADO 1 phase 1A (source branch; not yet tested)
+
+For Windows portable mode only, bind the unauthenticated Java PDF backend to 127.0.0.1, prevent JVM hsperfdata host TEMP files with -XX:-UsePerfData and route only the Java child process and its subprocesses TEMP/TMP to package-local data/tmp. Native Tauri and WebView2 retain genuine OS profile environment variables for compatibility. This is intended to eliminate the LAN-exposed local backend/firewall prompt and Java external temporaries but is not yet compiled or validated. Do not claim strict sandbox isolation; leave other phases pending. No main changes, no Release or CI candidate yet.
