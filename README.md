@@ -265,3 +265,8 @@ The common cloud `useWallet` hook calls the PAYG `/api/v1/payg/wallet` endpoint 
 ### Windows 10 VM regression follow-up (2026-10-08; unverified)
 
 Source-side fix branch changes global search text to PDF_Tunner, including translated Stirling brand strings, and refuses three official Stirling update-service requests in a verified portable Tauri process. This complements the pre-existing desktop startup updater gate, the shared visible logo asset replacement, local PAYG 404 guard and portable default-handler prompt suppression. Hosted Windows GUI Run #2 verified candidate download and actual process startup but WebView2 CDP was unavailable; do not count as UI acceptance. The generic network toast and external filesystem/registry write audit still require diagnostics and actual Windows 10 VM checks. Do not publish or optimize package size until functional acceptance.
+
+
+### Brand switcher preservation and regression gates (2026-10-08; unverified)
+
+PDF_Tunner replaces Stirling visual assets in the shared landing/header components. The original editor/processor switcher is still discoverable on hover/focus/open through a downward chevron; the new asset is inverted in dark mode for contrast. The existing primary CI branding step now checks search text, three native portable upstream-update guards and the brand switcher cue. This is source coverage only; the GitHub Windows compilation and actual UI are not yet retested.

@@ -31,3 +31,7 @@
 [data-theme="dark"] .sui-logo__wordmark--dark {
   display: block;
 }
+
+/* The PDF_Tunner document symbol uses a dark SVG and must remain visible in dark mode. */
+[data-mantine-color-scheme="dark"] .sui-logo__mark,
+[data-theme="dark"] .sui-logo__mark { filter: invert(1); }

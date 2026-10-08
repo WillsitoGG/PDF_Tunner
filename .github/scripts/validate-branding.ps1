@@ -110,6 +110,12 @@ if ($portableUpdateHook -notmatch 'is_pdf_tunner_portable' -or $portableMode -no
 if ($localWalletGate -notmatch 'getCurrentMode' -or $localWalletGate -notmatch '"saas"') {
     throw 'The portable local backend might receive the unsupported PAYG wallet request.'
 }
+$searchSource = Get-Content -LiteralPath './frontend/editor/src/core/components/shared/superSearch/SuperSearch.tsx' -Raw
+$serviceSource = Get-Content -LiteralPath './frontend/editor/src/core/services/updateService.ts' -Raw
+$brandStyle = Get-Content -LiteralPath './frontend/editor/src/core/components/shared/BrandMark.css' -Raw
+if ($searchSource -notmatch 'PDF_Tunner' -or $searchSource -notmatch 'superSearch.placeholder') { throw 'Visible global search not branded.' }
+if (($serviceSource | Select-String -Pattern 'if \(await isPortablePdfTunner\(\)\)' -AllMatches).Matches.Count -ne 3) { throw 'Portable upstream update service is not blocked everywhere.' }
+if ($brandStyle -notmatch 'sui-brandmark__chevron' -or $brandStyle -notmatch 'filter: invert\(1\)') { throw 'App-switch cue or dark-theme logo contrast missing.' }
 Write-Host 'PASS: runtime React logo paths, native portable update guard and PAYG route guard are present.'
 
 $portable = (Resolve-Path -LiteralPath $PortableRoot).Path
