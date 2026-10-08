@@ -1,0 +1,56 @@
+name: PDF_Tunner Windows GUI QA - candidate 129
+on:
+  push:
+    branches:
+      - pdf-tunner/windows-ui-qa-run129
+    paths:
+      - .github/workflows/pdf-tunner-windows-ui-qa.yml
+      - .github/scripts/validate-windows-ui-qa.ps1
+      - .github/scripts/windows-ui-qa.cjs
+  workflow_dispatch:
+concurrency:
+  group: pdf-tunner-windows-ui-qa-${{ github.ref }}
+  cancel-in-progress: true
+permissions:
+  actions: read
+  contents: read
+jobs:
+  windows-gui-qa:
+    name: Validate real Run 129 ZIP on Windows
+    runs-on: windows-2022
+    timeout-minutes: 45
+    steps:
+      - name: Checkout QA scripts and small PDF fixture only
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+        with:
+          persist-credentials: false
+          sparse-checkout-cone-mode: false
+          sparse-checkout: |
+            .github/scripts/validate-windows-ui-qa.ps1
+            .github/scripts/windows-ui-qa.cjs
+            testing/cucumber/exampleFiles/tables.pdf
+      - name: Setup Node 22 for WebView2 CDP
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        with:
+          node-version: "22"
+      - name: Download unmodified original candidate (no rebuild)
+        uses: actions/download-artifact@v8
+        with:
+          artifact-ids: 11541921231
+          run-id: 37754829944
+          repository: WillsitoGG/PDF_Tunner
+          github-token: ${{ github.token }}
+          path: candidate
+      - name: Real portable Windows UI smoke
+        shell: pwsh
+        timeout-minutes: 35
+        run: |
+          & './.github/scripts/validate-windows-ui-qa.ps1' -CandidateDir './candidate' -EvidenceDir './ui-qa-evidence' -PdfFixture './testing/cucumber/exampleFiles/tables.pdf'
+      - name: Preserve lightweight report and screenshots only
+        if: always()
+        uses: actions/upload-artifact@v7.0.1
+        with:
+          name: PDF_Tunner-Run129-Windows-GUI-evidence
+          path: ui-qa-evidence/
+          if-no-files-found: warn
+          retention-days: 2

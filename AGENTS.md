@@ -278,3 +278,8 @@ Run #129 **actual ZIP** `PDF_Tunner-2.14.3-bootstrap-Windows-x64-Portable.zip`: 
 Upstream pinned `main` remains clean. The exceptional full-ZIP upload is opt-in; ordinary regression uploads lightweight evidence only. After manual sign-off finish final diff/license/provenance review, integrate to `main` via new PR (never PR #1), then seek explicit release authorization.
 
 Long-run protocol: capture exact heavy-run ID once and stop polling, awaiting the user's terminal signal. No background work.
+
+
+## Temporary Windows GUI experiment (2026-10-08; Run #129)
+
+The disposable branch `pdf-tunner/windows-ui-qa-run129` uses a hosted Windows Server 2022 runner to download the **exact** one-day Run #129 candidate artifact (`11541921231`, SHA-256 `5ABDEE66382A04BE063CD19BB7C8A40C844CB143A778E048D78D9891433EF95C`) without rebuilding it. After hash verification it extracts into a Unicode/spaces path, starts the actual native executable with runner toolchains excluded from inherited PATH, and attempts actual embedded WebView2 UI smoke automation using Playwright over CDP. Save only short logs and screenshots for two days, never another large artifact. This experiment does not certify clean Windows 10/11 consumer machines, does not authorize a Release or main integration, and must be removed when evidence is recorded.
