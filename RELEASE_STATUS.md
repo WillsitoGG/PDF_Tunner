@@ -22,6 +22,15 @@ Status as of 2026-10-08: **automated candidate accepted; clean-machine validatio
 - [x] Repository diff hygiene: no committed build ZIPs/EXEs/logs; the retired focused OCRmyPDF workflow is absent; remaining helper scripts are invoked by active workflows.
 - [x] Non-Enterprise external/embedded dependency parity audit against pinned Stirling 2.14.3, subject to documented limitations below.
 
+## Candidate ZIP delivery — pending one opt-in CI run
+
+- The primary workflow supports an explicit `workflow_dispatch` input `retain_candidate_zip=true` or a deliberate push commit subject containing `[deliver-portable-candidate]`. All ordinary runs still upload only lightweight evidence.
+- The next delivery commit uses the latter opt-in once to generate and validate the full portable ZIP with the same accepted primary regression, then uploads the **actual single ZIP file** using `actions/upload-artifact@v7.0.1`, `archive: false`, `retention-days: 1`, and error-on-missing. This is an exceptional one-day testing artifact, **not a published Release**.
+- The package will be downloadable from that run's **Artifacts** section after the job completes. Record its *new* ZIP SHA-256, size, Run/job, commit and artifact identity from that run before testing; the earlier Run #128 hash is historical and cannot be assumed identical after a rebuild.
+- Since the GitHub connector cannot read account-specific Actions storage billing/quota, check the upload's terminal result. If GitHub rejects the ~1.9 GB artifact for storage limits, do not repeatedly rebuild/upload blindly; use another approved delivery route instead.
+- Once downloaded, immediately save a local copy and verify on Windows PowerShell: `(Get-FileHash -Algorithm SHA256 -LiteralPath 'C:\path\to\PDF_Tunner-2.14.3-bootstrap-Windows-x64-Portable.zip').Hash`. Compare it with the SHA recorded by the same candidate run.
+- Manual testing remains **not performed** until the user runs and reports the checks below.
+
 ## Manual acceptance — NOT YET PERFORMED
 
 A **separate, authorized delivery of the actual candidate ZIP** is needed before running this checklist. Do not confuse the lightweight CI evidence ZIP with the portable application. Test Windows 10 x64 and Windows 11 x64 in fresh/isolated environments, ideally without system-wide Java/Python/LibreOffice/Tesseract or an Evergreen WebView2 installation:

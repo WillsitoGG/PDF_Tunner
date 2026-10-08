@@ -2,6 +2,11 @@ name: PDF_Tunner Windows Portable
 
 on:
   workflow_dispatch:
+    inputs:
+      retain_candidate_zip:
+        description: "Temporarily upload validated portable ZIP for offline Windows manual acceptance (1 day)"
+        type: boolean
+        default: false
   push:
     branches:
       - pdf-tunner/windows-portable-v1
@@ -1072,6 +1077,19 @@ jobs:
           path: dist/ci-evidence
           if-no-files-found: error
           retention-days: 7
+
+      # Ordinary runs retain evidence only. An explicit manual dispatch or a deliberate
+      # opt-in commit subject may retain ONE tested, full ZIP for clean-machine testing.
+      # The opt-in subject is used once for an automated delivery when the integration
+      # has no workflow-dispatch API; it is not a normal release or permanent archive.
+      - name: Upload one-day Windows manual-test candidate (explicit opt-in)
+        if: ${{ success() && ((github.event_name == 'workflow_dispatch' && inputs.retain_candidate_zip == true) || (github.event_name == 'push' && contains(github.event.head_commit.message, '[deliver-portable-candidate]'))) }}
+        uses: actions/upload-artifact@v7.0.1
+        with:
+          path: dist/${{ steps.package.outputs.zip }}
+          if-no-files-found: error
+          archive: false
+          retention-days: 1
 
       - name: Publish terminal connector-readable push-run status
         if: always()
