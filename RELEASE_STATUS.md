@@ -86,3 +86,23 @@ Origen: usuario abrió el candidato de pruebas de **Run #132**, extracto en `C:\
 5. **Preferencias de actualizaciones:** en General aparecen `Actualizaciones de software`, `Versión Actual del Frontend: 2.14.3`, `Buscar actualizaciones` y `Comportamiento de actualización` (preguntar, instalar automáticamente o saltar). Revisar coherencia con portable y evitar servicios del Stirling oficial. El usuario manifiesta que esas opciones no deberían estar en esta edición; mantener por separado información técnica de versión y atribución legal, si es necesaria.
 
 **Prioridad ahora:** primero comprobar escrituras fuera de `C:\Users\Guille\Downloads\PDF_Tunner-2.14.3-bootstrap-Windows-x64-Portable` mediante trazabilidad real (p. ej. Process Monitor de Microsoft, incluyendo Java y WebView2), y después obtener desglose de tamaño de `tools/`, `runtime/`, `libs/` y `data/`. No confundir tamaño por dependencias con tamaño por función de interfaz, pues varios componentes son compartidos. No eliminar herramientas hasta verificar dependencias y pruebas.
+
+### LISTADO 1: ProcMon host-isolation findings (2026-10-08)
+
+Sanitized technical summary only; the original user-supplied CSV is not committed.
+Windows 10 Process Monitor captured 346869 events in a roughly two-minute launch and test.
+Successful file writes: 16204; inside portable root: 16181; outside: 23.
+External writes: WebView2 temporary file (13); Windows Python App Installer redirector log (5); user-facing PDF output in Downloads (5, verify whether explicitly saved).
+Java also created temporary performance and socket files in the host Temp directory, some marked for deletion.
+Registry events: 201 successful RegSetValue and two genuinely new Shell dialog keys; many RegCreateKey events only opened existing keys.
+Network cannot be assessed from the submitted CSV: it contains no TCP/UDP events.
+
+Deferred remediation items 6-11 for LISTADO 1:
+6. Find and contain WebView2 host Temp writes and review host WebView2 telemetry keys.
+7. Investigate Java performance/socket Temp files and runtime-specific redirection or compatibility flags.
+8. Ensure the Java OpenCV probe using python3 runs the packaged Python, never Windows App Installer aliases.
+9. Minimize registry changes from native file dialogs and WebView2; determine whether true OS-level sandboxing is necessary.
+10. Confirm that documents explicitly exported to user-selected folders are permitted rather than classed as leaks.
+11. Add actual TCP/UDP/DNS capture and verify backend listens only on loopback before closing the Firewall warning issue.
+
+Do not change product code or launch CI until the user chooses the isolation contract. Preserve the prior LISTADO 1 items 1-5 and postpone footprint changes.
