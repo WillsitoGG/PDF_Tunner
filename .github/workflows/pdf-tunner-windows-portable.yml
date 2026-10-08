@@ -583,6 +583,15 @@ jobs:
           }
 
           Write-Host "Backend detected on port $port via $matchedLog"
+          $listeners = @(Get-NetTCPConnection -LocalPort $port -State Listen -ErrorAction Stop)
+          if ($listeners.Count -eq 0) { throw "Backend port $port has no listener." }
+          $exposed = @($listeners | Where-Object { $_.LocalAddress -notin @('127.0.0.1', '::1') })
+          if ($exposed.Count -gt 0) {
+            $exposed | Format-Table LocalAddress, LocalPort, OwningProcess | Out-Host
+            throw "Bundled no-login backend has a LAN/wildcard listener on port $port."
+          }
+          Write-Host 'PASS: embedded backend is bound only to Windows loopback.'
+
           $statusUri = "http://127.0.0.1:$port/api/v1/info/status"
           $response = Invoke-WebRequest -Uri $statusUri -UseBasicParsing -TimeoutSec 30
           if ($response.StatusCode -ne 200) {

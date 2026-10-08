@@ -357,3 +357,8 @@ Do not change product code or launch CI until the user chooses the isolation con
 ### LISTADO 1 phase 1A (source branch; not yet tested)
 
 For Windows portable mode only, bind the unauthenticated Java PDF backend to 127.0.0.1, prevent JVM hsperfdata host TEMP files with -XX:-UsePerfData and route only the Java child process and its subprocesses TEMP/TMP to package-local data/tmp. Native Tauri and WebView2 retain genuine OS profile environment variables for compatibility. This is intended to eliminate the LAN-exposed local backend/firewall prompt and Java external temporaries but is not yet compiled or validated. Do not claim strict sandbox isolation; leave other phases pending. No main changes, no Release or CI candidate yet.
+
+
+### LISTADO 1 phase 1B (source branch; not yet tested)
+
+Stirling Java calls python3 to probe cv2; that name was observed in the Windows VM running the host AppInstallerPythonRedirector.exe. The package now provides `tools/python/python3.exe` as a byte-identical pinned alias next to python.exe, proves the alias imports OpenCV, and includes its SHA in the existing Python manifest and validation. A new live Windows CI test rejects any listener for the embedded no-login Java backend that is not 127.0.0.1 or ::1. The complete converter suite, relocatability, functionality and VM Process Monitor test are pending; no release or main changes.

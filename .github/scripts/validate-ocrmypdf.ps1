@@ -427,13 +427,20 @@ foreach ($key in $required.Keys) {
 }
 
 $python = Join-Path $pythonRoot 'python.exe'
+$python3 = Join-Path $pythonRoot 'python3.exe'
 $ocr = Join-Path $pythonRoot 'ocrmypdf.exe'
+if (-not (Test-Path -LiteralPath $python3 -PathType Leaf)) { throw 'Package-local python3.exe is missing.' }
+if ((Get-FileHash -LiteralPath $python3 -Algorithm SHA256).Hash -ne (Get-FileHash -LiteralPath $python -Algorithm SHA256).Hash) {
+    throw 'Package-local python3.exe differs from the pinned interpreter.'
+}
+$python3Probe = @(& $python3 -c "import cv2, sys; print(sys.executable)" 2>&1)
+if ($LASTEXITCODE -ne 0 -or ($python3Probe -join ' ') -notmatch 'python3[.]exe') { throw 'Portable python3 OpenCV probe failed.' }
 $cffConverterScriptHash = (Get-FileHash -LiteralPath $cffConverterScript -Algorithm SHA256).Hash.ToLowerInvariant()
 if ($cffConverterScriptHash -ne $cffConverterSourceHash) {
     throw 'Packaged CFF converter script does not match scripts/convert_cff_to_ttf.py.'
 }
 $shaText = Get-Content -LiteralPath $shaFile -Raw
-foreach ($item in @(@{Path=$python;Name='python.exe'}, @{Path=$ocr;Name='ocrmypdf.exe'}, @{Path=$packagedLock;Name='DEPENDENCY_LOCK.txt'}, @{Path=$packagedOpenCvLock;Name='OPENCV_DEPENDENCY_LOCK.txt'}, @{Path=$cffConverterScript;Name='cff/convert_cff_to_ttf.py'})) {
+foreach ($item in @(@{Path=$python;Name='python.exe'}, @{Path=$python3;Name='python3.exe'}, @{Path=$ocr;Name='ocrmypdf.exe'}, @{Path=$packagedLock;Name='DEPENDENCY_LOCK.txt'}, @{Path=$packagedOpenCvLock;Name='OPENCV_DEPENDENCY_LOCK.txt'}, @{Path=$cffConverterScript;Name='cff/convert_cff_to_ttf.py'})) {
     $hash = (Get-FileHash -LiteralPath $item.Path -Algorithm SHA256).Hash.ToLowerInvariant()
     if ($shaText -notmatch "(?im)^$hash\s+$([Regex]::Escape($item.Name))\s*$") { throw "SHA256SUMS.txt does not contain $($item.Name)." }
 }

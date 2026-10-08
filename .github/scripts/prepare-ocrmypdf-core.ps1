@@ -231,7 +231,18 @@ try {
     Set-Content -LiteralPath (Join-Path $pythonRoot 'OCRMY_PDF_VERSION.txt') -Encoding ascii -Value $OcrMyPdfVersion
     Set-Content -LiteralPath (Join-Path $pythonRoot 'OPENCV_VERSION.txt') -Encoding ascii -Value $expectedOpenCvVersion
 
+    # The backend probes OpenCV by invoking "python3". Ship a second name for
+    # our own pinned interpreter alongside its DLLs instead of triggering the
+    # Windows App Installer Python alias and its host AppData diagnostic log.
+    $python3 = Join-Path $pythonRoot 'python3.exe'
+    Copy-Item -LiteralPath $python -Destination $python3 -Force
+    $python3Probe = @(& $python3 -c "import cv2, sys; print(sys.executable)" 2>&1)
+    if ($LASTEXITCODE -ne 0 -or ($python3Probe -join ' ') -notmatch 'python3[.]exe') {
+        throw 'Packaged python3 alias cannot import OpenCV using the local runtime.'
+    }
     $pythonExeHash = (Get-FileHash -LiteralPath $python -Algorithm SHA256).Hash.ToLowerInvariant()
+    $python3Hash = (Get-FileHash -LiteralPath $python3 -Algorithm SHA256).Hash.ToLowerInvariant()
+    if ($python3Hash -ne $pythonExeHash) { throw 'Python3 alias differs from authenticated python.exe.' }
     $launcherHash = (Get-FileHash -LiteralPath $launcher -Algorithm SHA256).Hash.ToLowerInvariant()
     Set-Content -LiteralPath (Join-Path $pythonRoot 'PROVENANCE.txt') -Encoding ascii -Value @(
         'NAME=PDF_Tunner Python + OCRmyPDF + NumPy + OpenCV runtime',
@@ -255,10 +266,12 @@ try {
         'CFF_CONVERTER_SOURCE=scripts/convert_cff_to_ttf.py',
         'CFF_CONVERTER_TARGET=cff/convert_cff_to_ttf.py',
         "CFF_CONVERTER_SCRIPT_SHA256=$cffConverterScriptHash",
-        'OCRMY_PDF_LAUNCHER=package-local native relative launcher -> python.exe -m ocrmypdf'
+        'OCRMY_PDF_LAUNCHER=package-local native relative launcher -> python.exe -m ocrmypdf',
+        'PYTHON3_ALIAS=byte-identical package-local copy of python.exe to satisfy the backend OpenCV probe'
     )
     Set-Content -LiteralPath (Join-Path $pythonRoot 'SHA256SUMS.txt') -Encoding ascii -Value @(
         "$pythonExeHash  python.exe",
+        "$python3Hash  python3.exe",
         "$launcherHash  ocrmypdf.exe",
         "$dependencyLockHash  DEPENDENCY_LOCK.txt",
         "$openCvDependencyLockHash  OPENCV_DEPENDENCY_LOCK.txt",
