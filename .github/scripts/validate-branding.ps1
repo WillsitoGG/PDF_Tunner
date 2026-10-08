@@ -116,6 +116,12 @@ $brandStyle = Get-Content -LiteralPath './frontend/editor/src/core/components/sh
 if ($searchSource -notmatch 'PDF_Tunner' -or $searchSource -notmatch 'superSearch.placeholder') { throw 'Visible global search not branded.' }
 if (($serviceSource | Select-String -Pattern 'if \(await isPortablePdfTunner\(\)\)' -AllMatches).Matches.Count -ne 3) { throw 'Portable upstream update service is not blocked everywhere.' }
 if ($brandStyle -notmatch 'sui-brandmark__chevron' -or $brandStyle -notmatch 'filter: invert\(1\)') { throw 'App-switch cue or dark-theme logo contrast missing.' }
+$portableOnboarding = Get-Content -LiteralPath './frontend/editor/src/desktop/components/DesktopOnboardingModal.tsx' -Raw
+$portableGeneral = Get-Content -LiteralPath './frontend/editor/src/desktop/components/shared/config/configSections/GeneralSection.tsx' -Raw
+$portableConnection = Get-Content -LiteralPath './frontend/editor/src/desktop/components/ConnectionSettings.tsx' -Raw
+if ($portableOnboarding -notmatch 'is_pdf_tunner_portable' -or $portableOnboarding -notmatch 'useState\(false\)') { throw 'Portable onboarding must remain hidden during native flag detection.' }
+if ($portableGeneral -notmatch 'hideUpdateSection=\{' -or $portableGeneral -notmatch '!isPortable && <DefaultAppSettings') { throw 'Portable update and default-handler UI must be hidden.' }
+if ($portableConnection -notmatch '!isPortable && <Button onClick=\{handleSignIn\}') { throw 'Portable local sign-in control must be hidden.' }
 Write-Host 'PASS: runtime React logo paths, native portable update guard and PAYG route guard are present.'
 
 $portable = (Resolve-Path -LiteralPath $PortableRoot).Path

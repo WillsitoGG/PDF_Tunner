@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useState } from "react";
+import { invoke } from "@tauri-apps/api/core";
 import { Stack, Alert } from "@mantine/core";
 import { useTranslation } from "react-i18next";
 import CoreGeneralSection from "@core/components/shared/config/configSections/GeneralSection";
@@ -31,11 +32,21 @@ const GeneralSection: React.FC = () => {
     locked: false,
   });
   const [updateModeError, setUpdateModeError] = useState<string | null>(null);
+  // Default to the restrictive UI to prevent update-check or default-handler
+  // side effects while the native portable flag is still being resolved.
+  const [isPortable, setIsPortable] = useState(true);
 
-  // Check for Tauri updater availability on mount
   useEffect(() => {
-    void install.checkTauriUpdate();
-  }, [install.checkTauriUpdate]);
+    let active = true;
+    invoke<boolean>("is_pdf_tunner_portable")
+      .then((portable) => { if (active) setIsPortable(portable); })
+      .catch((error) => console.warn("[PDF_Tunner] Portable settings policy unknown", error));
+    return () => { active = false; };
+  }, []);
+
+  useEffect(() => {
+    if (!isPortable && !isSaaSMode) void install.checkTauriUpdate();
+  }, [isPortable, isSaaSMode, install.checkTauriUpdate]);
 
   // Load the current update mode + lock status on mount. We intentionally
   // re-fetch on every mount so that a provisioning file dropped while the
@@ -43,6 +54,7 @@ const GeneralSection: React.FC = () => {
   // time the user opens Settings — the Rust side re-reads the store on
   // every call, so this is essentially a fresh read.
   useEffect(() => {
+    if (isPortable) return;
     let cancelled = false;
     desktopUpdateService.getUpdateModeInfo().then((info) => {
       if (!cancelled) setUpdateModeInfo(info);
@@ -50,7 +62,7 @@ const GeneralSection: React.FC = () => {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [isPortable]);
 
   const handleUpdateModeChange = useCallback(
     async (mode: UpdateMode) => {
@@ -81,7 +93,7 @@ const GeneralSection: React.FC = () => {
 
   return (
     <Stack gap="lg">
-      <DefaultAppSettings />
+      {!isPortable && <DefaultAppSettings />}
       {updateModeError && (
         <Alert
           color="red"
@@ -97,6 +109,7 @@ const GeneralSection: React.FC = () => {
       )}
       <CoreGeneralSection
         hideUpdateSection={
+          isPortable ||
           isSaaSMode ||
           (updateModeInfo.mode === "disabled" && updateModeInfo.locked)
         }
@@ -108,7 +121,7 @@ const GeneralSection: React.FC = () => {
           canInstall: install.canInstall,
           actions: install.actions,
         }}
-        desktopUpdateMode={{
+        desktopUpdateMode={isPortable ? undefined : {
           mode: updateModeInfo.mode,
           locked: updateModeInfo.locked,
           onChange: handleUpdateModeChange,

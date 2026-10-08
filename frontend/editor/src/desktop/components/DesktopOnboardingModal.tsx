@@ -1,4 +1,5 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
+import { invoke } from "@tauri-apps/api/core";
 import { Modal, Stack, Group } from "@mantine/core";
 import { Button } from "@app/ui/Button";
 import { ActionIcon } from "@app/ui/ActionIcon";
@@ -27,10 +28,24 @@ const SIGN_IN_GRADIENT: [string, string] = [
  */
 export function DesktopOnboardingModal() {
   const { t } = useTranslation();
-  const [visible, setVisible] = useState(
-    () => !localStorage.getItem(ONBOARDING_KEY),
-  );
+  // Do not briefly paint the Stirling welcome/login flow while the native
+  // portable flag is being resolved. Desktop installer builds retain the flow.
+  const [visible, setVisible] = useState(false);
   const [step, setStep] = useState(0);
+
+  useEffect(() => {
+    let active = true;
+    invoke<boolean>("is_pdf_tunner_portable")
+      .then((portable) => {
+        if (active && !portable) setVisible(!localStorage.getItem(ONBOARDING_KEY));
+      })
+      .catch((error) => {
+        console.warn("[PDF_Tunner] Cannot determine portable onboarding policy", error);
+        // Fail closed: an unknown native environment should not prompt for an
+        // upstream Stirling account from a supposed offline portable build.
+      });
+    return () => { active = false; };
+  }, []);
 
   const dismissFinal = () => {
     localStorage.setItem(ONBOARDING_KEY, "true");

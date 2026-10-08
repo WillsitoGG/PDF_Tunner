@@ -332,3 +332,8 @@ For Windows portable mode only, bind the unauthenticated Java PDF backend to 127
 ### LISTADO 1 phase 1B (source branch; not yet tested)
 
 Stirling Java calls python3 to probe cv2; that name was observed in the Windows VM running the host AppInstallerPythonRedirector.exe. The package now provides `tools/python/python3.exe` as a byte-identical pinned alias next to python.exe, proves the alias imports OpenCV, and includes its SHA in the existing Python manifest and validation. A new live Windows CI test rejects any listener for the embedded no-login Java backend that is not 127.0.0.1 or ::1. The complete converter suite, relocatability, functionality and VM Process Monitor test are pending; no release or main changes.
+
+
+### LISTADO 1 phase 2: local desktop UI (staged; unverified)
+
+Only on verified native PDF_Tunner portable runs, hide upstream `Welcome to Stirling V2` / SaaS registration first-start modal **before first paint**, suppress the login action in the local-only connection preferences, and omit both software-updates controls/checks and Windows default-PDF-association settings from General. The existing installed desktop/managed/server behaviour remains available when native portable detection returns false. Unknown native detection fails closed for all outbound prompts. Added source regression gates; full TypeScript/native build, Windows 10 screenshots and network monitoring are still pending. Legal/license panels are preserved. No changes to main and no Release.
