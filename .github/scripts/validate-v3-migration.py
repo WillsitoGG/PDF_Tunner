@@ -50,3 +50,29 @@ for rel, required in checks.items():
         raise SystemExit(f"FAIL: {rel}: missing native-portable contracts {missing}")
     print(f"PASS: native source contracts: {rel}")
 print("PASS: static v3.1.0 portable migration preflight (not a compiled build)")
+
+# Migration bridge: these former Windows CI files are reference inputs, not v3 acceptance.
+source_inputs = (
+    ".github/config/ocrmypdf-py312-windows-x64.lock.txt",
+    ".github/config/opencv-py312-windows-x64.lock.txt",
+    ".github/scripts/audit-host-boundaries.ps1",
+    ".github/scripts/collect-startup-diagnostics.ps1",
+    ".github/scripts/prepare-branding.ps1",
+    ".github/scripts/publish-push-run-statuses.ps1",
+    ".github/scripts/rar-probe.rs",
+    ".github/scripts/validate-branding.ps1",
+    ".github/scripts/validate-portable-window-state.ps1",
+)
+for rel in source_inputs:
+    if not (root / rel).is_file():
+        raise SystemExit(f"FAIL: missing Windows CI source input: {rel}")
+    print(f"PASS: staged Windows CI source input: {rel}")
+
+gradle = (root / "build.gradle").read_text()
+if "modernJavaVersion = 25" not in gradle or "version = '3.1.0'" not in gradle:
+    raise SystemExit("FAIL: expected upstream v3.1.0 / JDK 25 Gradle contract")
+desktop_tasks = (root / ".taskfiles/desktop.yml").read_text()
+for token in ("jlink:jar:", "jlink:runtime:", "jlink:verify:"):
+    if token not in desktop_tasks:
+        raise SystemExit(f"FAIL: upstream desktop pipeline task missing: {token}")
+print("PASS: v3.1.0 uses JDK 25 and upstream desktop JLink/JAR tasks")
