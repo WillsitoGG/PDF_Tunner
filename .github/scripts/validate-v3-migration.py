@@ -119,3 +119,40 @@ for rel, required in {
         if token not in data:
             raise SystemExit(f"FAIL: missing portable account UI guard: {rel}: {token}")
     print(f"PASS: portable account UI source guard: {rel}")
+
+# A9: ensure the candidate v3.1 full Windows pipeline has not silently dropped
+# the former acceptance gates or changed its pinned runtime provenance.
+candidate = root / ".github/config/pdf-tunner-v3-windows-portable.candidate.yml"
+acceptance = candidate.read_text()
+if 'PDF_TUNNER_UPSTREAM_VERSION: "3.1.0"' not in acceptance:
+    raise SystemExit("FAIL: Windows v3 acceptance not pinned to official 3.1.0")
+if 'PDF_TUNNER_UPSTREAM_COMMIT: "b99fa929e365760c863956bf23c127b098c288e5"' not in acceptance:
+    raise SystemExit("FAIL: Windows v3 acceptance upstream SHA differs")
+if "pdf-tunner/windows-portable-v1" in acceptance or 'PDF_TUNNER_UPSTREAM_VERSION: "2.14.3"' in acceptance:
+    raise SystemExit("FAIL: Windows acceptance still selects old v2 branch/version")
+if '  push:' in acceptance:
+    raise SystemExit("FAIL: candidate CI must be manual-only, no push event")
+required_acceptance_gates = [
+    "Prepare official Stirling desktop build",
+    "Run official Tauri/Cargo tests",
+    "Build PDF_Tunner Tauri executable without installer",
+    "Validate assembled PDF_Tunner branding",
+    "Validate bundled LibreOffice and unoconvert",
+    "Stage portable Python, OCRmyPDF and NumPy",
+    "Start PDF_Tunner and validate real backend",
+    "Validate portable window-state persistence and second-launch restore",
+    "Audit actual Windows process TCP and scoped host state",
+    "Create portable ZIP and SHA-256",
+    "Upload lightweight CI evidence",
+]
+for required in required_acceptance_gates:
+    if required not in acceptance:
+        raise SystemExit(f"FAIL: Windows v3 acceptance gate missing: {required}")
+for pin in (
+    "c386640d35f7a4604d088925a9bb01938400297f6da6fe985b72614daba87cda",
+    "dcec940ce825b3b654d4936918190f52e7bfca85b7fb1c49bc24b3035185b4f5",
+    "993e4a94376ed712fafc7058d724ea0b943d118bbd2305cd9ed55174eb85cda5",
+):
+    if pin not in acceptance:
+        raise SystemExit("FAIL: pinned WebView2/qpdf/Poppler dependency hash missing")
+print("PASS: staged Windows v3.1 acceptance draft retains critical gates and SHA pins")
