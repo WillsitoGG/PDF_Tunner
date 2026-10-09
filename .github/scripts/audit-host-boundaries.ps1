@@ -31,6 +31,10 @@ $hostPaths=@(
     (Join-Path $env:LOCALAPPDATA 'PDF_Tunner'),
     (Join-Path $env:TEMP 'stirling-pdf'),
     (Join-Path $env:TEMP 'stirling-mobile-scanner'),
+    # ProcMon on Windows 10 showed HotSpot perfdata and the Windows App
+    # Installer python3 alias writing outside the portable folder.
+    (Join-Path $env:TEMP ('hsperfdata_' + $env:USERNAME)),
+    (Join-Path $env:LOCALAPPDATA 'Packages\Microsoft.DesktopAppInstaller_8wekyb3d8bbwe\LocalState\DiagOutputDir'),
     (Join-Path $env:USERPROFILE '.stirling-pdf'),
     (Join-Path $env:ProgramData 'Stirling-PDF')
 )

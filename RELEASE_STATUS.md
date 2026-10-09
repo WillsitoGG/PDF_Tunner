@@ -126,3 +126,8 @@ Only on verified native PDF_Tunner portable runs, hide upstream `Welcome to Stir
 ### LISTADO 1: Windows executable publisher identity (staged; unverified)
 
 Windows 10 Process Monitor Process Tree reported `Stirling PDF Inc.` as the PDF_Tunner.exe Company field. The portable Tauri JSON inherits upstream bundle publisher unless overridden; set `bundle.publisher` to `PDF_Tunner` only in the fork's portable Tauri config, while preserving upstream Cargo/legal attribution, and add a Windows executable CompanyName check rejecting any `Stirling` company identity. The final EXE metadata must still be verified by full Windows build and user VM. No change to upstream base/main or installer.
+
+
+## CI #133 accepted; isolated candidate delivery requested (2026-10-09)
+
+Run #133 passed at commit `b80af710c74bfe4fde8e9c7261befa86d98be451`. ZIP was generated but (correctly) not stored: SHA-256 `344722C6204BC25B779FDC68E846E16DE9244C9AC3AEC3E59D6AEE7B62A009AA`. Expanded host-watch includes Windows AppInstaller Python alias diagnostics and HotSpot perfdata. Next CI run is an explicitly temporary one-day ZIP candidate for the user's real Windows 10 VM, not a final Release. Host WebView2 temp/registry issues and complete ProcMon acceptance are still pending. Keep `main` and archived releases untouched.
