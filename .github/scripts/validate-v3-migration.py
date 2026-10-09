@@ -76,3 +76,28 @@ for token in ("jlink:jar:", "jlink:runtime:", "jlink:verify:"):
     if token not in desktop_tasks:
         raise SystemExit(f"FAIL: upstream desktop pipeline task missing: {token}")
 print("PASS: v3.1.0 uses JDK 25 and upstream desktop JLink/JAR tasks")
+
+# A5 source guard: portable v3.1 must never request upstream updates, even if
+# native-mode detection fails. The actual behavior still requires frontend tests.
+frontend_guards = {
+    "frontend/editor/src/desktop/hooks/useDesktopUpdatePopup.ts": [
+        'invoke<boolean>("is_pdf_tunner_portable")',
+        'skipping check',
+    ],
+    "frontend/editor/src/core/services/updateService.ts": [
+        'async function isPortablePdfTunner()',
+        "if (await isPortablePdfTunner()) return null;",
+        'if (await isPortablePdfTunner()) return "";',
+    ],
+    "frontend/editor/src/desktop/components/shared/config/configSections/GeneralSection.tsx": [
+        'invoke<boolean>("is_pdf_tunner_portable")',
+        "!isPortable && <DefaultAppSettings />",
+        "isPortable ||",
+    ],
+}
+for rel, tokens in frontend_guards.items():
+    data = (root / rel).read_text()
+    for token in tokens:
+        if token not in data:
+            raise SystemExit(f"FAIL: missing portable frontend update guard in {rel}: {token}")
+    print(f"PASS: portable frontend update source guard: {rel}")

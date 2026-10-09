@@ -33,3 +33,9 @@ Nine missing v2.14.3 support inputs are staged from the last passing `pdf-tunner
 The lightweight source gate checks the staged inputs plus the official v3.1.0/JDK 25 desktop JLink/JAR task contracts; it does not download external runtimes or claim executable functionality. Keep `main` and the v2 branch untouched, do not launch a large build prematurely, and publish no Release without authorization.
 
 **Next:** port the full Windows CI/packaging workflow to v3.1.0, retaining exact dependency SHA pins and the backend, OCR, LibreOffice, frontend, lifecycle, GUI, host-boundary, ZIP and SHA-256 gates; run cheap compatibility checks before one controlled Windows build.
+
+### v3.1.0 migration slice A5 — block official auto-update in marked portable Windows mode (source-only)
+
+Adapted three existing v3.1 React/TypeScript files (without replacing the upstream components): the desktop startup update popup, the shared upstream release/update service, and desktop Preferences. They now call the existing native `is_pdf_tunner_portable` command and, for package-marked portable runs, avoid fetching Stirling updater metadata, displaying update controls, and probing the Tauri updater. Detection failure is handled conservatively (no external update), while non-portable upstream behavior is preserved. The branch preflight now checks these contracts for regressions. This is source integration **only**, not a TypeScript build, live network test, or acceptance of the frontend branding/account UI.
+
+**Next:** independently verify the new frontend component tree (onboarding/sign-in/cloud/wallet and branding) against the approved local-only policy, then reconcile full Windows v3.1 CI and packaging with pinned dependencies. Do not publish or change `main`.

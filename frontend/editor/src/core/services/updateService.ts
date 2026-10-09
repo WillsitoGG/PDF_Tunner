@@ -1,4 +1,15 @@
 import { DOWNLOAD_BASE_URL } from "@app/constants/downloads";
+import { invoke, isTauri } from "@tauri-apps/api/core";
+
+async function isPortablePdfTunner(): Promise<boolean> {
+  if (!isTauri()) return false;
+  try {
+    return await invoke<boolean>("is_pdf_tunner_portable");
+  } catch {
+    // A failed native-mode check must never download upstream installers.
+    return true;
+  }
+}
 
 export interface UpdateSummary {
   latest_version: string | null;
@@ -111,6 +122,7 @@ export class UpdateService {
     currentVersion: string,
     machineInfo: MachineInfo,
   ): Promise<UpdateSummary | null> {
+    if (await isPortablePdfTunner()) return null;
     // Map Java License enum to API types
     let type = "normal";
     if (machineInfo.licenseType === "SERVER") {
@@ -149,6 +161,7 @@ export class UpdateService {
     currentVersion: string,
     machineInfo: MachineInfo,
   ): Promise<FullUpdateInfo | null> {
+    if (await isPortablePdfTunner()) return null;
     // Map Java License enum to API types
     let type = "normal";
     if (machineInfo.licenseType === "SERVER") {
@@ -184,6 +197,7 @@ export class UpdateService {
    * Get current version from GitHub build.gradle as fallback
    */
   async getCurrentVersionFromGitHub(): Promise<string> {
+    if (await isPortablePdfTunner()) return "";
     const url =
       "https://raw.githubusercontent.com/Stirling-Tools/Stirling-PDF/release/build.gradle";
 

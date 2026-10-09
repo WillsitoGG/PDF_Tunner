@@ -6,6 +6,9 @@ on:
       - pdf-tunner/v3.1.0-portable-integration
     paths:
       - 'frontend/editor/src-tauri/**'
+      - 'frontend/editor/src/desktop/hooks/useDesktopUpdatePopup.ts'
+      - 'frontend/editor/src/core/services/updateService.ts'
+      - 'frontend/editor/src/desktop/components/shared/config/configSections/GeneralSection.tsx'
       - '.github/workflows/pdf-tunner-v3-migration-preflight.yml'
       - '.github/scripts/validate-v3-migration.py'
   workflow_dispatch:

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { getVersion } from "@tauri-apps/api/app";
+import { invoke } from "@tauri-apps/api/core";
 import { updateService, UpdateSummary } from "@app/services/updateService";
 import { useDesktopInstall } from "@app/hooks/useDesktopInstall";
 import {
@@ -72,6 +73,14 @@ export function useDesktopUpdatePopup() {
     hasChecked.current = true;
 
     const timer = setTimeout(async () => {
+      // PDF_Tunner portable releases must not query or install upstream updates.
+      // An unknown native mode fails closed; normal Stirling builds are unchanged.
+      try {
+        if (await invoke<boolean>("is_pdf_tunner_portable")) return;
+      } catch (error) {
+        console.warn("[PDF_Tunner] Portable update policy unknown; skipping check", error);
+        return;
+      }
       // Runs in every connection mode: the desktop binary is local even when signed in to the cloud.
       let mode: Awaited<ReturnType<typeof desktopUpdateService.getUpdateMode>> =
         "prompt";
