@@ -41,6 +41,9 @@ jobs:
         shell: pwsh
         env:
           CARGO_TERM_COLOR: always
+          # The actual bundled JAR/JRE are required by packaging, not by a
+          # native source typecheck. Do not stage fake binary dependencies.
+          TAURI_CONFIG: '{"bundle":{"resources":[]}}'
         run: |
           & cargo check --locked
           if ($LASTEXITCODE -ne 0) { throw "Native Rust compile check failed: $LASTEXITCODE" }
