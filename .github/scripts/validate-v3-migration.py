@@ -156,3 +156,25 @@ for pin in (
     if pin not in acceptance:
         raise SystemExit("FAIL: pinned WebView2/qpdf/Poppler dependency hash missing")
 print("PASS: staged Windows v3.1 acceptance draft retains critical gates and SHA pins")
+
+# A10 interim branding audit: matching v2 SVG blobs stage the existing
+# PDF_Tunner visual identity without inventing the pending blue logo.
+brand_assets = (
+    "icon-light.svg", "icon-dark.svg", "wordmark-black.svg",
+    "wordmark-grey.svg", "wordmark-white.svg",
+)
+for name in brand_assets:
+    file = root / "frontend/editor/public/pdf-tunner" / name
+    if not file.is_file():
+        raise SystemExit(f"FAIL: portable branded static SVG missing: {file}")
+for rel, tokens in {
+    "frontend/editor/src/core/ui/Logo.tsx": ["/pdf-tunner/icon-light.svg", "/pdf-tunner/wordmark-black.svg", 'alt = "PDF_Tunner"'],
+    "frontend/editor/src/core/components/shared/BrandMark.tsx": ["/pdf-tunner/icon-light.svg", 'aria-label="PDF_Tunner"'],
+    "frontend/editor/index.html": ["<title>PDF_Tunner</title>", "pdf-tunner/icon-light.svg"],
+    "frontend/editor/public/manifest.json": ['"name": "PDF_Tunner"', "pdf-tunner/icon-light.svg"],
+}.items():
+    data = (root / rel).read_text()
+    for token in tokens:
+        if token not in data:
+            raise SystemExit(f"FAIL: portable frontend branding source missing: {rel}: {token}")
+print("PASS: interim legacy PDF_Tunner visual identity is staged for v3.1")

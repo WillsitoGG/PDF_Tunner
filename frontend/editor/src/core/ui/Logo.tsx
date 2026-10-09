@@ -1,12 +1,13 @@
 import type { CSSProperties } from "react";
-import { Icon } from "@app/ui/Icon";
-import wordmarkLightUrl from "@app/assets/brand/branding-logo/wordmark-light.svg";
-import wordmarkDarkUrl from "@app/assets/brand/branding-logo/wordmark-dark.svg";
-// The mark takes its two fills from the brand mark's path classes.
-import "@app/components/shared/BrandMark.css";
+import { BASE_PATH } from "@app/constants/app";
+// Temporary v2 PDF_Tunner lockup until the new approved blue mark is integrated.
+// Preserve v3.1's component API, but do not load Stirling's original artwork.
+const markUrl = `${BASE_PATH}/pdf-tunner/icon-light.svg`;
+const wordmarkLightUrl = `${BASE_PATH}/pdf-tunner/wordmark-black.svg`;
+const wordmarkDarkUrl = `${BASE_PATH}/pdf-tunner/wordmark-white.svg`;
 import "@app/ui/Logo.css";
 
-/** iconOnly = mark; textOnly = "Stirling" wordmark; iconAndText = both. */
+/** iconOnly = mark; textOnly = PDF_Tunner wordmark; iconAndText = both. */
 export type LogoVariant = "iconOnly" | "iconAndText" | "textOnly";
 
 interface LogoProps {
@@ -38,7 +39,7 @@ export function Logo({
   gap = "0.5rem",
   className,
   style,
-  alt = "Stirling",
+  alt = "PDF_Tunner",
 }: LogoProps) {
   const showIcon = variant === "iconOnly" || variant === "iconAndText";
   const showText = variant === "textOnly" || variant === "iconAndText";
@@ -62,11 +63,12 @@ export function Logo({
   return (
     <span className={cls} style={{ ...layoutStyle, ...style }}>
       {showIcon && (
-        <Icon
-          name="stirling-mark"
+        <img
           className="sui-logo__mark"
-          size={iconHeight}
-          title={showText ? undefined : alt}
+          src={markUrl}
+          alt={showText ? "" : alt}
+          aria-hidden={showText ? true : undefined}
+          style={{ height: iconHeight }}
         />
       )}
       {showText && (

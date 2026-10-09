@@ -6,20 +6,21 @@ const LOGO_FOLDER = "modern-logo";
 export function useLogoAssets() {
   return useMemo(() => {
     const folderPath = `${BASE_PATH}/${LOGO_FOLDER}`;
+    const brandPath = `${BASE_PATH}/pdf-tunner`;
 
     return {
       folderPath,
       getAssetPath: (name: string) => `${folderPath}/${name}`,
       wordmark: {
-        black: `${folderPath}/StirlingPDFLogoBlackText.svg`,
-        grey: `${folderPath}/StirlingPDFLogoGreyText.svg`,
-        white: `${folderPath}/StirlingPDFLogoWhiteText.svg`,
+        black: `${brandPath}/wordmark-black.svg`,
+        grey: `${brandPath}/wordmark-grey.svg`,
+        white: `${brandPath}/wordmark-white.svg`,
       },
-      tooltipLogo: `${folderPath}/logo-tooltip.svg`,
+      tooltipLogo: `${brandPath}/icon-light.svg`,
       firstPage: `${folderPath}/Firstpage.png`,
-      favicon: `${folderPath}/favicon.ico`,
-      logo192: `${folderPath}/logo192.png`,
-      logo512: `${folderPath}/logo512.png`,
+      favicon: `${brandPath}/icon-light.svg`,
+      logo192: `${brandPath}/icon-light.svg`,
+      logo512: `${brandPath}/icon-light.svg`,
       manifestHref: `${BASE_PATH}/manifest.json`,
     };
   }, []);

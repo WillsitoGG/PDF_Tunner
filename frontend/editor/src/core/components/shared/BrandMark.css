@@ -110,3 +110,19 @@
     animation: none;
   }
 }
+
+/* PDF_Tunner SVG interim mark: maintain upstream menu open/hover affordance. */
+.sui-brandmark { position: relative; display: inline-grid; place-items: center; flex: none; }
+.sui-brandmark__icon { display: block; width: 100%; height: 100%; object-fit: contain; transition: opacity var(--motion-slow); }
+.sui-brandmark__chevron { position: absolute; color: var(--c-text); opacity: 0; font-size: 1.6em; line-height: 1; transform: translateY(-0.12em); transition: opacity var(--motion-slow); }
+[data-brandmark-morph]:hover .sui-brandmark__icon,
+[data-brandmark-morph]:focus-visible .sui-brandmark__icon,
+[data-brandmark-morph].is-open .sui-brandmark__icon { opacity: 0; }
+[data-brandmark-morph]:hover .sui-brandmark__chevron,
+[data-brandmark-morph]:focus-visible .sui-brandmark__chevron,
+[data-brandmark-morph].is-open .sui-brandmark__chevron { opacity: 1; }
+[data-mantine-color-scheme="dark"] .sui-brandmark__icon,
+[data-theme="dark"] .sui-brandmark__icon { filter: invert(1); }
+@media (prefers-reduced-motion: reduce) {
+  .sui-brandmark__icon, .sui-brandmark__chevron { transition: none; }
+}

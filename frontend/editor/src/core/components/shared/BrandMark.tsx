@@ -1,27 +1,26 @@
-import { Icon } from "@app/ui/Icon";
+import { BASE_PATH } from "@app/constants/app";
 import "@app/components/shared/BrandMark.css";
 
 interface BrandMarkProps {
-  /** Height of the mark (CSS length). */
   height?: string;
   className?: string;
 }
 
-/**
- * The Stirling logo mark, rendered inline (not as an <img>) so its paths can
- * morph. At rest it is the two-tone red brand mark; when an ancestor marked
- * `[data-brandmark-morph]` is hovered / focused / open (`.is-open`), the two
- * parallelograms slide into a smaller downward chevron in the primary text
- * colour — a self-explaining "this opens a menu" affordance. See
- * BrandMark.css for the morph geometry.
- */
+/** Branded app-switch logo. Preserve the menu chevron instead of showing Stirling. */
 export function BrandMark({ height = "1.6rem", className }: BrandMarkProps) {
   return (
-    <Icon
-      name="stirling-mark"
-      size={height}
+    <span
       className={`sui-brandmark${className ? ` ${className}` : ""}`}
-      title="Stirling"
-    />
+      style={{ height, width: height }}
+      aria-label="PDF_Tunner"
+    >
+      <img
+        className="sui-brandmark__icon"
+        src={`${BASE_PATH}/pdf-tunner/icon-light.svg`}
+        alt=""
+        aria-hidden="true"
+      />
+      <span className="sui-brandmark__chevron" aria-hidden="true">⌄</span>
+    </span>
   );
 }
