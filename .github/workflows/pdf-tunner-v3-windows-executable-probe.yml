@@ -1,0 +1,126 @@
+name: PDF_Tunner v3 Windows Tauri executable probe
+
+# B2: Build/test the REAL Windows Tauri executable on the validated JDK25 backend.
+# No fixed WebView2, OCR/Office runtimes, ZIP, upload or release in this probe.
+# A green job is NOT proof of portable startup or end-to-end PDF functionality.
+on:
+  push:
+    branches:
+      - pdf-tunner/v3.1.0-portable-integration
+    paths:
+      - '.github/workflows/pdf-tunner-v3-windows-executable-probe.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pdf-tunner-v3-windows-exe-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  windows-native-executable:
+    runs-on: windows-latest
+    timeout-minutes: 90
+    env:
+      DISABLE_ADDITIONAL_FEATURES: 'true'
+      JPDFIUM_PLATFORMS: 'windows-x64'
+
+    steps:
+      - name: Check out the exact v3.1.0 fork history
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 0
+
+      - name: Confirm official 3.1.0 ancestor and the portable overlay
+        shell: pwsh
+        run: |
+          & git merge-base --is-ancestor b99fa929e365760c863956bf23c127b098c288e5 HEAD
+          if ($LASTEXITCODE -ne 0) { throw 'Missing official Stirling-PDF v3.1.0 ancestor' }
+          $config = Get-Content './frontend/editor/src-tauri/tauri.pdf-tunner.conf.json' -Raw | ConvertFrom-Json
+          if ($config.productName -ne 'PDF_Tunner' -or $config.mainBinaryName -ne 'PDF_Tunner') {
+            throw 'The Tauri portable product/executable identity has changed'
+          }
+          if (@($config.app.windows).Count -ne 0) { throw 'Portable config must not duplicate the v3 native window' }
+          if ($config.bundle.active -ne $false) { throw 'This pre-release check must not produce a native installer' }
+
+      - name: Set up JDK 25
+        uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5.7.0
+        with:
+          distribution: temurin
+          java-version: '25'
+
+      - name: Set up Node 22
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: '22'
+
+      - name: Set up Rust stable
+        uses: dtolnay/rust-toolchain@4be9e76fd7c4901c61fb841f559994984270fce7 # stable
+        with:
+          toolchain: stable
+
+      - name: Set up official Task runner
+        uses: go-task/setup-task@01a4adf9db2d14c1de7a560f09170b6e0df736aa # v2.1.0
+
+      - name: Generate provisional native PDF_Tunner icon
+        shell: pwsh
+        run: |
+          & './.github/scripts/prepare-branding.ps1'
+          if (-not (Test-Path 'frontend/editor/src-tauri/icons/pdf-tunner.ico' -PathType Leaf)) {
+            throw 'The PDF_Tunner Windows ICO was not generated'
+          }
+
+      - name: Prepare the actual desktop backend, JLink, frontend environment and provisioner
+        shell: pwsh
+        run: |
+          & task desktop:prepare
+          if ($LASTEXITCODE -ne 0) { throw "Official v3 desktop:prepare failed ($LASTEXITCODE)" }
+
+      - name: Validate the compiled Java 25 bootJar and its branded resources
+        shell: pwsh
+        run: |
+          & './.github/scripts/validate-v3-java-package.ps1'
+          if ($LASTEXITCODE -ne 0) { throw "Java/JLink acceptance failed ($LASTEXITCODE)" }
+
+      - name: Execute real Windows Tauri/Cargo tests
+        shell: pwsh
+        working-directory: frontend/editor/src-tauri
+        run: |
+          & cargo test --locked
+          if ($LASTEXITCODE -ne 0) { throw "Windows Rust tests failed ($LASTEXITCODE)" }
+
+      - name: Build the actual PDF_Tunner Windows EXE without installers
+        shell: pwsh
+        working-directory: frontend/editor
+        run: |
+          & npx tauri build --no-bundle --config src-tauri/tauri.pdf-tunner.conf.json
+          if ($LASTEXITCODE -ne 0) { throw "Tauri native build failed ($LASTEXITCODE)" }
+
+      - name: Validate native executable and source-built bundled dependencies
+        shell: pwsh
+        run: |
+          $exePath = Join-Path $PWD 'frontend/editor/src-tauri/target/release/PDF_Tunner.exe'
+          if (-not (Test-Path -LiteralPath $exePath -PathType Leaf)) {
+            $candidates = @(Get-ChildItem 'frontend/editor/src-tauri/target/release' -File -Filter '*.exe' -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Name)
+            throw "PDF_Tunner.exe missing; observed native candidates: $($candidates -join ', ')"
+          }
+          $exe = Get-Item -LiteralPath $exePath
+          if ($exe.Length -lt 1048576) { throw "Native executable is suspiciously small ($($exe.Length) bytes)" }
+          $stream = [System.IO.File]::OpenRead($exe.FullName)
+          try {
+            if ($stream.ReadByte() -ne 77 -or $stream.ReadByte() -ne 90) {
+              throw 'The generated Windows executable has no MZ/PE header'
+            }
+          } finally { $stream.Dispose() }
+          $jar = @(Get-ChildItem 'frontend/editor/src-tauri/libs' -File -Filter 'stirling-pdf-*.jar')
+          if ($jar.Count -ne 1) { throw "Expected one real Java bootJar, found $($jar.Count)" }
+          if (-not (Test-Path 'frontend/editor/src-tauri/runtime/jre/bin/java.exe')) {
+            throw 'Bundled JLink Java runtime has disappeared before packaging'
+          }
+          Write-Host "PASS: compiled PDF_Tunner.exe ($($exe.Length) bytes)"
+          Write-Host "EXE SHA256: $((Get-FileHash -LiteralPath $exe.FullName -Algorithm SHA256).Hash)"
+          Write-Host "JAR SHA256: $((Get-FileHash -LiteralPath $jar[0].FullName -Algorithm SHA256).Hash)"
+          Write-Host 'PASS: real Windows EXE/JAR/JLink inputs ready for next portable runtime assembly.'
+          Write-Host 'NOT TESTED: startup, Fixed WebView2, OCR, Office, host isolation, ZIP and full GUI.'
+          Write-Host 'No compiled binaries, ZIP or large artifacts are uploaded from this probe.'
