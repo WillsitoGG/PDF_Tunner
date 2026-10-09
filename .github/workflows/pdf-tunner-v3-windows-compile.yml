@@ -1,0 +1,44 @@
+name: PDF_Tunner v3 Windows native compile probe
+
+# One isolated, source-level Windows compilation probe. It does not publish an
+# artifact or replace the final full Windows portable acceptance pipeline.
+on:
+  push:
+    branches:
+      - pdf-tunner/v3.1.0-portable-integration
+    paths:
+      - '.github/workflows/pdf-tunner-v3-windows-compile.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pdf-tunner-v3-native-probe-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  windows-native-check:
+    runs-on: windows-latest
+    timeout-minutes: 35
+    steps:
+      - name: Check out v3.1 integration branch
+        uses: actions/checkout@v4
+
+      - name: Verify upstream source baseline
+        shell: pwsh
+        run: |
+          & git merge-base --is-ancestor b99fa929e365760c863956bf23c127b098c288e5 HEAD
+          if ($LASTEXITCODE -ne 0) { throw 'Fork no longer descends from pinned upstream v3.1.0.' }
+
+      - name: Install stable Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cargo check real Windows native code (no packaged runtimes)
+        working-directory: frontend/editor/src-tauri
+        shell: pwsh
+        env:
+          CARGO_TERM_COLOR: always
+        run: |
+          & cargo check --locked
+          if ($LASTEXITCODE -ne 0) { throw "Native Rust compile check failed: $LASTEXITCODE" }
