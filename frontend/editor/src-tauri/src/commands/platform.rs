@@ -18,3 +18,9 @@ pub fn get_desktop_os() -> DesktopOS {
         _ => DesktopOS::Unknown,
     }
 }
+
+/// True only for native portable Windows execution as marked by the bootstrap.
+#[tauri::command]
+pub fn is_pdf_tunner_portable() -> bool {
+    std::env::var_os("PDF_TUNNER_PORTABLE_ROOT").is_some()
+}

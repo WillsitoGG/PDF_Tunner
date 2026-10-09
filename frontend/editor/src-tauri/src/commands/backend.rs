@@ -242,6 +242,12 @@ fn run_stirling_pdf_jar(app: &tauri::AppHandle, java_path: &PathBuf, jar_path: &
         "-Dsecurity.csrfDisabled=true",  // Disable CSRF for desktop mode
     ];
 
+    // The bundled unauthenticated Java server must only listen on loopback.
+    if std::env::var_os("PDF_TUNNER_PORTABLE_ROOT").is_some() {
+        java_options.push("-Dserver.address=127.0.0.1");
+        java_options.push("-XX:-UsePerfData");
+    }
+
     // Enable the login agreement on local desktop installs when it has been provisioned.
     if crate::commands::connection::login_agreement_enabled(app) {
         java_options.push("-Dlegal.loginAgreement.enabled=true");
@@ -301,7 +307,7 @@ fn run_stirling_pdf_jar(app: &tauri::AppHandle, java_path: &PathBuf, jar_path: &
     sweep_stale_shutdown_files(&work_dir, &shutdown_file);
     *BACKEND_SHUTDOWN_FILE.lock().unwrap() = Some(shutdown_file.clone());
 
-    let sidecar_command = app
+    let mut sidecar_command = app
         .shell()
         .command(java_path.to_str().unwrap())
         .args(java_options)
@@ -311,6 +317,17 @@ fn run_stirling_pdf_jar(app: &tauri::AppHandle, java_path: &PathBuf, jar_path: &
         .env("STIRLING_PDF_LOG_DIR", log_dir.to_str().unwrap())
         .env("STIRLING_PDF_WORK_DIR", work_dir.to_str().unwrap())
         .env("STIRLING_PDF_SHUTDOWN_FILE", shutdown_file.to_str().unwrap());
+
+    // Isolate child Java TEMP; do not alter WebView2 native process profile.
+    if let Some(root) = std::env::var_os("PDF_TUNNER_PORTABLE_ROOT") {
+        let child_temp = PathBuf::from(root).join("data").join("tmp");
+        std::fs::create_dir_all(&child_temp)
+            .map_err(|e| format!("Cannot create portable Java TEMP: {e}"))?;
+        let child_temp = child_temp.to_string_lossy().into_owned();
+        sidecar_command = sidecar_command
+            .env("TEMP", child_temp.clone())
+            .env("TMP", child_temp);
+    }
 
     add_log("⚙️ Starting backend with bundled JRE...".to_string());
 

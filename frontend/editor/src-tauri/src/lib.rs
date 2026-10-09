@@ -39,6 +39,7 @@ use commands::{
     set_connection_mode,
     set_as_default_pdf_handler,
     get_desktop_os,
+    is_pdf_tunner_portable,
     get_update_mode,
     print_pdf_file_native,
     set_update_mode,
@@ -181,7 +182,9 @@ pub fn run() {
         let app_handle = app.handle();
         // On macOS the plugin registers schemes via bundle metadata, so runtime registration is required only on Windows/Linux
         #[cfg(any(target_os = "linux", target_os = "windows"))]
-        if let Err(err) = app_handle.deep_link().register_all() {
+        if std::env::var_os("PDF_TUNNER_PORTABLE_ROOT").is_some() {
+          add_log("Portable mode: skipping OS protocol registration".to_string());
+        } else if let Err(err) = app_handle.deep_link().register_all() {
           add_log(format!("⚠️ Failed to register deep link handler: {}", err));
         }
 
@@ -253,6 +256,7 @@ pub fn run() {
       clear_user_info,
       start_oauth_login,
       get_desktop_os,
+      is_pdf_tunner_portable,
       print_pdf_file_native,
       can_install_updates,
       check_for_update,

@@ -1,6 +1,16 @@
 use std::path::PathBuf;
 
+fn portable_data_dir() -> Option<PathBuf> {
+    std::env::var_os("PDF_TUNNER_PORTABLE_ROOT")
+        .map(PathBuf::from)
+        .map(|root| root.join("data"))
+}
+
 pub fn app_data_dir() -> PathBuf {
+    if let Some(portable) = portable_data_dir() {
+        return portable;
+    }
+
     if cfg!(target_os = "macos") {
         let home = std::env::var("HOME").unwrap_or_else(|_| "/tmp".to_string());
         PathBuf::from(home)
@@ -18,6 +28,10 @@ pub fn app_data_dir() -> PathBuf {
 }
 
 pub fn system_provisioning_dir() -> Option<PathBuf> {
+    if let Some(portable) = portable_data_dir() {
+        return Some(portable.join("provisioning"));
+    }
+
     if cfg!(target_os = "windows") {
         let program_data = std::env::var("PROGRAMDATA").ok()?;
         Some(PathBuf::from(program_data).join("Stirling-PDF"))
