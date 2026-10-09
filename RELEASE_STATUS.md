@@ -131,3 +131,24 @@ Windows 10 Process Monitor Process Tree reported `Stirling PDF Inc.` as the PDF_
 ## CI #133 accepted; isolated candidate delivery requested (2026-10-09)
 
 Run #133 passed at commit `b80af710c74bfe4fde8e9c7261befa86d98be451`. ZIP was generated but (correctly) not stored: SHA-256 `344722C6204BC25B779FDC68E846E16DE9244C9AC3AEC3E59D6AEE7B62A009AA`. Expanded host-watch includes Windows AppInstaller Python alias diagnostics and HotSpot perfdata. Next CI run is an explicitly temporary one-day ZIP candidate for the user's real Windows 10 VM, not a final Release. Host WebView2 temp/registry issues and complete ProcMon acceptance are still pending. Keep `main` and archived releases untouched.
+
+### Run #134: accepted full Windows CI and Windows 10 manual validation handoff (2026-10-09)
+
+**CI status**: primary Windows Run #134 (`37903660457`, job `113731829770`, source commit `1a61b6412414dc3b6b1d2ae007b5cef5477c08fa`) completed **SUCCESS**. Real packaged backend listener rejects wildcard/LAN interfaces and confirmed loopback-only Java, frontend source checks for suppressed Stirling onboarding/registration and portable updater/default-handler settings passed, pinned package-local Python3+OpenCV/OCR and Java/temp and major PDF conversion backend checks all passed; portable window position/close/relaunch tests passed. Scoped host boundary test: **4 sampled TCP sockets, 0 external, 0 watched host file changes, 0 watched registry changes; graceful shutdown**. A green hosted CI test is NOT proof that the native Windows 10 VM performs no transient host writes, WebView2 side effects or unmeasured DNS/UDP.
+
+**Manual candidate**: https://github.com/WillsitoGG/PDF_Tunner/actions/runs/37903660457/artifacts/11605716228
+- Filename: `PDF_Tunner-2.14.3-bootstrap-Windows-x64-Portable.zip`.
+- SHA-256 of the ZIP bytes: `3C7FFB763BF743F7A265A2212BC3B19739B4A7032CF9637BC2369867DEFC063D`.
+- Size: 1,916,111,367 bytes.
+- GitHub Actions artifact expires **2026-10-10T08:56:22Z** (10:56:22 Madrid). This is a 1-day TEST artifact, NOT a release.
+- Audit JSON artifact #11604599640 (expires 2026-10-12), CI evidence #11605531120 (expires 2026-10-16).
+
+**Next mandatory Windows 10 acceptance (LISTADO 1)**:
+1. Download and extract #134 to an entirely new directory; do not overlay candidate #132 or reuse old package-local data; verify SHA-256 with `Get-FileHash` or `certutil -hashfile` before extraction.
+2. Cold launch while observing Windows Firewall: no new exception should be required for the loopback-only Java backend. Confirm PDF_Tunner logos/search and company metadata (Windows Properties), no upstream Stirling V2 welcome, no cloud sign-in or registration.
+3. Check Settings > General has no software-update, auto-update or default-handler controls in portable; Settings > Connection Mode must not offer sign-in; Legal/licenses remain accessible.
+4. Exercise PDF merge or compress and one OCR/conversion, confirm local state persists after exit/relaunch, and verify the extracted folder can be moved to another local path.
+5. Repeat Process Monitor for the full PDF_Tunner.exe process tree (Java, Python, WebView2): write operations on paths outside portable, Registry `RegSetValue` and actual new `RegCreateKey`, and separate TCP/UDP activity. Validate whether the previous AppInstaller Python alias log, HotSpot `hsperfdata`, Java sockets, WebView2 host TEMP file and Shell/MRU changes recur. User-chosen output PDF under Downloads is not automatically a portability defect.
+6. Do not merge into main, publish any permanent GitHub Release, delete functionality, or optimize disk footprint until user has supplied Windows 10 acceptance results and the remaining host effects are classified.
+
+**No extra code changes or CI builds are needed while waiting for VM feedback.**
