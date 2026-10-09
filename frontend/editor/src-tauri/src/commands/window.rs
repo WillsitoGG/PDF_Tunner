@@ -5,7 +5,7 @@ use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::Mutex;
 use tauri::{AppHandle, Emitter, Manager, WebviewUrl, WebviewWindow, WebviewWindowBuilder};
 
-// The primary window created from tauri.conf.json.
+// Both main and spawned windows are created by the v3 native builders.
 pub const MAIN_WINDOW_LABEL: &str = "main";
 
 static NEXT_WINDOW_ID: AtomicU32 = AtomicU32::new(2);
@@ -38,8 +38,13 @@ const TRAFFIC_LIGHT_INSET: (f64, f64) = (13.0, 18.0);
 // sits beside the spawned-window chrome instead of split across a config file.
 // OS drag-drop is disabled; the frontend handles file drops itself.
 pub fn build_main_window(app: &AppHandle) -> Result<WebviewWindow, String> {
+    let title = if std::env::var_os("PDF_TUNNER_PORTABLE_ROOT").is_some() {
+        "PDF_Tunner"
+    } else {
+        "Stirling PDF"
+    };
     let builder = WebviewWindowBuilder::new(app, MAIN_WINDOW_LABEL, WebviewUrl::App("/".into()))
-        .title("Stirling PDF")
+        .title(title)
         .inner_size(1280.0, 800.0)
         // Below this width the file manager collapses to its mobile layout, so
         // keep the window above the breakpoint (matches the spawned windows).
@@ -68,8 +73,13 @@ pub fn build_main_window(app: &AppHandle) -> Result<WebviewWindow, String> {
 // browser args so they can share one user-data folder (see the note below),
 // so all spawn paths funnel through here.
 fn build_window(app: &AppHandle, label: &str, url: &str) -> Result<WebviewWindow, String> {
+    let title = if std::env::var_os("PDF_TUNNER_PORTABLE_ROOT").is_some() {
+        "PDF_Tunner"
+    } else {
+        "Stirling-PDF"
+    };
     let builder = WebviewWindowBuilder::new(app, label, WebviewUrl::App(url.into()))
-        .title("Stirling-PDF")
+        .title(title)
         .inner_size(1280.0, 800.0)
         // Below this width the file manager collapses to its mobile layout,
         // so keep new windows above the breakpoint.

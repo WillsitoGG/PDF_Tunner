@@ -132,7 +132,11 @@ $configPath = (Resolve-Path -LiteralPath './frontend/editor/src-tauri/tauri.pdf-
 $config = Get-Content -LiteralPath $configPath -Raw | ConvertFrom-Json
 if ($config.productName -ne 'PDF_Tunner') { throw 'Tauri productName is not PDF_Tunner.' }
 if ($config.mainBinaryName -ne 'PDF_Tunner') { throw 'Tauri mainBinaryName is not PDF_Tunner.' }
-if ($config.app.windows[0].title -ne 'PDF_Tunner') { throw 'Tauri main-window title is not PDF_Tunner.' }
+if (@($config.app.windows).Count -ne 0) { throw 'Tauri portable overlay must not duplicate the v3 native main window.' }
+$nativeWindows = Get-Content -LiteralPath './frontend/editor/src-tauri/src/commands/window.rs' -Raw
+if (($nativeWindows | Select-String -Pattern '"PDF_Tunner"' -AllMatches).Matches.Count -lt 2 -or $nativeWindows -notmatch 'PDF_TUNNER_PORTABLE_ROOT') {
+    throw 'Native v3 main and spawned windows are not titled PDF_Tunner in portable mode.'
+}
 if ($config.identifier -ne 'com.willsitogg.pdf-tunner') { throw "Unexpected PDF_Tunner Tauri identifier: $($config.identifier)" }
 if (@($config.bundle.icon) -notcontains 'icons/pdf-tunner.ico') { throw 'Tauri bundle icon does not use icons/pdf-tunner.ico.' }
 if ($config.bundle.publisher -ne 'PDF_Tunner') { throw 'Portable Windows executable publisher is not PDF_Tunner.' }

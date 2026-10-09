@@ -194,3 +194,14 @@ for token in (
     if token not in branding_gate:
         raise SystemExit(f"FAIL: Windows branding QA source lacks v3 account gate: {token}")
 print("PASS: v3.1 Windows branding QA references active account/billing guard APIs")
+
+# A12: upstream v3 dynamically creates the main Tauri window in Rust. The
+# v2 config-defined default "main" window would duplicate that native label.
+if overlay.get("app", {}).get("windows") != []:
+    raise SystemExit("FAIL: v3 portable overlay must not auto-create a Tauri main window")
+windows_native = (root / "frontend/editor/src-tauri/src/commands/window.rs").read_text()
+if windows_native.count('std::env::var_os("PDF_TUNNER_PORTABLE_ROOT")') < 2:
+    raise SystemExit("FAIL: main/spawned Rust windows lack native portable detection")
+if windows_native.count('"PDF_Tunner"') < 2:
+    raise SystemExit("FAIL: main/spawned Rust windows lack PDF_Tunner branding")
+print("PASS: v3 native window creation is unique and portable window titles are branded")

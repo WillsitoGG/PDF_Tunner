@@ -4,17 +4,7 @@
   "mainBinaryName": "PDF_Tunner",
   "identifier": "com.willsitogg.pdf-tunner",
   "app": {
-    "windows": [
-      {
-        "title": "PDF_Tunner",
-        "width": 1280,
-        "height": 800,
-        "resizable": true,
-        "fullscreen": false,
-        "dragDropEnabled": false,
-        "additionalBrowserArgs": "--enable-features=CertVerifierBuiltinFeature"
-      }
-    ]
+    "windows": []
   },
   "bundle": {
     "active": false,
