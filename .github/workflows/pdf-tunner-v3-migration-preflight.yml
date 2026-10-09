@@ -46,6 +46,7 @@ jobs:
             frontend/editor/src-tauri/src/lib.rs \
             frontend/editor/src-tauri/src/commands/backend.rs \
             frontend/editor/src-tauri/src/commands/platform.rs \
+            frontend/editor/src-tauri/src/commands/window.rs \
             frontend/editor/src-tauri/src/commands/mod.rs \
             frontend/editor/src-tauri/src/utils/paths.rs \
             frontend/editor/src-tauri/src/utils/mod.rs \
@@ -96,9 +97,19 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          test -f frontend/editor/dist/index.html
-          test -f frontend/editor/dist/pdf-tunner/icon-light.svg
-          test -f frontend/editor/dist/pdf-tunner/wordmark-black.svg
-          grep -q '<title>PDF_Tunner</title>' frontend/editor/dist/index.html
-          grep -q '"name": "PDF_Tunner"' frontend/editor/dist/manifest.json
-          echo 'PASS: v3.1 desktop assets contain interim PDF_Tunner branding'
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          root = Path("frontend/editor/dist")
+          for filename in ("index.html", "pdf-tunner/icon-light.svg", "pdf-tunner/wordmark-black.svg", "manifest.json"):
+              if not (root / filename).is_file():
+                  raise SystemExit(f"FAIL: compiled desktop asset missing: {filename}")
+          html = (root / "index.html").read_text()
+          if "<title>PDF_Tunner</title>" not in html:
+              title = html.split("<title>", 1)[-1].split("</title>", 1)[0]
+              raise SystemExit(f"FAIL: desktop dist title differs from PDF_Tunner: {title!r}")
+          manifest = json.loads((root / "manifest.json").read_text())
+          if manifest.get("name") != "PDF_Tunner":
+              raise SystemExit(f"FAIL: desktop dist manifest name is {manifest.get('name')!r}")
+          print("PASS: v3.1 desktop assets contain interim PDF_Tunner identity")
+          PY

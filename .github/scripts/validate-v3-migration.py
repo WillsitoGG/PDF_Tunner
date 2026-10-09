@@ -205,3 +205,7 @@ if windows_native.count('std::env::var_os("PDF_TUNNER_PORTABLE_ROOT")') < 2:
 if windows_native.count('"PDF_Tunner"') < 2:
     raise SystemExit("FAIL: main/spawned Rust windows lack PDF_Tunner branding")
 print("PASS: v3 native window creation is unique and portable window titles are branded")
+
+# A13: v3's workspace places the Tauri config schema in frontend/node_modules.
+if overlay.get("$schema") != "../../node_modules/@tauri-apps/cli/config.schema.json":
+    raise SystemExit("FAIL: v3 Tauri portable overlay schema points to old v2 node_modules")
