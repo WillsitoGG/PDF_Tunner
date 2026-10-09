@@ -1,0 +1,72 @@
+name: PDF_Tunner v3 Windows Java and JLink probe
+
+# B1: One deliberate non-release backend compilation. Never runs from unrelated
+# commits. Full Windows ZIP and external runtime acceptance remain separate.
+on:
+  push:
+    branches:
+      - pdf-tunner/v3.1.0-portable-integration
+    paths:
+      - '.github/workflows/pdf-tunner-v3-java-jlink-probe.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pdf-tunner-v3-java-jlink-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  windows-backend-jlink:
+    runs-on: windows-latest
+    timeout-minutes: 65
+    env:
+      DISABLE_ADDITIONAL_FEATURES: 'true'
+      JPDFIUM_PLATFORMS: 'windows-x64'
+    steps:
+      - name: Check out the pinned v3.1 integration branch
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 0
+
+      - name: Verify real upstream 3.1.0 ancestry
+        shell: pwsh
+        run: |
+          & git merge-base --is-ancestor b99fa929e365760c863956bf23c127b098c288e5 HEAD
+          if ($LASTEXITCODE -ne 0) { throw 'Integration branch lost the official 3.1.0 ancestor' }
+
+      - name: Set up JDK 25 for real Windows binaries
+        uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5.7.0
+        with:
+          distribution: temurin
+          java-version: '25'
+
+      - name: Set up Node 22 for upstream JLink verification
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: '22'
+
+      - name: Set up official Task runner
+        uses: go-task/setup-task@01a4adf9db2d14c1de7a560f09170b6e0df736aa # v2.1.0
+
+      - name: Compile official 3.1.0 Windows bootJar and bundled JDK 25 JLink runtime
+        shell: pwsh
+        run: |
+          & task desktop:jlink
+          if ($LASTEXITCODE -ne 0) { throw "Official desktop:jlink failed (exit $LASTEXITCODE)" }
+
+      - name: Validate real bundled Java/JLink and branded JAR resources
+        shell: pwsh
+        run: |
+          & ./.github/scripts/validate-v3-java-package.ps1
+          if ($LASTEXITCODE -ne 0) { throw "PDF_Tunner v3 Java package acceptance failed (exit $LASTEXITCODE)" }
+
+      - name: Confirm clean source tree and record lightweight evidence
+        if: success()
+        shell: pwsh
+        run: |
+          $jar = Get-ChildItem 'frontend/editor/src-tauri/libs' -Filter 'stirling-pdf-*.jar' -File | Select-Object -First 1
+          Write-Host "JAR: $($jar.Name)"
+          Write-Host "JAR SHA256: $((Get-FileHash -LiteralPath $jar.FullName -Algorithm SHA256).Hash)"
+          Write-Host 'No JAR/JRE/ZIP is uploaded or published from this probe.'
