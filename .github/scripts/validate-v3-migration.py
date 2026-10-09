@@ -101,3 +101,21 @@ for rel, tokens in frontend_guards.items():
         if token not in data:
             raise SystemExit(f"FAIL: missing portable frontend update guard in {rel}: {token}")
     print(f"PASS: portable frontend update source guard: {rel}")
+
+# A7: keep account wizard and local account buttons off the marked portable UI.
+for rel, required in {
+    "frontend/editor/src/desktop/components/DesktopOnboardingModal.tsx": [
+        'invoke<boolean>("is_pdf_tunner_portable")',
+        "if (isPortable || bypassOnboarding) return null;",
+    ],
+    "frontend/editor/src/desktop/components/ConnectionSettings.tsx": [
+        'invoke<boolean>("is_pdf_tunner_portable")',
+        "!isPortable && (",
+        "onClick={handleSignIn}",
+    ],
+}.items():
+    data = (root / rel).read_text()
+    for token in required:
+        if token not in data:
+            raise SystemExit(f"FAIL: missing portable account UI guard: {rel}: {token}")
+    print(f"PASS: portable account UI source guard: {rel}")

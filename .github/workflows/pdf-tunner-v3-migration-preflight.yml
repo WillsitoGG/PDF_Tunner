@@ -6,6 +6,8 @@ on:
       - pdf-tunner/v3.1.0-portable-integration
     paths:
       - 'frontend/editor/src-tauri/**'
+      - 'frontend/editor/src/desktop/components/DesktopOnboardingModal.tsx'
+      - 'frontend/editor/src/desktop/components/ConnectionSettings.tsx'
       - 'frontend/editor/src/desktop/hooks/useDesktopUpdatePopup.ts'
       - 'frontend/editor/src/core/services/updateService.ts'
       - 'frontend/editor/src/desktop/components/shared/config/configSections/GeneralSection.tsx'

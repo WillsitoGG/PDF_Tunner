@@ -1,4 +1,5 @@
 import { useEffect, useState, useMemo } from "react";
+import { invoke } from "@tauri-apps/api/core";
 import { useTranslation } from "react-i18next";
 import { authService } from "@app/services/authService";
 import OnboardingSlideShell, {
@@ -24,6 +25,16 @@ export function DesktopOnboardingModal() {
   const { t } = useTranslation();
   const bypassOnboarding = useBypassOnboarding();
   const automationEnabled = usePoliciesEnabled();
+  // Do not paint Stirling's account wizard or classification onboarding while
+  // determining portable mode; native detection failure leaves them hidden.
+  const [isPortable, setIsPortable] = useState(true);
+  useEffect(() => {
+    let active = true;
+    invoke<boolean>("is_pdf_tunner_portable")
+      .then((portable) => { if (active) setIsPortable(portable); })
+      .catch((error) => console.warn("[PDF_Tunner] Portable onboarding policy unknown", error));
+    return () => { active = false; };
+  }, []);
   const [visible, setVisible] = useState(
     () => !localStorage.getItem(ONBOARDING_KEY),
   );
@@ -89,7 +100,7 @@ export function DesktopOnboardingModal() {
   // reconstructed on every render while the modal is open.
   const welcomeSlide = useMemo(() => WelcomeSlide(), []);
 
-  if (bypassOnboarding) return null;
+  if (isPortable || bypassOnboarding) return null;
 
   if (!visible) {
     // Accepting the offer hands the workbench canvas to the sweep, which outlives this

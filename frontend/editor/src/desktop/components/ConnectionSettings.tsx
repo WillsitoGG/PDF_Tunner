@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { invoke } from "@tauri-apps/api/core";
 import { Stack, Card, Badge, Text, Group } from "@mantine/core";
 import { Button } from "@app/ui/Button";
 import { useTranslation } from "react-i18next";
@@ -16,6 +17,16 @@ export const ConnectionSettings: React.FC = () => {
   const [config, setConfig] = useState<ConnectionConfig | null>(null);
   const [userInfo, setUserInfo] = useState<UserInfo | null>(null);
   const [loading, setLoading] = useState(false);
+  // Hide local sign-in while native mode is not known. Never prompt for a
+  // cloud account in a marked portable PDF_Tunner package.
+  const [isPortable, setIsPortable] = useState(true);
+  useEffect(() => {
+    let active = true;
+    invoke<boolean>("is_pdf_tunner_portable")
+      .then((portable) => { if (active) setIsPortable(portable); })
+      .catch((error) => console.warn("[PDF_Tunner] Portable connection policy unknown", error));
+    return () => { active = false; };
+  }, []);
 
   // Load current config on mount
   useEffect(() => {
@@ -154,9 +165,11 @@ export const ConnectionSettings: React.FC = () => {
 
           <Group mt="md">
             {config.mode === "local" ? (
-              <Button onClick={handleSignIn} variant="secondary">
-                {t("settings.connection.signIn", "Sign In")}
-              </Button>
+              !isPortable && (
+                <Button onClick={handleSignIn} variant="secondary">
+                  {t("settings.connection.signIn", "Sign In")}
+                </Button>
+              )
             ) : (
               <Button
                 onClick={handleLogout}
