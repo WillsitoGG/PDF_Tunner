@@ -91,7 +91,7 @@ function compressStaticCopyPlugin(): PluginOption {
 // origin serves the page (correct for self-hosted Docker). Indexing signals
 // (canonical, JSON-LD, sitemap) need VITE_OG_BASE_URL specifically - see below.
 // Logic lives in scripts/og-prerender.mjs so it can be unit-tested without a full build.
-function prerenderOgPlugin(isSaas: boolean): PluginOption {
+function prerenderOgPlugin(isSaas: boolean, isDesktop: boolean): PluginOption {
   // SaaS (stirling.com) prerenders the marketing cards from a dedicated
   // manifest; every other flavour uses the tool-registry manifest.
   const manifestFile = isSaas
@@ -133,6 +133,12 @@ function prerenderOgPlugin(isSaas: boolean): PluginOption {
             "Run `node scripts/generate-og-metadata.mjs`.",
         );
         return;
+      }
+      // The upstream prerenderer rewrites dist/index.html from its generic
+      // Stirling manifest, undoing the branded desktop HTML title. Override
+      // only the desktop output; keep SaaS/web SEO manifests untouched.
+      if (isDesktop) {
+        manifest.default.title = "PDF_Tunner";
       }
       const distDir = path.resolve(__dirname, "dist");
       // The crawlable landing body only pays for itself where a crawler can
@@ -394,7 +400,7 @@ export default defineConfig(async ({ mode, command }) => {
         ],
       }),
       compressStaticCopyPlugin(),
-      prerenderOgPlugin(effectiveMode === "saas"),
+      prerenderOgPlugin(effectiveMode === "saas", effectiveMode === "desktop"),
     ],
     // Worker bundles are a separate Rollup pass and do NOT inherit `plugins`,
     // so without this `@app/*` resolves in the app and fails in a worker.

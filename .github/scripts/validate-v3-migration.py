@@ -209,3 +209,12 @@ print("PASS: v3 native window creation is unique and portable window titles are 
 # A13: v3's workspace places the Tauri config schema in frontend/node_modules.
 if overlay.get("$schema") != "../../node_modules/@tauri-apps/cli/config.schema.json":
     raise SystemExit("FAIL: v3 Tauri portable overlay schema points to old v2 node_modules")
+
+# A15: v3 prerender rewrites index.html after Vite using an upstream SEO title.
+# Desktop-only override keeps PDF_Tunner without altering SaaS/web manifests.
+vite_source = (root / "frontend/editor/vite.config.ts").read_text()
+if 'manifest.default.title = "PDF_Tunner";' not in vite_source:
+    raise SystemExit("FAIL: v3 prerender will overwrite PDF_Tunner desktop HTML title")
+if 'prerenderOgPlugin(effectiveMode === "saas", effectiveMode === "desktop")' not in vite_source:
+    raise SystemExit("FAIL: v3 OG desktop title override is not mode-isolated")
+print("PASS: desktop OG title override is scoped to desktop mode")
