@@ -97,7 +97,7 @@ $reactLogo = Get-Content -LiteralPath './frontend/editor/src/core/ui/Logo.tsx' -
 $brandMark = Get-Content -LiteralPath './frontend/editor/src/core/components/shared/BrandMark.tsx' -Raw
 $portableUpdateHook = Get-Content -LiteralPath './frontend/editor/src/desktop/hooks/useDesktopUpdatePopup.ts' -Raw
 $portableMode = Get-Content -LiteralPath './frontend/editor/src-tauri/src/commands/platform.rs' -Raw
-$localWalletGate = Get-Content -LiteralPath './frontend/editor/src/desktop/hooks/walletApiEnabled.ts' -Raw
+$localWalletGate = Get-Content -LiteralPath './frontend/editor/src/desktop/hooks/useWallet.ts' -Raw
 if ($reactLogo -match '@app/assets/brand/branding-logo' -or $reactLogo -notmatch 'pdf-tunner/wordmark-black\.svg' -or $reactLogo -notmatch 'alt = "PDF_Tunner"') {
     throw 'Shared React lockup still uses original Stirling artwork/alt text.'
 }
@@ -107,7 +107,7 @@ if ($brandMark -match 'aria-label="Stirling"' -or $brandMark -notmatch 'pdf-tunn
 if ($portableUpdateHook -notmatch 'is_pdf_tunner_portable' -or $portableMode -notmatch 'pub fn is_pdf_tunner_portable') {
     throw 'PDF_Tunner portable update guard is missing; official Stirling updates might be queried.'
 }
-if ($localWalletGate -notmatch 'getCurrentMode' -or $localWalletGate -notmatch '"saas"') {
+if ($localWalletGate -notmatch 'useConfirmedSaaSMode' -or $localWalletGate -notmatch 'enabled && saasMode') {
     throw 'The portable local backend might receive the unsupported PAYG wallet request.'
 }
 $searchSource = Get-Content -LiteralPath './frontend/editor/src/core/components/shared/superSearch/SuperSearch.tsx' -Raw
@@ -119,10 +119,10 @@ if ($brandStyle -notmatch 'sui-brandmark__chevron' -or $brandStyle -notmatch 'fi
 $portableOnboarding = Get-Content -LiteralPath './frontend/editor/src/desktop/components/DesktopOnboardingModal.tsx' -Raw
 $portableGeneral = Get-Content -LiteralPath './frontend/editor/src/desktop/components/shared/config/configSections/GeneralSection.tsx' -Raw
 $portableConnection = Get-Content -LiteralPath './frontend/editor/src/desktop/components/ConnectionSettings.tsx' -Raw
-if ($portableOnboarding -notmatch 'is_pdf_tunner_portable' -or $portableOnboarding -notmatch 'useState\(false\)') { throw 'Portable onboarding must remain hidden during native flag detection.' }
+if ($portableOnboarding -notmatch 'is_pdf_tunner_portable' -or $portableOnboarding -notmatch 'useState\(true\)' -or $portableOnboarding -notmatch 'if \(isPortable \|\| bypassOnboarding\) return null') { throw 'Portable onboarding must remain hidden during native flag detection.' }
 if ($portableGeneral -notmatch 'hideUpdateSection=\{' -or $portableGeneral -notmatch '!isPortable && <DefaultAppSettings') { throw 'Portable update and default-handler UI must be hidden.' }
-if ($portableConnection -notmatch '!isPortable && <Button onClick=\{handleSignIn\}') { throw 'Portable local sign-in control must be hidden.' }
-Write-Host 'PASS: runtime React logo paths, native portable update guard and PAYG route guard are present.'
+if ($portableConnection -notmatch 'is_pdf_tunner_portable' -or $portableConnection -notmatch '!isPortable && \(' -or $portableConnection -notmatch 'onClick=\{handleSignIn\}') { throw 'Portable local sign-in control must be hidden.' }
+Write-Host 'PASS: v3.1 React logo paths, portable update/onboarding gates and SaaS-only PAYG guard are present.'
 
 $portable = (Resolve-Path -LiteralPath $PortableRoot).Path
 $exe = Join-Path $portable 'PDF_Tunner.exe'

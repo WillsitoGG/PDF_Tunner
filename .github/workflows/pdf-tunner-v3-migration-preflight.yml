@@ -81,3 +81,24 @@ jobs:
         working-directory: frontend
         shell: bash
         run: npx tsc --noEmit --project editor/src/desktop/tsconfig.json
+
+      - name: Prepare v3 desktop environment
+        working-directory: frontend
+        shell: bash
+        run: npx tsx editor/scripts/setup-env.mts --desktop
+
+      - name: Build actual v3.1 desktop frontend assets
+        working-directory: frontend
+        shell: bash
+        run: npx vite build editor --mode desktop
+
+      - name: Validate compiled interim PDF_Tunner index and branding assets
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f frontend/editor/dist/index.html
+          test -f frontend/editor/dist/pdf-tunner/icon-light.svg
+          test -f frontend/editor/dist/pdf-tunner/wordmark-black.svg
+          grep -q '<title>PDF_Tunner</title>' frontend/editor/dist/index.html
+          grep -q '"name": "PDF_Tunner"' frontend/editor/dist/manifest.json
+          echo 'PASS: v3.1 desktop assets contain interim PDF_Tunner branding'

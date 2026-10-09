@@ -178,3 +178,19 @@ for rel, tokens in {
         if token not in data:
             raise SystemExit(f"FAIL: portable frontend branding source missing: {rel}: {token}")
 print("PASS: interim legacy PDF_Tunner visual identity is staged for v3.1")
+
+# A11: do not regress v3's desktop SaaS-only billing hook or the real
+# PowerShell Windows branding QA. This is source-only until the Windows ZIP gate.
+wallet = (root / "frontend/editor/src/desktop/hooks/useWallet.ts").read_text()
+for token in ("useConfirmedSaaSMode", "enabled && saasMode"):
+    if token not in wallet:
+        raise SystemExit(f"FAIL: v3 billing hook no longer restricted to SaaS mode: {token}")
+branding_gate = (root / ".github/scripts/validate-branding.ps1").read_text()
+for token in (
+    "useConfirmedSaaSMode", "enabled && saasMode",
+    "if \\(isPortable \\|\\| bypassOnboarding\\) return null",
+    "is_pdf_tunner_portable",
+):
+    if token not in branding_gate:
+        raise SystemExit(f"FAIL: Windows branding QA source lacks v3 account gate: {token}")
+print("PASS: v3.1 Windows branding QA references active account/billing guard APIs")
