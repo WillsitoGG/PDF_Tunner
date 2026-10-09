@@ -1,4 +1,5 @@
-use tauri::{AppHandle, Emitter, Manager, RunEvent, WindowEvent};
+use tauri::{AppHandle, Emitter, Manager, RunEvent, Runtime, WindowEvent};
+use tauri_plugin_log::{Target, TargetKind};
 use tauri_plugin_window_state::StateFlags;
 
 mod utils;
@@ -56,7 +57,7 @@ use commands::{
 };
 use commands::connection::apply_provisioning_if_present;
 use state::connection_state::AppConnectionState;
-use utils::{add_log, get_tauri_logs};
+use utils::{add_log, get_tauri_logs, portable_window_state};
 use tauri_plugin_deep_link::DeepLinkExt;
 
 fn dispatch_deep_link(app: &AppHandle, url: &str) {
@@ -92,6 +93,50 @@ fn is_app_url(url: &tauri::Url) -> bool {
   }
 }
 
+fn window_state_plugin<R: Runtime>() -> tauri::plugin::TauriPlugin<R> {
+  if std::env::var_os("PDF_TUNNER_PORTABLE_ROOT").is_some() {
+    // Upstream writes native window state to the system profile. The portable
+    // plugin uses the same lifecycle but stores data under data/tauri.
+    tauri::plugin::Builder::<R, ()>::new("pdf-tunner-portable-window-state")
+      .setup(|app, _api| {
+        if let Err(err) = portable_window_state::initialize(app) {
+          add_log(format!("Portable window-state init failed: {err}"));
+        }
+        Ok(())
+      })
+      .on_window_ready(|window| {
+        if let Err(err) = portable_window_state::track_window(&window) {
+          add_log(format!("Portable window-state tracking failed: {err}"));
+        }
+      })
+      .build()
+  } else {
+    tauri_plugin_window_state::Builder::default()
+      .with_state_flags(StateFlags::all() & !StateFlags::DECORATIONS)
+      .build()
+  }
+}
+
+fn log_plugin<R: Runtime>() -> tauri::plugin::TauriPlugin<R> {
+  if let Some(root) = std::env::var_os("PDF_TUNNER_PORTABLE_ROOT") {
+    // Do not allow Tauri's standard log target to create host AppData files.
+    let path = std::path::PathBuf::from(root).join("data").join("logs").join("tauri");
+    tauri_plugin_log::Builder::new()
+      .level(log::LevelFilter::Info)
+      .clear_targets()
+      .targets([
+        Target::new(TargetKind::Stdout),
+        Target::new(TargetKind::Folder {
+          path,
+          file_name: Some("PDF_Tunner".to_string()),
+        }),
+      ])
+      .build()
+  } else {
+    tauri_plugin_log::Builder::new().level(log::LevelFilter::Info).build()
+  }
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
   // WebKitGTK's DMA-BUF renderer crashes the web process on NVIDIA and some
@@ -116,11 +161,7 @@ pub fn run() {
         })
         .build()
     )
-    .plugin(
-      tauri_plugin_log::Builder::new()
-        .level(log::LevelFilter::Info)
-        .build()
-    )
+    .plugin(log_plugin())
     .plugin(tauri_plugin_opener::init())
     .plugin(directory_drop::init())
     .plugin(tauri_plugin_shell::init())
@@ -131,11 +172,7 @@ pub fn run() {
     .plugin(tauri_plugin_deep_link::init())
     .plugin(tauri_plugin_notification::init())
     .plugin(tauri_plugin_updater::Builder::new().build())
-    .plugin(
-      tauri_plugin_window_state::Builder::default()
-        .with_state_flags(StateFlags::all() & !StateFlags::DECORATIONS)
-        .build()
-    )
+    .plugin(window_state_plugin())
     .manage(AppConnectionState::default())
     .plugin(tauri_plugin_single_instance::init(|app, args, _cwd| {
       // Runs in the existing instance when a second launch is attempted
@@ -270,14 +307,32 @@ pub fn run() {
     .expect("error while building tauri application")
     .run(|app_handle, event| {
       match event {
-        RunEvent::ExitRequested { .. } => {
+        RunEvent::ExitRequested { code, .. } => {
           add_log("🔄 App exit requested, cleaning up...".to_string());
+          let portable = std::env::var_os("PDF_TUNNER_PORTABLE_ROOT").is_some();
+          if portable {
+            match portable_window_state::save(app_handle) {
+              Ok(path) => add_log(format!("Portable window state saved: {}", path.display())),
+              Err(err) => add_log(format!("Portable window state save failed: {err}")),
+            }
+          }
           cleanup_backend();
-          // Use Tauri's built-in cleanup
           app_handle.cleanup_before_exit();
+          if portable {
+            // Portable native Windows release must not keep the parent alive
+            // after backend shutdown.
+            std::process::exit(code.unwrap_or(0));
+          }
         }
         RunEvent::WindowEvent { event: WindowEvent::CloseRequested {.. }, label, .. } => {
           add_log("🔄 Window close requested (will cleanup on actual exit)...".to_string());
+          if std::env::var_os("PDF_TUNNER_PORTABLE_ROOT").is_some() {
+            if let Some(window) = app_handle.get_webview_window(&label) {
+              if let Err(err) = portable_window_state::capture_window(&window) {
+                add_log(format!("Portable window state capture failed: {err}"));
+              }
+            }
+          }
           // Don't cleanup here - let JavaScript handler prevent close if needed
           // Backend cleanup happens in ExitRequested when window actually closes
           //
