@@ -51,3 +51,7 @@ Adapted the new v3.1 DesktopOnboardingModal and ConnectionSettings without repla
 ### v3.1.0 migration slice A8 — real Windows native Rust compilation probe
 
 Added an isolated branch-only `pdf-tunner-v3-windows-compile.yml` workflow. It invokes `cargo check --locked` on a fresh `windows-latest` runner to detect real Rust/Windows type, feature and Tauri integration problems that `rustfmt` cannot find. It preserves the exact upstream v3.1.0 commit ancestry, downloads no PDF conversion runtime packages, and publishes no binaries or large artifacts. It runs automatically only when its workflow file changes, otherwise only by deliberate manual dispatch; do not turn it into a repeated trigger for unrelated commits. **Not equivalent to:** Windows executable build, backend JAR/JLink build, full ZIP, or GUI acceptance. Full portable workflow remains a required later gate.
+
+### v3.1.0 A8 native probe checkout correction
+
+The initial Windows native probe failed **before Cargo**: default checkout depth 1 omitted the pinned v3.1.0 ancestor (`fatal: Not a valid commit name b99fa929...`). This is a CI checkout error, not evidence of a Rust compilation failure. Pinned a bounded checkout history (`fetch-depth: 20`) to include the upstream base and replay the same compile probe; no runtime dependency download or release occurs.
