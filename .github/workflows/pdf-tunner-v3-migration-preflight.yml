@@ -1,0 +1,54 @@
+name: PDF_Tunner v3 migration preflight
+
+on:
+  push:
+    branches:
+      - pdf-tunner/v3.1.0-portable-integration
+    paths:
+      - 'frontend/editor/src-tauri/**'
+      - '.github/workflows/pdf-tunner-v3-migration-preflight.yml'
+      - '.github/scripts/validate-v3-migration.py'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pdf-tunner-v3-preflight-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  source-preflight:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out integration branch
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 3
+
+      - name: Install Rust parser/formatter
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+
+      - name: Parse modified portable Rust sources
+        shell: bash
+        run: |
+          set -euo pipefail
+          for rust_source in \
+            frontend/editor/src-tauri/src/main.rs \
+            frontend/editor/src-tauri/src/lib.rs \
+            frontend/editor/src-tauri/src/commands/backend.rs \
+            frontend/editor/src-tauri/src/commands/platform.rs \
+            frontend/editor/src-tauri/src/commands/mod.rs \
+            frontend/editor/src-tauri/src/utils/paths.rs \
+            frontend/editor/src-tauri/src/utils/mod.rs \
+            frontend/editor/src-tauri/src/utils/portable_window_state.rs; do
+            rustfmt --edition 2021 --emit stdout "$rust_source" > /dev/null
+            echo "PASS: Rust syntax: $rust_source"
+          done
+
+      - name: Check exact upstream version and portable source integration
+        shell: bash
+        run: python3 .github/scripts/validate-v3-migration.py
